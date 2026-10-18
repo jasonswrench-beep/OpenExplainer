@@ -1,9 +1,12 @@
 import "./style.css";
 import {
   STATUSES, addNode, createProject, findNode, indent, locate, moveDown, moveUp, numbering,
-  outdent, removeNode, renameNode, setStatus, visibleNodes, findNodes, replaceInTitles, type Project, type Status,
+  outdent, removeNode, renameNode, setStatus, visibleNodes, findNodes, replaceInTitles,
+  addPicture, removePicture, setAltText, newId, type Picture, type Project, type Status,
 } from "./project/model.ts";
-import { chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
+import { chooseImages, chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
+import { readImageInfo } from "./project/image.ts";
+import type { Assets } from "./project/package.ts";
 import { confirmDialog, messageDialog, newProjectDialog, promptText, variablesDialog } from "./dialogs.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -15,6 +18,7 @@ let filePath: string | null = null;
 let dirty = false;
 let selectedId: string | null = null;
 const collapsed = new Set<string>();
+let assets: Assets = new Map();
 
 // ---- Page skeleton -----------------------------------------------------------------------
 app.innerHTML = `
@@ -58,6 +62,14 @@ app.innerHTML = `
     </p>
     <ul id="tree" role="tree" aria-label="Chapters and topics" aria-describedby="tree-help"></ul>
     <p id="empty" class="help" hidden>This project has no chapters yet. Choose Add chapter to start.</p>
+    <section id="pictures-section" aria-labelledby="pictures-heading">
+      <h3 id="pictures-heading">Pictures</h3>
+      <div class="toolbar">
+        <button type="button" id="b-import">Import pictures into the selected item</button>
+      </div>
+      <p id="pictures-empty" class="help"></p>
+      <ul id="pictures" class="pictures" aria-label="Pictures in the selected item"></ul>
+    </section>
     <div id="announce" class="visually-hidden" role="status" aria-live="polite"></div>
   </main>
 `;
@@ -132,8 +144,110 @@ function render(focusSelected = false) {
   statusSelect.value = current?.status ?? "not-started";
   statusSelect.disabled = !current;
   renderHeading();
+  renderPictures();
   if (focusSelected) treeEl.querySelector<HTMLElement>('[tabindex="0"]')?.focus();
 }
+
+// ---- Pictures ----------------------------------------------------------------------------
+let blobUrls: string[] = [];
+
+function renderPictures() {
+  blobUrls.forEach((url) => URL.revokeObjectURL(url));
+  blobUrls = [];
+  const list = $<HTMLUListElement>("pictures");
+  list.replaceChildren();
+  const node = selected();
+  $<HTMLButtonElement>("b-import").disabled = !node;
+  $("pictures-empty").textContent = !node
+    ? "Select a chapter or topic to see or add its pictures."
+    : node.pictures.length ? "" : `"${node.title}" has no pictures yet.`;
+  if (!node) return;
+
+  for (const picture of node.pictures) {
+    const li = document.createElement("li");
+    const bytes = assets.get(picture.file);
+    if (bytes) {
+      const img = document.createElement("img");
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: picture.file.endsWith(".png") ? "image/png" : "image/jpeg" }));
+      blobUrls.push(url);
+      img.src = url;
+      img.alt = picture.altText || "Picture with no description yet";
+      img.className = "thumb";
+      li.append(img);
+    } else {
+      const missing = document.createElement("p");
+      missing.textContent = "⚠ This picture file is missing from the project.";
+      li.append(missing);
+    }
+    const info = document.createElement("div");
+    const name = picture.source.originalName ?? picture.file;
+    const description = document.createElement("p");
+    description.textContent = picture.altText ? `Description: ${picture.altText}` : "⚠ Needs a description";
+    const size = document.createElement("p");
+    size.className = "help";
+    size.textContent = `${name}, ${picture.width} by ${picture.height} pixels`;
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = "Edit description";
+    edit.setAttribute("aria-label", `Edit description of ${name}`);
+    edit.addEventListener("click", () => void editDescription(node.id, picture));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "Remove picture";
+    remove.setAttribute("aria-label", `Remove ${name}`);
+    remove.addEventListener("click", () => void removeOnePicture(node.id, picture, name));
+    info.append(description, size, edit, " ", remove);
+    li.append(info);
+    list.append(li);
+  }
+}
+
+async function editDescription(nodeId: string, picture: Picture) {
+  const text = await promptText("Describe the picture", "What does this picture show? A screen reader reads this aloud.", picture.altText);
+  if (text === null) return;
+  setAltText(project.tree, nodeId, picture.id, text);
+  markDirty();
+  renderPictures();
+  announce("Description saved");
+}
+
+async function removeOnePicture(nodeId: string, picture: Picture, name: string) {
+  if (!(await confirmDialog("Remove picture", `Remove ${name} from this item?`, "Remove"))) return;
+  removePicture(project.tree, nodeId, picture.id);
+  markDirty();
+  renderPictures();
+  announce(`Removed ${name}`);
+}
+
+async function importPictures() {
+  const node = selected();
+  if (!node) return;
+  try {
+    const chosen = await chooseImages();
+    const problems: string[] = [];
+    let added = 0;
+    for (const { name, bytes } of chosen) {
+      const info = readImageInfo(bytes);
+      if (!info) { problems.push(`${name} is not a PNG or JPEG picture.`); continue; }
+      const id = newId();
+      const file = `images/${id}.${info.extension}`;
+      // The description is asked for, never filled in silently. An empty one is flagged until it is written.
+      const altText = await promptText("Describe the picture", `What does ${name} show? A screen reader reads this aloud. Leave it empty to add it later.`, "", true);
+      assets.set(file, bytes);
+      addPicture(project.tree, node.id, {
+        id, file, width: info.width, height: info.height, altText: altText ?? "",
+        source: { kind: "import", capturedAt: new Date().toISOString(), originalName: name },
+      });
+      added++;
+    }
+    if (added) { markDirty(); renderPictures(); announce(`Imported ${added} picture(s).`); }
+    if (problems.length) await messageDialog("Some pictures were not imported", problems.join("\n"));
+  } catch (error) {
+    await messageDialog("Could not import the pictures", error instanceof Error ? error.message : String(error));
+  }
+}
+
+$("b-import").addEventListener("click", () => void importPictures());
 
 function select(id: string) {
   selectedId = id;
@@ -212,6 +326,7 @@ async function newProject() {
   if (!choice) return;
   const name = choice.name;
   project = createProject(name, choice.template);
+  assets = new Map();
   filePath = null;
   dirty = true;
   selectedId = null;
@@ -225,13 +340,16 @@ async function openProject() {
   const picked = await chooseOpenPath();
   if (!picked) return;
   try {
-    project = await loadProject(picked);
+    const loaded = await loadProject(picked);
+    project = loaded.project;
+    assets = loaded.assets;
     filePath = picked;
     dirty = false;
     selectedId = null;
     collapsed.clear();
     render(true);
     announce(`Opened ${project.name}`);
+    if (loaded.missing.length) await messageDialog("Some picture files are missing", `${loaded.missing.length} picture file(s) listed in this project were not found inside it. They show as missing, and you can remove or re-import them.`);
   } catch (error) {
     await messageDialog("Could not open the project", error instanceof Error ? error.message : String(error));
   }
@@ -245,7 +363,7 @@ async function save(asNew = false) {
       if (!picked) return;
       target = picked;
     }
-    await saveProject(target, project);
+    await saveProject(target, project, assets);
     filePath = target;
     dirty = false;
     renderHeading();

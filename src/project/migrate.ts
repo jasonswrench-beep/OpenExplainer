@@ -4,8 +4,21 @@ import { CURRENT_VERSION, type Project } from "./model.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
+type RawNode = { pictures?: unknown; children?: RawNode[] };
+
+function addPictures(nodes: RawNode[] | undefined): void {
+  for (const node of nodes ?? []) {
+    if (!Array.isArray(node.pictures)) node.pictures = [];
+    addPictures(node.children);
+  }
+}
+
 const steps: Record<number, (raw: Raw) => Raw> = {
-  // Example for the future: 1: (raw) => ({ ...raw, version: 2, newField: "" }),
+  // Version 1 to 2: every chapter and topic can hold pictures.
+  1: (raw) => {
+    addPictures(raw.tree as RawNode[] | undefined);
+    return { ...raw, version: 2 };
+  },
 };
 
 export function migrate(input: unknown): Project {

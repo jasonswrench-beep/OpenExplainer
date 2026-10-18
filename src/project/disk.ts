@@ -3,6 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
 import { EXTENSION, fileNameFor, packProject, unpackProject } from "./package.ts";
 import type { Project } from "./model.ts";
+import type { Assets } from "./package.ts";
 
 const filters = [{ name: "OpenExplainer project", extensions: [EXTENSION] }];
 
@@ -17,10 +18,24 @@ export async function chooseOpenPath(): Promise<string | null> {
   return typeof picked === "string" ? picked : null;
 }
 
-export async function saveProject(path: string, project: Project): Promise<void> {
-  await writeFile(path, packProject(project));
+export async function saveProject(path: string, project: Project, assets: Assets): Promise<void> {
+  await writeFile(path, packProject(project, assets));
 }
 
-export async function loadProject(path: string): Promise<Project> {
+export async function loadProject(path: string) {
   return unpackProject(await readFile(path));
+}
+
+/** Lets the author pick one or more PNG or JPEG pictures, and reads them. */
+export async function chooseImages(): Promise<{ name: string; bytes: Uint8Array }[]> {
+  const picked = await open({
+    title: "Choose pictures to import",
+    multiple: true,
+    directory: false,
+    filters: [{ name: "Pictures (PNG or JPEG)", extensions: ["png", "jpg", "jpeg"] }],
+  });
+  const paths = Array.isArray(picked) ? picked : picked ? [picked] : [];
+  const out: { name: string; bytes: Uint8Array }[] = [];
+  for (const path of paths) out.push({ name: path.split(/[\\/]/).pop() ?? path, bytes: await readFile(path) });
+  return out;
 }

@@ -66,7 +66,7 @@ test("newer and broken projects are refused with a clear message", () => {
   assert.throws(() => migrate({}), /no version/);
   assert.throws(() => migrate(null), /not an OpenExplainer/);
   const files = toFiles(createProject("X"));
-  files["structure.json"] = files["structure.json"].replace('"version": 1', '"version": 2');
+  files["structure.json"] = files["structure.json"].replace('"version": 2', '"version": 3');
   assert.throws(() => fromFiles(files), /do not match/);
 });
 
@@ -79,7 +79,7 @@ import { unzip } from "../src/project/zip.ts";
 
 test("a project packs into one file and unpacks to the same project", async () => {
   const { p } = sample();
-  assert.deepEqual(await unpackProject(packProject(p)), p);
+  assert.deepEqual((await unpackProject(packProject(p))).project, p);
 });
 
 test("the packed file is a valid zip that other programs accept", () => {

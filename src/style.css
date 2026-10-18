@@ -29,3 +29,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 details { margin: 0.5rem 0; }
 summary { cursor: pointer; padding: 0.25rem 0; }
 input[type="text"] { font: inherit; padding: 0.25rem 0.4rem; }
+
+.pictures { list-style: none; padding: 0; margin: 0.5rem 0; max-width: 50rem; }
+.pictures li { display: flex; gap: 1rem; align-items: flex-start; padding: 0.5rem 0; border-bottom: 1px solid #e0e0e0; }
+.thumb { max-width: 240px; max-height: 160px; border: 1px solid #767676; background: #fff; }

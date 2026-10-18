@@ -1,7 +1,7 @@
 // The project model: what a project is, and the plain functions that change its chapter tree.
 // Nothing here touches the screen or the disk, so it can be tested on its own.
 
-export const CURRENT_VERSION = 1;
+export const CURRENT_VERSION = 2;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -14,10 +14,23 @@ export const STATUSES: { id: Status; word: string; symbol: string; color: string
   { id: "needs-recheck", word: "Needs recheck", symbol: "⚠", color: "#a31515" },
 ];
 
+/** A picture held by a topic. The picture itself is a file inside the project package. */
+export interface Picture {
+  id: string;
+  /** Path inside the package, such as images/abc123.png. */
+  file: string;
+  width: number;
+  height: number;
+  /** What the picture shows, for screen readers and the printed alt text. Empty means it still needs one. */
+  altText: string;
+  source: { kind: "import" | "window" | "region" | "click"; capturedAt: string; originalName?: string };
+}
+
 export interface TreeNode {
   id: string;
   title: string;
   status: Status;
+  pictures: Picture[];
   children: TreeNode[];
 }
 
@@ -34,7 +47,7 @@ export function newId(): string {
 }
 
 export function makeNode(title: string): TreeNode {
-  return { id: newId(), title, status: "not-started", children: [] };
+  return { id: newId(), title, status: "not-started", pictures: [], children: [] };
 }
 
 export function createProject(name: string, template: Project["template"] = "empty"): Project {
@@ -216,4 +229,28 @@ export function replaceInTitles(tree: TreeNode[], find: string, replacement: str
     node.title = node.title.replace(re, () => { count++; return replacement; });
   }
   return count;
+}
+
+// ---- Pictures ----------------------------------------------------------------------------
+
+export function addPicture(tree: TreeNode[], nodeId: string, picture: Picture): void {
+  const node = findNode(tree, nodeId);
+  if (!node) throw new Error("The item to add the picture to was not found.");
+  node.pictures.push(picture);
+}
+
+export function removePicture(tree: TreeNode[], nodeId: string, pictureId: string): Picture | null {
+  const node = findNode(tree, nodeId);
+  const at = node ? node.pictures.findIndex((p) => p.id === pictureId) : -1;
+  return node && at >= 0 ? node.pictures.splice(at, 1)[0] : null;
+}
+
+export function setAltText(tree: TreeNode[], nodeId: string, pictureId: string, altText: string): void {
+  const picture = findNode(tree, nodeId)?.pictures.find((p) => p.id === pictureId);
+  if (picture) picture.altText = altText;
+}
+
+/** Every picture file the project uses, so unused files are left out when saving. */
+export function pictureFiles(tree: TreeNode[]): Set<string> {
+  return new Set(visibleNodes(tree, new Set()).flatMap((r) => r.node.pictures.map((p) => p.file)));
 }

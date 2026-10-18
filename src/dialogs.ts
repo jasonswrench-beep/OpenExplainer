@@ -17,13 +17,13 @@ function open(dialog: HTMLDialogElement, focusTarget: HTMLElement): Promise<void
   });
 }
 
-export async function promptText(title: string, label: string, initial = ""): Promise<string | null> {
+export async function promptText(title: string, label: string, initial = "", allowEmpty = false): Promise<string | null> {
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-labelledby", "dlg-title");
   dialog.innerHTML = `
     <form method="dialog">
       <h2 id="dlg-title"></h2>
-      <p><label for="dlg-input"></label><br><input id="dlg-input" type="text" size="40" required></p>
+      <p><label for="dlg-input"></label><br><input id="dlg-input" type="text" size="40"></p>
       <p><button value="ok">OK</button> <button value="cancel" formnovalidate>Cancel</button></p>
     </form>`;
   dialog.querySelector("h2")!.textContent = title;
@@ -34,7 +34,8 @@ export async function promptText(title: string, label: string, initial = ""): Pr
   input.select();
   await result;
   const value = input.value.trim();
-  return dialog.returnValue === "ok" && value ? value : null;
+  if (dialog.returnValue !== "ok") return null;
+  return value || allowEmpty ? value : null;
 }
 
 export async function confirmDialog(title: string, message: string, yesLabel: string): Promise<boolean> {
