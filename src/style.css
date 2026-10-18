@@ -15,3 +15,13 @@ button { font: inherit; padding: 0.5rem 1rem; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .skip-link { position: absolute; left: -999px; }
 .skip-link:focus { left: 0.5rem; top: 0.5rem; background: #fff; padding: 0.5rem; z-index: 10; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+.help { color: #404040; max-width: 50rem; }
+#tree { list-style: none; margin: 0.5rem 0; padding: 0; border: 1px solid #767676; max-width: 50rem; min-height: 3rem; }
+.node { padding: 0.35rem 0.5rem; cursor: default; border-bottom: 1px solid #e0e0e0; }
+.node.selected { background: #e6eef8; font-weight: 600; }
+.badge { font-size: 0.85rem; font-weight: 400; border: 1px solid; border-radius: 0.75rem; padding: 0 0.5rem; margin-left: 0.5rem; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+dialog { border: 2px solid var(--accent); border-radius: 6px; padding: 1rem 1.5rem; }
+dialog::backdrop { background: rgba(0, 0, 0, 0.4); }

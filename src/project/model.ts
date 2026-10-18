@@ -1,0 +1,177 @@
+// The project model: what a project is, and the plain functions that change its chapter tree.
+// Nothing here touches the screen or the disk, so it can be tested on its own.
+
+export const CURRENT_VERSION = 1;
+
+export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
+
+// Every status has a word and a symbol as well as a color, so color is never the only signal.
+export const STATUSES: { id: Status; word: string; symbol: string; color: string }[] = [
+  { id: "not-started", word: "Not started", symbol: "○", color: "#595959" },
+  { id: "captured", word: "Captured", symbol: "◐", color: "#1f4e8c" },
+  { id: "drafted", word: "Drafted", symbol: "✎", color: "#7a4b00" },
+  { id: "reviewed", word: "Reviewed", symbol: "✓", color: "#1b6b2f" },
+  { id: "needs-recheck", word: "Needs recheck", symbol: "⚠", color: "#a31515" },
+];
+
+export interface TreeNode {
+  id: string;
+  title: string;
+  status: Status;
+  children: TreeNode[];
+}
+
+export interface Project {
+  version: number;
+  name: string;
+  template: "openstage-how-to-book" | "software-user-guide" | "empty";
+  variables: Record<string, string>;
+  tree: TreeNode[];
+}
+
+export function newId(): string {
+  return "n" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+export function makeNode(title: string): TreeNode {
+  return { id: newId(), title, status: "not-started", children: [] };
+}
+
+export function createProject(name: string, template: Project["template"] = "empty"): Project {
+  const project: Project = {
+    version: CURRENT_VERSION,
+    name,
+    template,
+    variables: { PRODUCT: "", VERSION: "", COMPANY: "" },
+    tree: [],
+  };
+  if (template === "openstage-how-to-book") {
+    project.tree = ["Introduction", "Getting Started"].map(makeNode);
+  } else if (template === "software-user-guide") {
+    project.tree = ["Overview", "Installation", "Using the Software", "Troubleshooting"].map(makeNode);
+  }
+  return project;
+}
+
+/** Where a node sits: the list that holds it and its position in that list. */
+export interface Location {
+  parent: TreeNode | null;
+  siblings: TreeNode[];
+  index: number;
+}
+
+export function locate(tree: TreeNode[], id: string): Location | null {
+  const search = (siblings: TreeNode[], parent: TreeNode | null): Location | null => {
+    for (let index = 0; index < siblings.length; index++) {
+      if (siblings[index].id === id) return { parent, siblings, index };
+      const found = search(siblings[index].children, siblings[index]);
+      if (found) return found;
+    }
+    return null;
+  };
+  return search(tree, null);
+}
+
+export function findNode(tree: TreeNode[], id: string): TreeNode | null {
+  const where = locate(tree, id);
+  return where ? where.siblings[where.index] : null;
+}
+
+/** Numbers like "1", "1.2", "1.2.3", worked out from position so they never go stale. */
+export function numbering(tree: TreeNode[]): Map<string, string> {
+  const numbers = new Map<string, string>();
+  const walk = (nodes: TreeNode[], prefix: string) => {
+    nodes.forEach((node, i) => {
+      const number = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
+      numbers.set(node.id, number);
+      walk(node.children, number);
+    });
+  };
+  walk(tree, "");
+  return numbers;
+}
+
+/** The nodes in the order they appear on screen, skipping the children of collapsed nodes. */
+export function visibleNodes(tree: TreeNode[], collapsed: Set<string>): { node: TreeNode; level: number }[] {
+  const out: { node: TreeNode; level: number }[] = [];
+  const walk = (nodes: TreeNode[], level: number) => {
+    for (const node of nodes) {
+      out.push({ node, level });
+      if (!collapsed.has(node.id)) walk(node.children, level + 1);
+    }
+  };
+  walk(tree, 1);
+  return out;
+}
+
+/** Add a new chapter at the end (no parent) or a topic at the end of a parent's children. */
+export function addNode(tree: TreeNode[], parentId: string | null, title: string): TreeNode {
+  const node = makeNode(title);
+  if (parentId === null) {
+    tree.push(node);
+  } else {
+    const parent = findNode(tree, parentId);
+    if (!parent) throw new Error("The parent topic was not found.");
+    parent.children.push(node);
+  }
+  return node;
+}
+
+export function renameNode(tree: TreeNode[], id: string, title: string): void {
+  const node = findNode(tree, id);
+  if (node) node.title = title;
+}
+
+export function setStatus(tree: TreeNode[], id: string, status: Status): void {
+  const node = findNode(tree, id);
+  if (node) node.status = status;
+}
+
+export function removeNode(tree: TreeNode[], id: string): boolean {
+  const where = locate(tree, id);
+  if (!where) return false;
+  where.siblings.splice(where.index, 1);
+  return true;
+}
+
+export function moveUp(tree: TreeNode[], id: string): boolean {
+  const where = locate(tree, id);
+  if (!where || where.index === 0) return false;
+  const { siblings, index } = where;
+  [siblings[index - 1], siblings[index]] = [siblings[index], siblings[index - 1]];
+  return true;
+}
+
+export function moveDown(tree: TreeNode[], id: string): boolean {
+  const where = locate(tree, id);
+  if (!where || where.index >= where.siblings.length - 1) return false;
+  const { siblings, index } = where;
+  [siblings[index + 1], siblings[index]] = [siblings[index], siblings[index + 1]];
+  return true;
+}
+
+/** Make a node the last child of the sibling just above it (a chapter becomes a topic). */
+export function indent(tree: TreeNode[], id: string): boolean {
+  const where = locate(tree, id);
+  if (!where || where.index === 0) return false;
+  const [node] = where.siblings.splice(where.index, 1);
+  where.siblings[where.index - 1].children.push(node);
+  return true;
+}
+
+/** Move a node up one level, to sit just after its parent (a topic becomes a chapter). */
+export function outdent(tree: TreeNode[], id: string): boolean {
+  const where = locate(tree, id);
+  if (!where || !where.parent) return false;
+  const parentWhere = locate(tree, where.parent.id);
+  if (!parentWhere) return false;
+  const [node] = where.siblings.splice(where.index, 1);
+  parentWhere.siblings.splice(parentWhere.index + 1, 0, node);
+  return true;
+}
+
+/** A readable list of every node, used for screen reader announcements and tests. */
+export function outline(tree: TreeNode[]): string[] {
+  const numbers = numbering(tree);
+  return visibleNodes(tree, new Set()).map(({ node, level }) => `${"  ".repeat(level - 1)}${numbers.get(node.id)} ${node.title}`);
+}
