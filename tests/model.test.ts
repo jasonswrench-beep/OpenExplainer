@@ -69,3 +69,43 @@ test("newer and broken projects are refused with a clear message", () => {
   files["structure.json"] = files["structure.json"].replace('"version": 1', '"version": 2');
   assert.throws(() => fromFiles(files), /do not match/);
 });
+
+import { execFileSync } from "node:child_process";
+import { writeFileSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileNameFor, packProject, unpackProject } from "../src/project/package.ts";
+import { unzip } from "../src/project/zip.ts";
+
+test("a project packs into one file and unpacks to the same project", async () => {
+  const { p } = sample();
+  assert.deepEqual(await unpackProject(packProject(p)), p);
+});
+
+test("the packed file is a valid zip that other programs accept", () => {
+  const { p } = sample();
+  const dir = mkdtempSync(join(tmpdir(), "oe-"));
+  const file = join(dir, "t.openexplainer");
+  writeFileSync(file, packProject(p));
+  const out = execFileSync("python3", ["-c", "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1]);print(z.testzip());print(sorted(z.namelist()))", file]).toString();
+  assert.match(out, /None/);
+  assert.match(out, /project\.json/);
+});
+
+test("compressed zips from other programs can be read", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "oe-"));
+  const file = join(dir, "c.zip");
+  execFileSync("python3", ["-c", "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED);z.writestr('a.txt','hello '*500)", file]);
+  const { readFileSync } = await import("node:fs");
+  const files = await unzip(new Uint8Array(readFileSync(file)));
+  assert.equal(new TextDecoder().decode(files["a.txt"]), "hello ".repeat(500));
+});
+
+test("damaged files are refused, and file names are made safe", async () => {
+  await assert.rejects(() => unpackProject(new Uint8Array([1, 2, 3])), /not an OpenExplainer project/);
+  const bad = packProject(sample().p);
+  bad[60] ^= 0xff;
+  await assert.rejects(() => unpackProject(bad));
+  assert.equal(fileNameFor('My: "Book"?'), "My Book.openexplainer");
+  assert.equal(fileNameFor("   "), "Untitled project.openexplainer");
+});

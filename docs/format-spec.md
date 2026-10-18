@@ -4,7 +4,9 @@ Read this before touching anything that reads or writes a project. Change it in 
 
 ## Layout
 
-A project is a folder. Format version 1 holds two files:
+A saved project is ONE file named after the project, such as `Test1.openexplainer`. It is a standard zip package
+(stored without compression, so pictures are not compressed twice), written and read by `src/project/zip.ts` and
+`src/project/package.ts`. Any zip program can open it for inspection. Inside it, format version 1 holds two files:
 
 - `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others).
 - `structure.json`: `version` and `tree`, the chapters and topics.
@@ -26,5 +28,5 @@ A project saved by a newer version is refused with a message asking the author t
 
 ## Coming in later steps
 
-Topic content in `topics/<id>.json`, pictures in `images/`, annotation shapes and click positions stored beside each picture
+Topic content in `topics/<id>.json` inside the package, pictures in `images/`, annotation shapes and click positions stored beside each picture
 (never burned in), callout boxes, styles, and export settings.

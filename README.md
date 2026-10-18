@@ -8,7 +8,7 @@ add numbered markers and callouts, and publish a printed-quality book or short s
 
 ## Status
 
-Early. You can create a project, build a chapter and topic tree with numbering and status, and save and open it as a folder. Capture, editing and export are not built yet.
+Early. You can create a project, build a chapter and topic tree with numbering and status, and save and open it as one file, such as Test1.openexplainer. Capture, editing and export are not built yet.
 
 ## What it will do
 

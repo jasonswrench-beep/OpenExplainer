@@ -3,7 +3,7 @@ import {
   STATUSES, addNode, createProject, findNode, indent, locate, moveDown, moveUp, numbering,
   outdent, removeNode, renameNode, setStatus, visibleNodes, type Project, type Status,
 } from "./project/model.ts";
-import { chooseFolder, loadProject, saveProject } from "./project/disk.ts";
+import { chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
 import { confirmDialog, messageDialog, promptText } from "./dialogs.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -11,7 +11,7 @@ if (!app) throw new Error("The app container is missing from index.html.");
 
 // ---- State -------------------------------------------------------------------------------
 let project: Project = createProject("Untitled project");
-let folder: string | null = null;
+let filePath: string | null = null;
 let dirty = false;
 let selectedId: string | null = null;
 const collapsed = new Set<string>();
@@ -26,7 +26,7 @@ app.innerHTML = `
       <button type="button" id="b-new">New project</button>
       <button type="button" id="b-open">Open project</button>
       <button type="button" id="b-save">Save (Ctrl+S)</button>
-      <button type="button" id="b-saveas">Save as a new folder</button>
+      <button type="button" id="b-saveas">Save as</button>
     </div>
     <div class="toolbar" role="toolbar" aria-label="Chapters and topics">
       <button type="button" id="b-chapter">Add chapter</button>
@@ -77,7 +77,7 @@ function markDirty() {
 function renderHeading() {
   $("project-heading").textContent = `${project.name}${dirty ? " (unsaved changes)" : ""}`;
   document.title = `${dirty ? "* " : ""}${project.name} - OpenExplainer`;
-  $("folder-line").textContent = folder ? `Saved folder: ${folder}` : "Not saved to a folder yet.";
+  $("folder-line").textContent = filePath ? `Saved file: ${filePath}` : "Not saved to a file yet.";
 }
 
 // ---- Drawing the tree --------------------------------------------------------------------
@@ -199,7 +199,7 @@ async function newProject() {
   const name = await promptText("New project", "Project name");
   if (!name) return;
   project = createProject(name);
-  folder = null;
+  filePath = null;
   dirty = true;
   selectedId = null;
   collapsed.clear();
@@ -209,11 +209,11 @@ async function newProject() {
 
 async function openProject() {
   if (!(await guardUnsaved())) return;
-  const picked = await chooseFolder("Choose an OpenExplainer project folder");
+  const picked = await chooseOpenPath();
   if (!picked) return;
   try {
     project = await loadProject(picked);
-    folder = picked;
+    filePath = picked;
     dirty = false;
     selectedId = null;
     collapsed.clear();
@@ -226,14 +226,14 @@ async function openProject() {
 
 async function save(asNew = false) {
   try {
-    let target = folder;
+    let target = filePath;
     if (!target || asNew) {
-      const picked = await chooseFolder("Choose or create a folder to hold this project");
+      const picked = await chooseSavePath(project.name);
       if (!picked) return;
       target = picked;
     }
     await saveProject(target, project);
-    folder = target;
+    filePath = target;
     dirty = false;
     renderHeading();
     announce(`Project saved to ${target}`);
