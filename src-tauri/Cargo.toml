@@ -1,0 +1,16 @@
+[package]
+name = "openexplainer"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Still-image tutorial and how-to book maker"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

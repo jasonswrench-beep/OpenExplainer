@@ -1,0 +1,33 @@
+# OpenExplainer
+
+A free, open-source tool for making still-image tutorials and how-to books from screen captures.
+Licensed under Apache 2.0.
+
+OpenExplainer is built for people who need to document software: capture a screen, write the steps,
+add numbered markers and callouts, and publish a printed-quality book or short step-by-step guides.
+
+## Status
+
+Early. This repository currently holds the app shell only. Nothing is captured or exported yet.
+
+## What it will do
+
+- Capture still images: a window, a region, click by click, or import a picture.
+- Organize chapters and topics, with numbered procedures and callout boxes (Design Tip, Caution, Bright Idea, Power Tip, Time Saver).
+- Annotate with arrows, text boxes, rectangles and numbered markers, with an optional click highlight.
+- Warn about low contrast as you work (a warning only, never a block).
+- Export a book as tagged PDF and Word, plus help site, JSON with images, and Markdown.
+- Export short step-by-step guides in two layouts.
+- Optional AI help (local Qwen 3.5, or your own ChatGPT, Claude or Gemini key). Everything works by hand without it.
+- An MCP server so an AI assistant can help build documentation and eLearning.
+
+## Running it
+
+On Windows, double-click **Run OpenExplainer.bat**. The first run installs what it needs, which takes a few minutes.
+You need Node.js and Rust installed. The script tells you if either is missing.
+
+To check dependency licences, double-click **Check Licences.bat**.
+
+## Licence
+
+Apache 2.0. See `LICENSE` and `NOTICE`.
