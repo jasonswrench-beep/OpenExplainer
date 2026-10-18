@@ -6,6 +6,8 @@ The first job is documenting OpenStage Author in a book. The design is in the Op
 build order is in the OpenExplainer Build To-Do List (both Docs files owned by Jason). Anything not in the spec is agreed
 with Jason first.
 
+Read `docs/HANDOFF.md` first if you are starting a new session. Read `docs/format-spec.md` before touching anything that reads or writes a project.
+
 ## What this is
 
 Still images only. No video recording. The printed book (PDF and Word) is the main output. Help site, JSON with images,
@@ -35,7 +37,7 @@ It may join the same product suite later, but not now.
 - No Python in the product.
 - Windows first, building for both ARM and x64.
 - The capture helper is its own process, with a timeout, an always-visible Cancel, and it never captures itself.
-- Projects are saved as a folder of JSON files plus images, with a version number and migrations. Every format change bumps the version and ships a migration.
+- A project is saved as ONE file named after the project (`Name.openexplainer`, a zip package of JSON files plus an images folder), with a version number and migrations. Every format change bumps the version, ships a migration, and updates `docs/format-spec.md` in the same commit.
 - Annotation shapes and click positions are stored beside the picture, never burned in.
 - Callout letters belong to pictures. Numbers belong to procedure steps.
 
