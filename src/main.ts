@@ -21,10 +21,12 @@ app.innerHTML = `
   <header class="top"><h1>OpenExplainer</h1></header>
   <main id="main" tabindex="-1">
     <h2 id="project-heading"></h2>
+    <p id="folder-line" class="help"></p>
     <div class="toolbar" role="toolbar" aria-label="Project">
       <button type="button" id="b-new">New project</button>
       <button type="button" id="b-open">Open project</button>
       <button type="button" id="b-save">Save (Ctrl+S)</button>
+      <button type="button" id="b-saveas">Save as a new folder</button>
     </div>
     <div class="toolbar" role="toolbar" aria-label="Chapters and topics">
       <button type="button" id="b-chapter">Add chapter</button>
@@ -75,6 +77,7 @@ function markDirty() {
 function renderHeading() {
   $("project-heading").textContent = `${project.name}${dirty ? " (unsaved changes)" : ""}`;
   document.title = `${dirty ? "* " : ""}${project.name} - OpenExplainer`;
+  $("folder-line").textContent = folder ? `Saved folder: ${folder}` : "Not saved to a folder yet.";
 }
 
 // ---- Drawing the tree --------------------------------------------------------------------
@@ -221,17 +224,19 @@ async function openProject() {
   }
 }
 
-async function save() {
+async function save(asNew = false) {
   try {
-    if (!folder) {
+    let target = folder;
+    if (!target || asNew) {
       const picked = await chooseFolder("Choose or create a folder to hold this project");
       if (!picked) return;
-      folder = picked;
+      target = picked;
     }
-    await saveProject(folder, project);
+    await saveProject(target, project);
+    folder = target;
     dirty = false;
     renderHeading();
-    announce("Project saved");
+    announce(`Project saved to ${target}`);
   } catch (error) {
     await messageDialog("Could not save the project", error instanceof Error ? error.message : String(error));
   }
@@ -291,6 +296,7 @@ document.addEventListener("keydown", (event) => {
 $("b-new").addEventListener("click", () => void newProject());
 $("b-open").addEventListener("click", () => void openProject());
 $("b-save").addEventListener("click", () => void save());
+$("b-saveas").addEventListener("click", () => void save(true));
 $("b-chapter").addEventListener("click", () => void addChapter());
 $("b-topic").addEventListener("click", () => void addTopic());
 $("b-rename").addEventListener("click", () => void rename());
