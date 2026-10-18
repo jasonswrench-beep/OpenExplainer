@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The commands the helper knows, in the order `docs/capture-helper.md` lists them.
-pub const COMMANDS: [&str; 3] = ["ping", "list-windows", "capture-window"];
+pub const COMMANDS: [&str; 5] = ["ping", "list-windows", "list-screens", "capture-window", "capture-region"];
 
 /// Error codes. The app can switch on these; `message` is always plain words for the author.
 pub mod code {
@@ -48,6 +48,7 @@ pub enum Request {
         #[serde(default)]
         exclude_pids: Vec<u32>,
     },
+    ListScreens,
     /// `window`: a window `id` from `list-windows`. `out`: full path of the PNG to write.
     CaptureWindow {
         window: i64,
@@ -55,6 +56,32 @@ pub enum Request {
         #[serde(default)]
         exclude_pids: Vec<u32>,
     },
+    /// A rectangle of the screen: `x` and `y` are its top left corner, in real screen pixels (negative on a screen
+    /// left of or above the main one). `out` is the full path of the PNG to write.
+    CaptureRegion {
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        out: String,
+        #[serde(default)]
+        exclude_pids: Vec<u32>,
+    },
+}
+
+/// What the helper says about one screen (monitor).
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct ScreenInfo {
+    /// 1 is the main screen. The rest are numbered left to right, then top to bottom.
+    pub number: u32,
+    /// Where the screen's top left corner is on the whole desktop. Negative for a screen left of or above the main one.
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub primary: bool,
+    /// The display scaling: 100, 125, 150 and so on.
+    pub scale_percent: u32,
 }
 
 /// What the helper says about one open window.
@@ -185,6 +212,27 @@ mod tests {
             e.request,
             Request::CaptureWindow { window: 394822, out: "C:\\a\\b.png".to_string(), exclude_pids: vec![] }
         );
+    }
+
+    #[test]
+    fn list_screens_needs_nothing_else() {
+        assert_eq!(parse_line(r#"{"id":3,"command":"list-screens"}"#).unwrap().request, Request::ListScreens);
+    }
+
+    #[test]
+    fn capture_region_reads_four_numbers_and_allows_negative_positions() {
+        let e = parse_line(r#"{"id":4,"command":"capture-region","x":-100,"y":-900,"width":640,"height":480,"out":"C:\\a.png"}"#).unwrap();
+        assert_eq!(
+            e.request,
+            Request::CaptureRegion { x: -100, y: -900, width: 640, height: 480, out: "C:\\a.png".to_string(), exclude_pids: vec![] }
+        );
+    }
+
+    #[test]
+    fn capture_region_with_a_missing_number_is_explained() {
+        let reply = parse_line(r#"{"id":5,"command":"capture-region","x":0,"y":0,"width":10,"out":"C:\\a.png"}"#).unwrap_err();
+        assert_eq!(reply.id, json!(5));
+        assert!(reply.error.unwrap().detail.unwrap().contains("height"));
     }
 
     #[test]

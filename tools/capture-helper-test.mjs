@@ -3,6 +3,8 @@
 //   node tools/capture-helper-test.mjs ping
 //   node tools/capture-helper-test.mjs list
 //   node tools/capture-helper-test.mjs capture [--title text] [--process name.exe] [--number N] [--out folder] [--no-open]
+//   node tools/capture-helper-test.mjs screens
+//   node tools/capture-helper-test.mjs region [--screen N] [--rect "left top width height"] [--whole] [--out folder] [--no-open]
 //
 // It talks to the helper exactly as OpenExplainer will: one JSON line in, one JSON line out, with a
 // timeout (20 seconds unless --timeout says otherwise) after which the helper is stopped.
@@ -92,14 +94,31 @@ function stamp() {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
+// One reader for the whole run, so lines typed (or piped in) before a question is asked are not lost.
+let input = null;
+const typedLines = [];
+const waitingForLine = [];
+let inputEnded = false;
+
+function startInput() {
+  if (input) return;
+  input = createInterface({ input: process.stdin });
+  input.on("line", (line) => (waitingForLine.length ? waitingForLine.shift()(line) : typedLines.push(line)));
+  input.on("close", () => { inputEnded = true; while (waitingForLine.length) waitingForLine.shift()(null); });
+}
+
+function closeInput() { if (input) input.close(); }
+
 function ask(question) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  startInput();
+  process.stdout.write(question);
   return new Promise((done) => {
-    let answered = false;
-    // If the keyboard input closes before an answer comes (nothing left to read), treat it as "just Enter" so the
+    // If the keyboard input closes before an answer comes (nothing left to read), that counts as "just Enter", so the
     // test ends instead of waiting for ever.
-    rl.on("close", () => { if (!answered) { console.log(); done(""); } });
-    rl.question(question, (answer) => { answered = true; rl.close(); done(answer.trim()); });
+    const answer = (line) => { if (line === null) console.log(); done(line === null ? "" : line.trim()); };
+    if (typedLines.length) answer(typedLines.shift());
+    else if (inputEnded) answer(null);
+    else waitingForLine.push(answer);
   });
 }
 
@@ -161,9 +180,87 @@ async function runCapture(helper) {
   }
 }
 
-const modes = { ping: runPing, list: runList, capture: runCapture };
+function screenLine(s) {
+  return `${String(s.number).padStart(3)}. ${s.primary ? "Main screen" : "Screen"}: ${s.width} x ${s.height}, its top left corner is at (${s.x}, ${s.y}), screen scale ${s.scale_percent}%`;
+}
+
+async function listScreens(helper) {
+  const reply = await helper.ask("list-screens");
+  if (!reply.ok) { say(`The helper could not list the screens: ${reply.error.message}`); process.exitCode = 1; return null; }
+  return reply.result.screens;
+}
+
+async function runScreens(helper) {
+  const screens = await listScreens(helper);
+  if (!screens) return;
+  say(`${screens.length} screen${screens.length === 1 ? "" : "s"} found:`);
+  say();
+  screens.forEach((s) => say(screenLine(s)));
+  say();
+}
+
+async function runRegion(helper) {
+  const screens = await listScreens(helper);
+  if (!screens) return;
+  say(`${screens.length} screen${screens.length === 1 ? "" : "s"} found:`);
+  say();
+  screens.forEach((s) => say(screenLine(s)));
+  say();
+  let screen = screens[0];
+  let rectText = options.rect;
+  const scripted = Boolean(options.screen || options.rect || options.whole);
+  if (options.screen) screen = screens[Number(options.screen) - 1];
+  else if (!scripted && screens.length > 1) {
+    const answer = await ask("Type the number of the screen to capture from, then press Enter (just Enter for screen 1): ");
+    screen = answer ? screens[Number(answer) - 1] : screens[0];
+  }
+  if (!screen) { say("That is not a screen number on the list."); process.exitCode = 1; return; }
+  let region;
+  if (options.whole) {
+    region = { x: screen.x, y: screen.y, width: screen.width, height: screen.height };
+  } else {
+    if (!rectText) {
+      say(`Pick the rectangle, counted in pixels from the top left corner of screen ${screen.number}.`);
+      say("Type four numbers: how far from the left, how far from the top, how wide and how tall (for example: 100 100 800 600).");
+      rectText = await ask("Or type all for the whole screen, or just press Enter to quit: ");
+      if (!rectText) { say("Nothing captured."); process.exitCode = 3; return; }
+    }
+    if (rectText.trim().toLowerCase() === "all") {
+      region = { x: screen.x, y: screen.y, width: screen.width, height: screen.height };
+    } else {
+      const m = /^\s*(-?\d+)[\s,]+(-?\d+)[\s,]+(\d+)[\s,]+(\d+)\s*$/.exec(rectText);
+      if (!m) { say(`"${rectText}" is not four whole numbers. Try again, for example: 100 100 800 600`); process.exitCode = 1; return; }
+      region = { x: screen.x + Number(m[1]), y: screen.y + Number(m[2]), width: Number(m[3]), height: Number(m[4]) };
+    }
+  }
+  const folder = resolve(options.out ?? join(root, "Test captures"));
+  const out = join(folder, `region-${stamp()}.png`);
+  say(`Capturing a ${region.width} x ${region.height} rectangle of screen ${screen.number} ...`);
+  const reply = await helper.ask("capture-region", { ...region, out });
+  if (!reply.ok) {
+    say();
+    say("The capture did not work, and nothing was saved.");
+    say(`  Why: ${reply.error.message}`);
+    say(`  (Code for a bug report: ${reply.error.code}${reply.error.detail ? `; ${reply.error.detail}` : ""})`);
+    process.exitCode = 1;
+    return;
+  }
+  const r = reply.result;
+  say();
+  say("The picture was saved.");
+  say(`  File:   ${r.path}  (${Math.round(statSync(r.path).size / 1024)} KB)`);
+  say(`  Size:   ${r.width} x ${r.height} pixels, screen scale ${r.scale_percent}%`);
+  say(`  Taken in ${r.elapsed_ms} ms. ${r.note}`);
+  if (!options.noOpen) {
+    say();
+    say("Opening the picture so you can check it by eye ...");
+    spawn("cmd", ["/c", "start", "", r.path], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+  }
+}
+
+const modes = { ping: runPing, list: runList, capture: runCapture, screens: runScreens, region: runRegion };
 if (!modes[mode]) {
-  say("Usage: node tools/capture-helper-test.mjs ping | list | capture");
+  say("Usage: node tools/capture-helper-test.mjs ping | list | capture | screens | region");
   process.exit(2);
 }
 const helper = startHelper();
@@ -174,4 +271,5 @@ try {
   process.exitCode = 1;
 } finally {
   helper.stop();
+  closeInput();
 }

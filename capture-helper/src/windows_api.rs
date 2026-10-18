@@ -2,7 +2,7 @@
 //! Everything that talks to Windows. Only built on Windows.
 
 use crate::pixels::Rect;
-use crate::protocol::{code, CaptureError, WindowInfo};
+use crate::protocol::{code, CaptureError, ScreenInfo, WindowInfo};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::ffi::c_void;
@@ -13,8 +13,9 @@ use windows::core::{BOOL, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, POINT, RECT};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS};
 use windows::Win32::Graphics::Gdi::{
-    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits, ReleaseDC, SelectObject,
-    BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CAPTUREBLT, DIB_RGB_COLORS, HBITMAP, HDC, SRCCOPY,
+    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, EnumDisplayMonitors, GetDC, GetDIBits,
+    GetMonitorInfoW, MonitorFromPoint, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CAPTUREBLT,
+    DIB_RGB_COLORS, HBITMAP, HDC, HMONITOR, MONITORINFO, MONITOR_DEFAULTTONEAREST, SRCCOPY,
 };
 use windows::Win32::Storage::Xps::{PrintWindow, PRINT_WINDOW_FLAGS};
 use windows::Win32::System::Console::GetConsoleWindow;
@@ -24,12 +25,13 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
 use windows::Win32::System::Threading::{
     GetCurrentProcessId, OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
-use windows::Win32::UI::HiDpi::{GetDpiForWindow, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
+use windows::Win32::UI::HiDpi::{
+    GetDpiForMonitor, GetDpiForWindow, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetAncestor, GetClassNameW, GetSystemMetrics, GetWindow, GetWindowLongW, GetWindowPlacement, GetWindowRect, GetWindowTextW,
+    EnumWindows, GetAncestor, GetClassNameW, GetWindow, GetWindowLongW, GetWindowPlacement, GetWindowRect, GetWindowTextW,
     GetWindowThreadProcessId, IsHungAppWindow, IsIconic, IsWindow, IsWindowVisible, SetForegroundWindow, WindowFromPoint,
-    GA_ROOTOWNER, GWL_EXSTYLE, GW_OWNER, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
-    WINDOWPLACEMENT, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+    GA_ROOTOWNER, GWL_EXSTYLE, GW_OWNER, WINDOWPLACEMENT, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
 
 /// Makes Windows give real screen pixels instead of scaled ones, whatever the display scaling is.
@@ -215,8 +217,6 @@ const DRAW_WAIT: Duration = Duration::from_secs(5);
 const FRONT_ENOUGH: f32 = 0.8;
 /// `PrintWindow` flag that also asks for windows drawn by the graphics card (most modern programs).
 const PW_RENDERFULLCONTENT: PRINT_WINDOW_FLAGS = PRINT_WINDOW_FLAGS(2);
-/// A picture bigger than this is almost certainly a mistake, and would use gigabytes to hold.
-const MOST_PIXELS: i64 = 120_000_000;
 
 /// Takes a picture of one window and saves it as a PNG.
 ///
@@ -229,7 +229,7 @@ pub fn capture_window(id: i64, out: &Path, exclude_pids: &[u32]) -> Result<Value
     let hwnd = HWND(id as isize as *mut c_void);
     let (info, full, visible) = unsafe { check_window(hwnd, exclude_pids)? };
     let crop = crate::pixels::visible_part(full, visible);
-    if i64::from(full.width()) * i64::from(full.height()) > MOST_PIXELS {
+    if i64::from(full.width()) * i64::from(full.height()) > crate::pixels::MOST_PIXELS {
         return Err(CaptureError::new(code::TOO_LARGE, "That window is far bigger than any screen. Nothing was captured."));
     }
 
@@ -289,9 +289,7 @@ fn finish(
     window: WindowInfo,
     started: Instant,
 ) -> Result<Value, CaptureError> {
-    let (width, height) = (size.width() as u32, size.height() as u32);
-    let rgb = crate::pixels::bgra_to_rgb(&bgra);
-    crate::png_out::write_png(out, &rgb, width, height)?;
+    let (width, height) = save_picture(out, &bgra, size)?;
     Ok(json!({
         "path": out.to_string_lossy(),
         "width": width,
@@ -302,6 +300,13 @@ fn finish(
         "elapsed_ms": started.elapsed().as_millis() as u64,
         "window": window,
     }))
+}
+
+/// Turns blue-green-red pixels into a PNG file. Returns the picture's width and height.
+fn save_picture(out: &Path, bgra: &[u8], size: Rect) -> Result<(u32, u32), CaptureError> {
+    let (width, height) = (size.width() as u32, size.height() as u32);
+    crate::png_out::write_png(out, &crate::pixels::bgra_to_rgb(bgra), width, height)?;
+    Ok((width, height))
 }
 
 /// Everything that must be true before a picture is worth taking, each with its own plain-words refusal.
@@ -376,13 +381,7 @@ unsafe fn print_window_bgra(window: isize, width: i32, height: i32) -> Result<Ve
 /// tries to bring the window forward if it is not.
 unsafe fn screen_copy(hwnd: HWND, area: Rect) -> Result<Vec<u8>, CaptureError> {
     unsafe {
-        let screens = Rect {
-            left: GetSystemMetrics(SM_XVIRTUALSCREEN),
-            top: GetSystemMetrics(SM_YVIRTUALSCREEN),
-            right: GetSystemMetrics(SM_XVIRTUALSCREEN) + GetSystemMetrics(SM_CXVIRTUALSCREEN),
-            bottom: GetSystemMetrics(SM_YVIRTUALSCREEN) + GetSystemMetrics(SM_CYVIRTUALSCREEN),
-        };
-        if !screens.contains_rect(&area) {
+        if !crate::pixels::covered_by(area, &screen_rects()) {
             return Err(CaptureError::new(
                 code::OFF_SCREEN,
                 "Part of that window is off the edge of the screen, and Windows would not draw the window itself. Move it fully onto the screen, then try again.",
@@ -398,6 +397,14 @@ unsafe fn screen_copy(hwnd: HWND, area: Rect) -> Result<Vec<u8>, CaptureError> {
                 ));
             }
         }
+        copy_area(area)
+    }
+}
+
+/// Copies a rectangle of the screen, as it looks right now: every window in front of it is included, and the mouse
+/// pointer is not. The caller must already know the rectangle is on the screens.
+unsafe fn copy_area(area: Rect) -> Result<Vec<u8>, CaptureError> {
+    unsafe {
         let (width, height) = (area.width(), area.height());
         let screen = GetDC(None);
         let memory = CreateCompatibleDC(Some(screen));
@@ -456,6 +463,140 @@ unsafe fn window_title(hwnd: HWND) -> String {
         let mut text = [0u16; 512];
         let length = GetWindowTextW(hwnd, &mut text).max(0) as usize;
         String::from_utf16_lossy(&text[..length.min(text.len())])
+    }
+}
+
+// ---- Screens and regions --------------------------------------------------------------------------------
+
+/// The `dwFlags` bit Windows sets on the main screen.
+const MONITORINFOF_PRIMARY: u32 = 1;
+
+/// The screens (monitors), the main one first. Positions are on the whole desktop, so a screen above or to the
+/// left of the main one has negative numbers.
+pub fn list_screens() -> Result<Vec<ScreenInfo>, CaptureError> {
+    let mut found: Vec<ScreenInfo> = Vec::new();
+    unsafe extern "system" fn each(monitor: HMONITOR, _dc: HDC, _area: *mut RECT, data: LPARAM) -> BOOL {
+        let found = unsafe { &mut *(data.0 as *mut Vec<ScreenInfo>) };
+        let mut info = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+        if unsafe { GetMonitorInfoW(monitor, &mut info) }.as_bool() {
+            let r = info.rcMonitor;
+            found.push(ScreenInfo {
+                number: 0,
+                x: r.left,
+                y: r.top,
+                width: (r.right - r.left).max(0) as u32,
+                height: (r.bottom - r.top).max(0) as u32,
+                primary: info.dwFlags & MONITORINFOF_PRIMARY != 0,
+                scale_percent: unsafe { monitor_scale(monitor) },
+            });
+        }
+        BOOL(1)
+    }
+    let asked = unsafe { EnumDisplayMonitors(None, None, Some(each), LPARAM(&mut found as *mut Vec<ScreenInfo> as isize)) };
+    if !asked.as_bool() || found.is_empty() {
+        return Err(CaptureError::new(code::CAPTURE_FAILED, "Windows would not list the screens."));
+    }
+    Ok(crate::pixels::number_screens(found))
+}
+
+/// The display scaling of one screen: 100, 125, 150 and so on.
+unsafe fn monitor_scale(monitor: HMONITOR) -> u32 {
+    let (mut x, mut y) = (0u32, 0u32);
+    if unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut x, &mut y) }.is_ok() && x != 0 {
+        x * 100 / 96
+    } else {
+        100
+    }
+}
+
+/// Where each screen is, as rectangles.
+fn screen_rects() -> Vec<Rect> {
+    list_screens()
+        .unwrap_or_default()
+        .iter()
+        .map(|s| Rect { left: s.x, top: s.y, right: s.x + s.width as i32, bottom: s.y + s.height as i32 })
+        .collect()
+}
+
+/// Takes a picture of a rectangle of the screen and saves it as a PNG. It is a copy of what is on the screen right
+/// now, so every window in front of the rectangle is in the picture. Before copying it checks that the whole
+/// rectangle is on a screen, and that no window of OpenExplainer (or of any program named in `exclude_pids`) is
+/// showing in that area, so the app can never end up in its own picture.
+pub fn capture_region(region: Rect, out: &Path, exclude_pids: &[u32]) -> Result<Value, CaptureError> {
+    let started = Instant::now();
+    if !crate::pixels::covered_by(region, &screen_rects()) {
+        return Err(CaptureError::new(
+            code::OFF_SCREEN,
+            "Part of that rectangle is not on any screen. It may be off the edge, or in the gap between two screens. Choose a rectangle that is fully on your screens.",
+        ));
+    }
+    if unsafe { own_window_showing(region, &programs_to_skip(exclude_pids)) } {
+        return Err(CaptureError::new(
+            code::OWN_WINDOW,
+            "A window of OpenExplainer is showing in that area, so the picture would show OpenExplainer itself. Hide or move it first.",
+        ));
+    }
+    let bgra = unsafe { copy_area(region)? };
+    let (width, height) = save_picture(out, &bgra, Rect { left: 0, top: 0, right: region.width(), bottom: region.height() })?;
+    let centre = POINT { x: region.left + region.width() / 2, y: region.top + region.height() / 2 };
+    let scale_percent = unsafe { monitor_scale(MonitorFromPoint(centre, MONITOR_DEFAULTTONEAREST)) };
+    Ok(json!({
+        "path": out.to_string_lossy(),
+        "width": width,
+        "height": height,
+        "method": "screen-copy",
+        "note": "A copy of what is on the screen in that rectangle, with every window in front of it. The mouse pointer is not included.",
+        "scale_percent": scale_percent,
+        "elapsed_ms": started.elapsed().as_millis() as u64,
+        "region": { "x": region.left, "y": region.top, "width": width, "height": height },
+    }))
+}
+
+struct OwnWalk {
+    skip: HashSet<u32>,
+    console: HWND,
+    region: Rect,
+    showing: bool,
+}
+
+/// Is a window of one of the programs to skip really showing (not hidden behind another window) anywhere in `region`?
+/// This looks at every top-level window, including tool windows and pop-ups, not only the Alt+Tab list.
+unsafe fn own_window_showing(region: Rect, skip: &HashSet<u32>) -> bool {
+    let mut walk = OwnWalk { skip: skip.clone(), console: unsafe { GetConsoleWindow() }, region, showing: false };
+    unsafe extern "system" fn each(hwnd: HWND, data: LPARAM) -> BOOL {
+        let walk = unsafe { &mut *(data.0 as *mut OwnWalk) };
+        if unsafe { shows_in_region(hwnd, walk) } {
+            walk.showing = true;
+            return BOOL(0); // found one: stop looking
+        }
+        BOOL(1)
+    }
+    // Stopping the walk early makes EnumWindows report "false", which is expected here.
+    let _ = unsafe { EnumWindows(Some(each), LPARAM(&mut walk as *mut OwnWalk as isize)) };
+    walk.showing
+}
+
+unsafe fn shows_in_region(hwnd: HWND, walk: &OwnWalk) -> bool {
+    unsafe {
+        if !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() || hwnd == walk.console || is_cloaked(hwnd) {
+            return false;
+        }
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        if !walk.skip.contains(&pid) {
+            return false;
+        }
+        let Some(bounds) = visible_bounds(hwnd) else { return false };
+        let shared = crate::pixels::intersect(bounds, walk.region);
+        if shared.is_empty() {
+            return false;
+        }
+        // The window overlaps the region on paper. It only matters if it is what actually shows at some point there.
+        let mine = GetAncestor(hwnd, GA_ROOTOWNER);
+        let mine = if mine.0.is_null() { hwnd } else { mine };
+        crate::pixels::grid_points(shared, 5, 5, 0)
+            .iter()
+            .any(|(x, y)| GetAncestor(WindowFromPoint(POINT { x: *x, y: *y }), GA_ROOTOWNER) == mine)
     }
 }
 

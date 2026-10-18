@@ -51,7 +51,8 @@ Layout: `src/project/*` (model, migrate, files, zip, package, image, disk), `src
 `tests/*.test.ts` (run `npm test`, uses Node's type stripping, no extra tools), `tools/check-licences.mjs`,
 `src-tauri/` (Tauri shell; permissions in `capabilities/default.json`), `docs/format-spec.md`.
 Double-click scripts: `Run OpenExplainer.bat`, `Check Licences.bat`, and for the capture helper (see `docs/capture-helper.md`) `Test Helper.bat`,
-`Test Window List.bat`, `Test Window Capture.bat`. The helper is its own program in `capture-helper/` (Rust, 26 tests) and is not yet used by the app.
+`Test Window List.bat`, `Test Window Capture.bat`, `Test Region Capture.bat`. The helper is its own program in `capture-helper/` (Rust, 39 tests) and is
+not yet used by the app.
 
 ## Lessons already learned (save yourself the time)
 
@@ -61,7 +62,7 @@ Double-click scripts: `Run OpenExplainer.bat`, `Check Licences.bat`, and for the
 - Use `npm.cmd`, not `npm` (PowerShell blocks the .ps1 shim). The run script already does.
 - a step-by-step screen capturing program hung for minutes when told to capture its own window. OpenExplainer must never capture itself.
 
-## Step 3b, the Windows capture helper: parts 1 to 3 are done, 4 to 7 are next
+## Step 3b, the Windows capture helper: parts 1 to 4 are done, 5 to 7 are next
 
 Goal (from the to-do list): capturing a program that has stopped responding never freezes OpenExplainer.
 
@@ -75,9 +76,14 @@ messages, the error codes, and what was and was not tried.
    trimmed. Tried with two monitors, a window with another in front, a minimized window (plain message), a closed window, the app's own window
    (refused), a program that stopped responding (a picture in about 30 ms; Windows' "Ghost" stand-in window counts as the window), and an Edge window.
    Double-click tests: `Test Helper.bat`, `Test Window List.bat`, `Test Window Capture.bat` (they run `tools/capture-helper-test.mjs`).
+4. `list-screens` and `capture-region` (2026-10-18). `list-screens` gives each screen's position (negative for a screen left of or above the
+   main one), size and scale. `capture-region` takes four numbers in real screen pixels on the whole desktop and makes a screen copy. It refuses a
+   rectangle with no size, one that is not entirely on the screens (the gap between two screens counts as off-screen), and one where a window of
+   OpenExplainer (the helper's own program, its parent, or any `exclude_pids`) is really showing, which is the "never captures itself" rule for
+   regions. Tried with exact colours on both screens; double-click test: `Test Region Capture.bat`. The drag-to-select overlay is NOT built (the
+   handoff said "later"); it will need a window of its own and the same keyboard and screen reader rules as everything else.
 
 Still to build, in this order, testing each on this PC:
-4. `capture-region`: four numbers (x, y, width, height), plus a drag-to-select overlay later.
 5. Timeout (default 20 seconds) enforced by the app, which kills the helper; an always-visible Cancel; the app window hides itself during
    capture so it never captures itself; a failed capture leaves the project unchanged and says why in plain words.
 6. Wire it into the app: a Capture button that adds the PNG as a Picture with `source.kind` of `window` or `region`
@@ -97,7 +103,13 @@ Known limit: apps like Notepad expose little accessibility data, so labels come 
 Also check ARM: build the helper for `aarch64-pc-windows-msvc` as well as x64, even if Jason can only run x64 today. Rust on this PC has only the
 `x86_64-pc-windows-msvc` target, so adding ARM (`rustup target add aarch64-pc-windows-msvc`) is a download that needs Jason's yes.
 
-Lessons from parts 1 to 3:
+Lessons from parts 1 to 4:
+- Windows may leave gaps between screens set at different heights (here 7 pixels beside the higher screen), so "inside the whole desktop" is not
+  the same as "on a screen". Check a region against each screen's own rectangle (`covered_by` in `capture-helper/src/pixels.rs`).
+- A region copy cannot tell which window in front is "the app" unless told, so the app must pass its process number in `exclude_pids`. The helper
+  then decides by what is really showing at points in the overlap, not by overlap on paper.
+- Windows PowerShell passes a bare `-50` to a function as text, which the helper rightly refuses as not a number: type the parameters (`[int]`).
+- A test tool reading typed answers with a new reader for each question loses lines when input is piped from a file; use one reader for the run.
 - When a program stops responding, Windows puts a stand-in window of class `Ghost` in front of it, titled "... (Not Responding)", owned by a
   different process. A check for "is this window in front?" must count that stand-in as the window.
 - `PrintWindow` pictures only the one window. A program's modal dialog is a separate window and is not in it (Edge's sign-in dialog dimmed the page

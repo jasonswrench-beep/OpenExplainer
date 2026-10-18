@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Picture arithmetic that needs no screen, so it can be tested anywhere.
 
+use crate::protocol::{code, CaptureError, ScreenInfo};
+
+/// A picture bigger than this is almost certainly a mistake, and would use gigabytes to hold.
+pub const MOST_PIXELS: i64 = 120_000_000;
+
 /// A rectangle in screen pixels. `right` and `bottom` are the first pixel outside it, as Windows does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rect {
@@ -26,6 +31,75 @@ impl Rect {
     pub fn contains_rect(&self, inner: &Rect) -> bool {
         inner.left >= self.left && inner.top >= self.top && inner.right <= self.right && inner.bottom <= self.bottom
     }
+}
+
+/// The part two rectangles share. Empty (zero width and height) if they only touch or do not meet.
+pub fn intersect(a: Rect, b: Rect) -> Rect {
+    let left = a.left.max(b.left);
+    let top = a.top.max(b.top);
+    let right = a.right.min(b.right).max(left);
+    let bottom = a.bottom.min(b.bottom).max(top);
+    Rect { left, top, right, bottom }
+}
+
+/// Is every pixel of `region` on some screen? Screens need not touch and may overlap, so a region that spans the
+/// small gap Windows leaves between two screens set at different heights is NOT covered.
+pub fn covered_by(region: Rect, screens: &[Rect]) -> bool {
+    if region.is_empty() {
+        return false;
+    }
+    // Cut the region into cells along every screen edge that crosses it, then check that each cell is on a screen.
+    let mut xs = vec![region.left, region.right];
+    let mut ys = vec![region.top, region.bottom];
+    for s in screens {
+        for x in [s.left, s.right] {
+            if x > region.left && x < region.right {
+                xs.push(x);
+            }
+        }
+        for y in [s.top, s.bottom] {
+            if y > region.top && y < region.bottom {
+                ys.push(y);
+            }
+        }
+    }
+    xs.sort_unstable();
+    xs.dedup();
+    ys.sort_unstable();
+    ys.dedup();
+    xs.windows(2).all(|x| {
+        ys.windows(2).all(|y| {
+            let cell = Rect { left: x[0], top: y[0], right: x[1], bottom: y[1] };
+            screens.iter().any(|s| s.contains_rect(&cell))
+        })
+    })
+}
+
+/// Gives the screens their numbers, from 1: the main screen is always 1, and the rest go left to right, then top to bottom.
+pub fn number_screens(mut screens: Vec<ScreenInfo>) -> Vec<ScreenInfo> {
+    screens.sort_by_key(|s| (!s.primary, s.x, s.y));
+    for (i, s) in screens.iter_mut().enumerate() {
+        s.number = i as u32 + 1;
+    }
+    screens
+}
+
+/// Checks the four numbers of a region request. They are real screen pixels, so `x` and `y` may be negative on a
+/// screen that sits left of or above the main one.
+pub fn check_region(x: i32, y: i32, width: i32, height: i32) -> Result<Rect, CaptureError> {
+    if width < 1 || height < 1 {
+        return Err(CaptureError::new(
+            code::BAD_REQUEST,
+            "A region needs a width and a height of at least 1 pixel.",
+        ));
+    }
+    let (Some(right), Some(bottom)) = (x.checked_add(width), y.checked_add(height)) else {
+        return Err(CaptureError::new(code::BAD_REQUEST, "Those region numbers are too large to be on any screen."));
+    };
+    if i64::from(width) * i64::from(height) > MOST_PIXELS {
+        return Err(CaptureError::new(code::TOO_LARGE, "That region is far bigger than any screen. Nothing was captured."));
+    }
+    Ok(Rect { left: x, top: y, right, bottom })
 }
 
 /// Windows 10 and 11 draw invisible resize borders round most windows, so a window's full rectangle is a
@@ -164,6 +238,69 @@ mod tests {
     #[test]
     fn grid_points_of_a_tiny_rectangle_are_empty() {
         assert!(grid_points(rect(0, 0, 6, 6), 5, 5, 4).is_empty());
+    }
+
+    // The two screens of the author's PC: the main one, and one above it shifted 7 pixels to the right.
+    fn two_screens() -> Vec<Rect> {
+        vec![rect(0, 0, 1920, 1080), rect(7, -1080, 1927, 0)]
+    }
+
+    #[test]
+    fn intersect_gives_the_shared_part_or_nothing() {
+        assert_eq!(intersect(rect(0, 0, 100, 100), rect(50, 60, 200, 200)), rect(50, 60, 100, 100));
+        assert!(intersect(rect(0, 0, 10, 10), rect(10, 0, 20, 10)).is_empty(), "touching is not sharing");
+        assert!(intersect(rect(0, 0, 10, 10), rect(50, 50, 60, 60)).is_empty());
+    }
+
+    #[test]
+    fn a_region_on_one_screen_is_covered() {
+        assert!(covered_by(rect(100, 100, 400, 300), &two_screens()));
+        assert!(covered_by(rect(0, 0, 1920, 1080), &two_screens()), "the whole main screen");
+        assert!(covered_by(rect(7, -1080, 1927, 0), &two_screens()), "the whole second screen");
+    }
+
+    #[test]
+    fn a_region_across_the_seam_where_the_screens_meet_is_covered() {
+        assert!(covered_by(rect(100, -50, 200, 50), &two_screens()));
+    }
+
+    #[test]
+    fn the_strip_left_of_the_higher_screen_is_not_a_screen() {
+        // x 0..7 above the main screen is empty desktop, and would come out black.
+        assert!(!covered_by(rect(0, -50, 100, 50), &two_screens()));
+        assert!(!covered_by(rect(1900, -50, 1930, 50), &two_screens()), "past the right edge of the main screen");
+    }
+
+    #[test]
+    fn a_region_partly_off_every_screen_or_empty_is_not_covered() {
+        assert!(!covered_by(rect(1800, 1000, 2000, 1100), &two_screens()));
+        assert!(!covered_by(rect(-5, 0, 100, 100), &two_screens()));
+        assert!(!covered_by(rect(5, 5, 5, 50), &two_screens()));
+        assert!(!covered_by(rect(0, 0, 10, 10), &[]));
+    }
+
+    #[test]
+    fn overlapping_screens_still_cover_what_they_cover() {
+        let mirrored = vec![rect(0, 0, 100, 100), rect(0, 0, 100, 100), rect(50, 0, 200, 100)];
+        assert!(covered_by(rect(10, 10, 190, 90), &mirrored));
+    }
+
+    #[test]
+    fn screens_are_numbered_main_first_then_left_to_right() {
+        let screen = |x: i32, y: i32, primary: bool| ScreenInfo { number: 0, x, y, width: 100, height: 100, primary, scale_percent: 100 };
+        let numbered = number_screens(vec![screen(2000, 0, false), screen(0, 0, true), screen(-1000, 0, false)]);
+        let order: Vec<(u32, i32)> = numbered.iter().map(|s| (s.number, s.x)).collect();
+        assert_eq!(order, vec![(1, 0), (2, -1000), (3, 2000)]);
+    }
+
+    #[test]
+    fn region_numbers_are_checked() {
+        assert_eq!(check_region(10, 20, 300, 200).unwrap(), rect(10, 20, 310, 220));
+        assert_eq!(check_region(-100, -900, 50, 50).unwrap(), rect(-100, -900, -50, -850), "negative positions are fine");
+        assert_eq!(check_region(0, 0, 0, 10).unwrap_err().code, code::BAD_REQUEST);
+        assert_eq!(check_region(0, 0, 10, -1).unwrap_err().code, code::BAD_REQUEST);
+        assert_eq!(check_region(i32::MAX, 0, 10, 10).unwrap_err().code, code::BAD_REQUEST);
+        assert_eq!(check_region(0, 0, 20_000, 20_000).unwrap_err().code, code::TOO_LARGE);
     }
 
     #[test]

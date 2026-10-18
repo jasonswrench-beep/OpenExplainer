@@ -8,7 +8,7 @@ add numbered markers and callouts, and publish a printed-quality book or short s
 
 ## Status
 
-Early. You can create a project, build a chapter and topic tree with numbering and status, and save and open it as one file, such as Test1.openexplainer. You can import PNG and JPEG pictures into a topic, each with a description. Screen capture is being built as a separate small program, the capture helper: it can list your open windows and capture one (not yet connected to the app; see `docs/capture-helper.md`). Page editing and export are not built yet.
+Early. You can create a project, build a chapter and topic tree with numbering and status, and save and open it as one file, such as Test1.openexplainer. You can import PNG and JPEG pictures into a topic, each with a description. Screen capture is being built as a separate small program, the capture helper: it can list your open windows and capture one, list your screens, and capture a rectangle of the screen (not yet connected to the app; see `docs/capture-helper.md`). Page editing and export are not built yet.
 
 ## What it will do
 
@@ -28,7 +28,7 @@ You need Node.js and Rust installed. The script tells you if either is missing.
 
 To check dependency licences, double-click **Check Licences.bat**.
 
-To try the capture helper, double-click **Test Helper.bat**, **Test Window List.bat** or **Test Window Capture.bat**.
+To try the capture helper, double-click **Test Helper.bat**, **Test Window List.bat**, **Test Window Capture.bat** or **Test Region Capture.bat**.
 
 ## Licence
 

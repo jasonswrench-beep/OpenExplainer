@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Turns one request line into one reply.
 
+use crate::pixels;
 use crate::platform;
 use crate::png_out;
 use crate::protocol::{code, parse_line, CaptureError, Reply, Request};
@@ -38,10 +39,18 @@ fn run(request: Request) -> Result<Value, CaptureError> {
             let windows = platform::list_windows(&exclude_pids)?;
             Ok(json!({ "windows": windows }))
         }
+        Request::ListScreens => {
+            let screens = platform::list_screens()?;
+            Ok(json!({ "screens": screens }))
+        }
         Request::CaptureWindow { window, out, exclude_pids } => {
             let path = png_out::check_out_path(&out)?;
-            let done = platform::capture_window(window, &path, &exclude_pids)?;
-            Ok(done)
+            platform::capture_window(window, &path, &exclude_pids)
+        }
+        Request::CaptureRegion { x, y, width, height, out, exclude_pids } => {
+            let path = png_out::check_out_path(&out)?;
+            let region = pixels::check_region(x, y, width, height)?;
+            platform::capture_region(region, &path, &exclude_pids)
         }
     }
 }
@@ -65,6 +74,21 @@ mod tests {
         let reply = handle_line("???");
         assert!(!reply.ok);
         assert_eq!(reply.error.unwrap().code, code::BAD_REQUEST);
+    }
+
+    #[test]
+    fn a_region_with_no_size_is_refused_before_anything_is_captured() {
+        let reply = handle_line(r#"{"id": 6, "command": "capture-region", "x": 0, "y": 0, "width": 0, "height": 50, "out": "C:\\pictures\\r.png"}"#);
+        assert!(!reply.ok);
+        let error = reply.error.unwrap();
+        assert_eq!(error.code, code::BAD_REQUEST);
+        assert!(error.message.contains("width and a height"));
+    }
+
+    #[test]
+    fn a_region_to_a_relative_path_is_refused() {
+        let reply = handle_line(r#"{"id": 7, "command": "capture-region", "x": 0, "y": 0, "width": 5, "height": 5, "out": "r.png"}"#);
+        assert!(reply.error.unwrap().message.contains("full path"));
     }
 
     #[test]
