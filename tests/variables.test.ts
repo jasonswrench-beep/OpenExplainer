@@ -23,7 +23,8 @@ test("find and replace in titles", () => {
   assert.equal(findNodes(p.tree, "", false).length, 0);
   assert.equal(replaceInTitles(p.tree, "start", "begin", false), 4);
   assert.deepEqual(p.tree.map((n) => n.title), ["Getting begined", "begin here"]);
-  assert.equal(replaceInTitles(p.tree, "(begin over)", "$&", false), 0);
+  assert.equal(replaceInTitles(p.tree, "(begin over)", "$&", false), 1);
+  assert.equal(p.tree[1].children[0].title, "Rebegin $&");
 });
 
 test("special characters in the search text are taken literally", () => {
