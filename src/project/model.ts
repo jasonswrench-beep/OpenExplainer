@@ -46,7 +46,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     tree: [],
   };
   if (template === "openstage-how-to-book") {
-    project.tree = ["Introduction", "Getting Started"].map(makeNode);
+    project.tree = ["Introduction", "Getting Started", "Appendix"].map(makeNode);
   } else if (template === "software-user-guide") {
     project.tree = ["Overview", "Installation", "Using the Software", "Troubleshooting"].map(makeNode);
   }
@@ -174,4 +174,46 @@ export function outdent(tree: TreeNode[], id: string): boolean {
 export function outline(tree: TreeNode[]): string[] {
   const numbers = numbering(tree);
   return visibleNodes(tree, new Set()).map(({ node, level }) => `${"  ".repeat(level - 1)}${numbers.get(node.id)} ${node.title}`);
+}
+
+// ---- Variables ---------------------------------------------------------------------------
+// Variables are written {{NAME}} in text and replaced when the project is exported.
+
+export const CORE_VARIABLES = ["PRODUCT", "VERSION", "COMPANY"];
+
+/** A variable name is capital letters, digits and underscores, so it is easy to type and spot. */
+export function cleanVariableName(name: string): string {
+  return name.trim().toUpperCase().replace(/[^A-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+/** Fill in variables. One with no value is left as {{NAME}} so it is easy to see and fix. */
+export function expandVariables(text: string, variables: Record<string, string>): string {
+  return text.replace(/\{\{([A-Z0-9_]+)\}\}/g, (whole, name: string) => (variables[name] ? variables[name] : whole));
+}
+
+// ---- Find and replace --------------------------------------------------------------------
+
+function pattern(query: string, matchCase: boolean): RegExp {
+  return new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), matchCase ? "g" : "gi");
+}
+
+/** The nodes whose titles contain the text, in the order they appear. */
+export function findNodes(tree: TreeNode[], query: string, matchCase: boolean): TreeNode[] {
+  if (!query) return [];
+  const re = pattern(query, matchCase);
+  return visibleNodes(tree, new Set()).map((r) => r.node).filter((n) => {
+    re.lastIndex = 0;
+    return re.test(n.title);
+  });
+}
+
+/** Replace in every title. Returns how many replacements were made. */
+export function replaceInTitles(tree: TreeNode[], find: string, replacement: string, matchCase: boolean): number {
+  if (!find) return 0;
+  const re = pattern(find, matchCase);
+  let count = 0;
+  for (const { node } of visibleNodes(tree, new Set())) {
+    node.title = node.title.replace(re, () => { count++; return replacement; });
+  }
+  return count;
 }

@@ -21,6 +21,12 @@ Both files carry the same `version`. If they differ, the project is refused, bec
 - Numbers (1, 1.2, 1.2.3) are never stored. They are worked out from position, so they cannot go stale.
 - `status` is one of `not-started`, `captured`, `drafted`, `reviewed`, `needs-recheck`. Each has a word, a symbol and a color on screen; color is never the only signal.
 
+## Variables
+
+`variables` in `project.json` maps a name to a value. Names are capital letters, digits and underscores. PRODUCT, VERSION and
+COMPANY always exist and cannot be removed. Text uses `{{NAME}}`; export replaces it with the value, and leaves `{{NAME}}`
+visible if the value is empty.
+
 ## Versions and migrations
 
 `CURRENT_VERSION` is in `src/project/model.ts`. Every change to this format bumps it and adds a step in `src/project/migrate.ts`.

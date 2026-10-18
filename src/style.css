@@ -25,3 +25,7 @@ button { font: inherit; padding: 0.5rem 1rem; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 dialog { border: 2px solid var(--accent); border-radius: 6px; padding: 1rem 1.5rem; }
 dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+
+details { margin: 0.5rem 0; }
+summary { cursor: pointer; padding: 0.25rem 0; }
+input[type="text"] { font: inherit; padding: 0.25rem 0.4rem; }

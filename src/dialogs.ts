@@ -1,3 +1,5 @@
+import { cleanVariableName, CORE_VARIABLES, type Project } from "./project/model.ts";
+
 // Small accessible dialogs built on the browser's own <dialog>, which traps focus
 // while open and closes with Escape. Focus goes back to where it was when they close.
 
@@ -64,4 +66,59 @@ export async function messageDialog(title: string, message: string): Promise<voi
   dialog.querySelector("h2")!.textContent = title;
   dialog.querySelector("#dlg-message")!.textContent = message;
   await open(dialog, dialog.querySelector("button")!);
+}
+
+export async function newProjectDialog(): Promise<{ name: string; template: Project["template"] } | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">New project</h2>
+      <p><label for="np-name">Project name</label><br><input id="np-name" type="text" size="40" required></p>
+      <p><label for="np-template">Start from</label><br>
+        <select id="np-template">
+          <option value="openstage-how-to-book">OpenStage how-to book (a few starter chapters)</option>
+          <option value="software-user-guide">Software user guide (overview, installation, using, troubleshooting)</option>
+          <option value="empty">Empty project</option>
+        </select></p>
+      <p><button value="ok">Create</button> <button value="cancel" formnovalidate>Cancel</button></p>
+    </form>`;
+  const input = dialog.querySelector<HTMLInputElement>("#np-name")!;
+  const select = dialog.querySelector<HTMLSelectElement>("#np-template")!;
+  await open(dialog, input);
+  const name = input.value.trim();
+  return dialog.returnValue === "ok" && name ? { name, template: select.value as Project["template"] } : null;
+}
+
+export async function variablesDialog(variables: Record<string, string>): Promise<Record<string, string> | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  const rows = Object.keys(variables)
+    .map((name, i) => {
+      const core = CORE_VARIABLES.includes(name);
+      return `<p><label for="v-${i}">${name}</label><br>
+        <input id="v-${i}" data-name="${name}" type="text" size="40">
+        ${core ? "" : `<label><input type="checkbox" data-remove="${name}"> Remove ${name}</label>`}</p>`;
+    })
+    .join("");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">Project variables</h2>
+      <p>Write {{NAME}} in your text. It is replaced with the value when you export.</p>
+      ${rows}
+      <p><label for="v-new-name">New variable name (optional)</label><br><input id="v-new-name" type="text" size="24"></p>
+      <p><label for="v-new-value">Its value</label><br><input id="v-new-value" type="text" size="40"></p>
+      <p><button value="ok">OK</button> <button value="cancel" formnovalidate>Cancel</button></p>
+    </form>`;
+  dialog.querySelectorAll<HTMLInputElement>("input[data-name]").forEach((el) => (el.value = variables[el.dataset.name!]));
+  await open(dialog, dialog.querySelector<HTMLInputElement>("input[data-name]")!);
+  if (dialog.returnValue !== "ok") return null;
+  const result: Record<string, string> = {};
+  dialog.querySelectorAll<HTMLInputElement>("input[data-name]").forEach((el) => {
+    const name = el.dataset.name!;
+    if (!dialog.querySelector<HTMLInputElement>(`input[data-remove="${name}"]`)?.checked) result[name] = el.value;
+  });
+  const newName = cleanVariableName(dialog.querySelector<HTMLInputElement>("#v-new-name")!.value);
+  if (newName) result[newName] = dialog.querySelector<HTMLInputElement>("#v-new-value")!.value;
+  return result;
 }

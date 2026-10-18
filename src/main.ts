@@ -1,10 +1,10 @@
 import "./style.css";
 import {
   STATUSES, addNode, createProject, findNode, indent, locate, moveDown, moveUp, numbering,
-  outdent, removeNode, renameNode, setStatus, visibleNodes, type Project, type Status,
+  outdent, removeNode, renameNode, setStatus, visibleNodes, findNodes, replaceInTitles, type Project, type Status,
 } from "./project/model.ts";
 import { chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
-import { confirmDialog, messageDialog, promptText } from "./dialogs.ts";
+import { confirmDialog, messageDialog, newProjectDialog, promptText, variablesDialog } from "./dialogs.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("The app container is missing from index.html.");
@@ -27,6 +27,7 @@ app.innerHTML = `
       <button type="button" id="b-open">Open project</button>
       <button type="button" id="b-save">Save (Ctrl+S)</button>
       <button type="button" id="b-saveas">Save as</button>
+      <button type="button" id="b-vars">Project variables</button>
     </div>
     <div class="toolbar" role="toolbar" aria-label="Chapters and topics">
       <button type="button" id="b-chapter">Add chapter</button>
@@ -41,6 +42,16 @@ app.innerHTML = `
         <select id="status-select"></select>
       </label>
     </div>
+    <details id="find-panel">
+      <summary>Find and replace in chapter and topic titles</summary>
+      <div class="toolbar">
+        <label>Find <input id="find-input" type="text"></label>
+        <label>Replace with <input id="replace-input" type="text"></label>
+        <label><input id="find-case" type="checkbox"> Match case</label>
+        <button type="button" id="b-find-next">Find next</button>
+        <button type="button" id="b-replace-all">Replace all</button>
+      </div>
+    </details>
     <p id="tree-help" class="help">
       In the list: Up and Down arrows move, Right opens, Left closes, F2 renames, Delete removes.
       Alt with Up or Down reorders. Alt with Right or Left indents or outdents.
@@ -88,6 +99,7 @@ function render(focusSelected = false) {
 
   treeEl.replaceChildren();
   $("empty").hidden = rows.length > 0;
+  treeEl.hidden = rows.length === 0;
 
   for (const { node, level } of rows) {
     const status = STATUSES.find((s) => s.id === node.status)!;
@@ -196,9 +208,10 @@ async function guardUnsaved(): Promise<boolean> {
 
 async function newProject() {
   if (!(await guardUnsaved())) return;
-  const name = await promptText("New project", "Project name");
-  if (!name) return;
-  project = createProject(name);
+  const choice = await newProjectDialog();
+  if (!choice) return;
+  const name = choice.name;
+  project = createProject(name, choice.template);
   filePath = null;
   dirty = true;
   selectedId = null;
@@ -312,5 +325,49 @@ statusSelect.addEventListener("change", () => {
   render();
   announce(`Status set to ${STATUSES.find((s) => s.id === statusSelect.value)!.word}`);
 });
+
+$("b-vars").addEventListener("click", async () => {
+  const result = await variablesDialog(project.variables);
+  if (!result) return;
+  project.variables = result;
+  markDirty();
+  announce("Variables updated");
+});
+
+// ---- Find and replace --------------------------------------------------------------------
+const findInput = $<HTMLInputElement>("find-input");
+const replaceInput = $<HTMLInputElement>("replace-input");
+const findCase = $<HTMLInputElement>("find-case");
+
+function findNext() {
+  const matches = findNodes(project.tree, findInput.value, findCase.checked);
+  if (!matches.length) return void announce(findInput.value ? "No matches." : "Type something to find.");
+  const order = visibleNodes(project.tree, new Set()).map((r) => r.node.id);
+  const from = selectedId ? order.indexOf(selectedId) : -1;
+  const next = matches.find((n) => order.indexOf(n.id) > from) ?? matches[0];
+  // Open any closed parents so the match can be seen.
+  for (let where = locate(project.tree, next.id); where?.parent; where = locate(project.tree, where.parent.id)) {
+    collapsed.delete(where.parent.id);
+  }
+  selectedId = next.id;
+  render(false);
+  announce(`Match ${matches.indexOf(next) + 1} of ${matches.length}: ${next.title}`);
+}
+
+async function replaceAll() {
+  const find = findInput.value;
+  const matches = findNodes(project.tree, find, findCase.checked);
+  if (!matches.length) return void announce(find ? "No matches." : "Type something to find.");
+  const ok = await confirmDialog("Replace all", `Replace "${find}" with "${replaceInput.value}" in ${matches.length} title(s)? This cannot be undone.`, "Replace all");
+  if (!ok) return;
+  const count = replaceInTitles(project.tree, find, replaceInput.value, findCase.checked);
+  markDirty();
+  render(false);
+  announce(`Replaced ${count} in ${matches.length} title(s).`);
+}
+
+$("b-find-next").addEventListener("click", findNext);
+$("b-replace-all").addEventListener("click", () => void replaceAll());
+findInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); findNext(); } });
 
 render();
