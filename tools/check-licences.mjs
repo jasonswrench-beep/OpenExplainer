@@ -35,12 +35,14 @@ function scanNode(dir) {
 
 scanNode("node_modules");
 
-if (existsSync("src-tauri/Cargo.toml")) {
+// The app, and the capture helper, which is its own Rust program with its own list of crates.
+for (const manifest of ["src-tauri/Cargo.toml", "capture-helper/Cargo.toml"]) {
+  if (!existsSync(manifest)) continue;
   try {
-    const out = execSync("cargo metadata --format-version 1 --manifest-path src-tauri/Cargo.toml", { maxBuffer: 1 << 28 }).toString();
+    const out = execSync(`cargo metadata --format-version 1 --manifest-path ${manifest}`, { maxBuffer: 1 << 28 }).toString();
     for (const p of JSON.parse(out).packages) judge("crate", `${p.name}@${p.version}`, p.license);
   } catch {
-    reviews.push("Rust crates were not checked because cargo could not run. Install Rust and run this again.");
+    reviews.push(`The Rust crates in ${manifest} were not checked because cargo could not run. Install Rust and run this again.`);
   }
 }
 

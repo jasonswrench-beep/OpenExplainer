@@ -5,4 +5,14 @@ Licensed under the Apache License, Version 2.0.
 
 Third-party code and assets adopted into this project are listed below with attribution.
 
-(None yet.)
+Code copied from OpenStage or OpenScreen: none so far.
+
+Libraries used by the capture helper (capture-helper/), each under a permissive licence:
+
+- windows (Microsoft's Rust bindings for the Windows API), MIT OR Apache-2.0. https://github.com/microsoft/windows-rs
+- png (PNG image encoder and decoder), MIT OR Apache-2.0. https://github.com/image-rs/image-png
+- serde and serde_json (reading and writing the helper's JSON messages), MIT OR Apache-2.0. https://serde.rs
+
+Each of these brings in smaller libraries of its own (35 Rust crates in all). One of them, unicode-ident, also
+carries the Unicode licence for its data tables, which is permissive. "Check Licences.bat" reads the licence of
+every one and refuses GPL and AGPL.

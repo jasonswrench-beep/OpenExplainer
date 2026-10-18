@@ -50,7 +50,8 @@ Step 3a was tested by unit tests only (19 pass) and not yet by Jason in the app.
 Layout: `src/project/*` (model, migrate, files, zip, package, image, disk), `src/main.ts` (UI), `src/dialogs.ts`,
 `tests/*.test.ts` (run `npm test`, uses Node's type stripping, no extra tools), `tools/check-licences.mjs`,
 `src-tauri/` (Tauri shell; permissions in `capabilities/default.json`), `docs/format-spec.md`.
-Double-click scripts: `Run OpenExplainer.bat`, `Check Licences.bat`.
+Double-click scripts: `Run OpenExplainer.bat`, `Check Licences.bat`, and for the capture helper (see `docs/capture-helper.md`) `Test Helper.bat`,
+`Test Window List.bat`, `Test Window Capture.bat`. The helper is its own program in `capture-helper/` (Rust, 26 tests) and is not yet used by the app.
 
 ## Lessons already learned (save yourself the time)
 
@@ -60,16 +61,22 @@ Double-click scripts: `Run OpenExplainer.bat`, `Check Licences.bat`.
 - Use `npm.cmd`, not `npm` (PowerShell blocks the .ps1 shim). The run script already does.
 - a step-by-step screen capturing program hung for minutes when told to capture its own window. OpenExplainer must never capture itself.
 
-## NEXT: Step 3b, the Windows capture helper
+## Step 3b, the Windows capture helper: parts 1 to 3 are done, 4 to 7 are next
 
 Goal (from the to-do list): capturing a program that has stopped responding never freezes OpenExplainer.
 
-Build, in this order, testing each on this PC:
-1. A separate Rust program (suggested folder `capture-helper/`, its own `Cargo.toml`, NOT part of the Tauri crate so a helper error cannot break the app build)
-   that the app starts as a child process and talks to with one JSON message per line on stdin/stdout.
-2. `list-windows`: titles, process names, rectangles, so capture works by keyboard from a list.
-3. `capture-window`: one chosen window even when another window is in front (try PrintWindow with PW_RENDERFULLCONTENT first, fall back to a
-   screen grab of its rectangle, and say which was used). Output PNG. Handle DPI scaling and minimized windows with a clear message.
+Done on 2026-10-18 by the session on Jason's PC (Windows 11 x64), and tried there. Read `docs/capture-helper.md` for the
+messages, the error codes, and what was and was not tried.
+1. A separate Rust program in `capture-helper/` (its own `Cargo.toml` with an empty `[workspace]`, so it is not part of the Tauri crate and
+   a helper error cannot break the app build). The app starts it as a child process and talks to it with one JSON line in, one JSON line out.
+2. `list-windows`: titles, programs, rectangles, minimized and not-responding flags, display scale. It follows the Alt+Tab rule and leaves out
+   its own program and the program that started it.
+3. `capture-window`: PrintWindow first, a screen copy if that gives nothing, and the reply says which was used. Invisible window borders are
+   trimmed. Tried with two monitors, a window with another in front, a minimized window (plain message), a closed window, the app's own window
+   (refused), a program that stopped responding (a picture in about 30 ms; Windows' "Ghost" stand-in window counts as the window), and an Edge window.
+   Double-click tests: `Test Helper.bat`, `Test Window List.bat`, `Test Window Capture.bat` (they run `tools/capture-helper-test.mjs`).
+
+Still to build, in this order, testing each on this PC:
 4. `capture-region`: four numbers (x, y, width, height), plus a drag-to-select overlay later.
 5. Timeout (default 20 seconds) enforced by the app, which kills the helper; an always-visible Cancel; the app window hides itself during
    capture so it never captures itself; a failed capture leaves the project unchanged and says why in plain words.
@@ -79,13 +86,25 @@ Build, in this order, testing each on this PC:
    (name, role, accelerator/hot key, description, position). NEVER store password fields. Store the click position so the highlight can be
    added or removed later. This needs a format version 3 and a migration, plus a `docs/format-spec.md` update.
 
-Reference (read only, for ideas, not for copying wholesale): OpenStage's Rust capture crates under `C:\Users\Jason\OpenStage\capture\crates\`
-(`openstage-capture-windows`, `-protocol`, `-project`, `-render`, `-cli`) and its `docs/decisions/0001-screen-capture.md`.
-Do not adopt outside recorders' code (copyleft). Any Rust crate must be permissive; extend `tools/check-licences.mjs` (it already runs
-`cargo metadata` when `src-tauri/Cargo.toml` exists) to cover `capture-helper/Cargo.toml` too.
+Reference (read only, for ideas, not for copying wholesale): OpenStage's Rust capture crates under `D:\Documents\OpenStage\capture\crates\` on this
+PC (the first version of this note said `C:\Users\Jason\OpenStage`, which does not exist here) (`openstage-capture-windows`, `-protocol`, `-project`,
+`-render`, `-cli`) and its `docs/decisions/0001-screen-capture.md`. Nothing was copied from it for parts 1 to 3: its window listing says it was
+only type-checked, never run, so the helper's was written fresh and tried for real.
+Do not adopt outside recorders' code (copyleft). Any Rust crate must be permissive; `tools/check-licences.mjs` now covers
+`capture-helper/Cargo.toml` as well as `src-tauri/Cargo.toml`.
 Known limit: apps like Notepad expose little accessibility data, so labels come back generic. The later AI drafting step gives them real names.
 
-Also check ARM: build the helper for `aarch64-pc-windows-msvc` as well as x64, even if Jason can only run x64 today.
+Also check ARM: build the helper for `aarch64-pc-windows-msvc` as well as x64, even if Jason can only run x64 today. Rust on this PC has only the
+`x86_64-pc-windows-msvc` target, so adding ARM (`rustup target add aarch64-pc-windows-msvc`) is a download that needs Jason's yes.
+
+Lessons from parts 1 to 3:
+- When a program stops responding, Windows puts a stand-in window of class `Ghost` in front of it, titled "... (Not Responding)", owned by a
+  different process. A check for "is this window in front?" must count that stand-in as the window.
+- `PrintWindow` pictures only the one window. A program's modal dialog is a separate window and is not in it (Edge's sign-in dialog dimmed the page
+  and was not in the picture). Owned dialogs are also not in the window list, because the list follows the Alt+Tab rule.
+- Test with made-up windows, not the author's own: a tiny program built with the `csc.exe` that ships with Windows made a clean target. PowerShell
+  `Start-Process -WindowStyle Hidden` hides the target's first window too, and Windows PowerShell 5.1 strips the quotes from JSON passed to a program.
+- A fresh Edge profile can sign in with the PC's account and start syncing by itself, so do not use Edge for test windows.
 
 ## Still open (ask Jason, do not guess)
 
@@ -93,6 +112,9 @@ Also check ARM: build the helper for `aarch64-pc-windows-msvc` as well as x64, e
 - MCP server: which actions to offer first.
 - Which the reference authoring platform page styles to copy exactly versus only resemble; how much detail per feature in the OpenStage book.
 - The name "OpenExplainer" has not been checked for conflicts on GitHub and elsewhere.
+- Capture helper: should the window list also show a program's dialogs (marked as belonging to it) so a native dialog can be captured by itself?
+  Region capture can also take one.
+- Capture helper: Windows 11's rounded corners leave a few black or background pixels in the picture's corners. Save with transparent corners, or leave?
 - Steps 1 and 2 leftovers: more double-click scripts (build, tests), keyboard and screen reader pass, ARM check.
 
 ## Housekeeping on Jason's PC
