@@ -7,10 +7,10 @@ import {
 import { chooseImages, chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
-import { chooseWindowDialog, confirmDialog, messageDialog, newProjectDialog, promptText, variablesDialog } from "./dialogs.ts";
+import { captureDialog, confirmDialog, messageDialog, newProjectDialog, promptText, variablesDialog } from "./dialogs.ts";
 import { createCaptureClient } from "./capture/client.ts";
 import { captureTimeoutMs, tauriShell } from "./capture/tauri.ts";
-import type { WindowInfo } from "./capture/outcome.ts";
+import { regionName, screenName } from "./capture/region.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("The app container is missing from index.html.");
@@ -69,7 +69,7 @@ app.innerHTML = `
       <h3 id="pictures-heading">Pictures</h3>
       <div class="toolbar">
         <button type="button" id="b-import">Import pictures into the selected item</button>
-        <button type="button" id="b-capture">Capture a window into the selected item</button>
+        <button type="button" id="b-capture">Capture into the selected item</button>
       </div>
       <p id="pictures-empty" class="help"></p>
       <ul id="pictures" class="pictures" aria-label="Pictures in the selected item"></ul>
@@ -254,47 +254,60 @@ async function importPictures() {
 
 $("b-import").addEventListener("click", () => void importPictures());
 
-// ---- Capturing a window ------------------------------------------------------------------
+// ---- Capturing a window or a rectangle of the screen -------------------------------------
 // The helper (capture-helper/) takes the picture. OpenExplainer hides while it does, a Cancel window shows, and the
 // wait ends by itself after 20 seconds. If anything goes wrong the project is left exactly as it was: the picture is
 // only added after a capture has fully worked.
 const captureClient = createCaptureClient(tauriShell, captureTimeoutMs);
 let capturing = false;
 
-async function captureAWindow() {
+async function captureIntoTopic() {
   const node = selected();
   if (!node || capturing) return;
   capturing = true;
   try {
-    announce("Looking for open windows.");
-    let listed = await captureClient.listWindows();
-    let chosen: WindowInfo | null = null;
-    while (listed.ok && !chosen) {
-      const answer = await chooseWindowDialog(listed.value);
-      if (!answer) return;
-      if (answer.kind === "refresh") { listed = await captureClient.listWindows(); continue; }
-      chosen = answer.window;
+    announce("Looking for open windows and screens.");
+    const windows = await captureClient.listWindows();
+    const screens = await captureClient.listScreens();
+    if (!windows.ok && !screens.ok) return void (await messageDialog("Could not start a capture", windows.message));
+    if (!windows.ok) {
+      await messageDialog("The list of open windows could not be read", `${windows.message} You can still capture a rectangle of the screen.`);
     }
-    if (!listed.ok) return void (await messageDialog("Could not list the open windows", listed.message));
-    if (!chosen) return;
+    const choice = await captureDialog({
+      windows: windows.ok ? windows.value : [],
+      screens: screens.ok ? screens.value : [],
+      refresh: () => captureClient.listWindows(),
+    });
+    if (!choice) return;
 
-    announce(`Capturing ${chosen.title}.`);
-    const taken = await captureClient.captureWindow(chosen);
+    const what = choice.kind === "window"
+      ? choice.window.title
+      : regionName(choice.screen, choice.left, choice.top, choice.region.width, choice.region.height);
+    announce(`Capturing ${what}.`);
+    const taken = choice.kind === "window"
+      ? await captureClient.captureWindow(choice.window, { bringToFront: choice.bringToFront })
+      : await captureClient.captureRegion(choice.region);
     if (!taken.ok) return void (await messageDialog("The capture did not work", taken.message));
 
     const { bytes, width, height, extension, result } = taken.value;
     const id = newId();
     const file = `images/${id}.${extension}`;
+    const question = choice.kind === "window"
+      ? `What does the capture of "${choice.window.title}" show?`
+      : `What does this part of ${screenName(choice.screen)} show?`;
     // The description is asked for, never filled in silently. An empty one is flagged until it is written.
-    const altText = await promptText("Describe the picture", `What does the capture of "${chosen.title}" show? A screen reader reads this aloud. Leave it empty to add it later.`, "", true);
+    const altText = await promptText("Describe the picture", `${question} A screen reader reads this aloud. Leave it empty to add it later.`, "", true);
     assets.set(file, bytes);
     addPicture(project.tree, node.id, {
       id, file, width, height, altText: altText ?? "",
-      source: { kind: "window", capturedAt: new Date().toISOString(), originalName: chosen.title },
+      source: { kind: choice.kind, capturedAt: new Date().toISOString(), originalName: what },
     });
     markDirty();
     renderPictures();
-    announce(`Captured ${chosen.title}, ${width} by ${height} pixels.${result.method === "screen-copy" ? ` ${result.note}` : ""}`);
+    // Said only when something about how the picture was made is worth knowing: a copy of the screen instead of the window's own
+    // picture (a program that was not responding), or a window that could not be brought to the front when that was asked for.
+    const worthKnowing = (choice.kind === "window" && result.method === "screen-copy") || result.activated === false;
+    announce(`Captured ${what}, ${width} by ${height} pixels.${worthKnowing ? ` ${result.note}` : ""}`);
   } catch (error) {
     await messageDialog("The capture did not work", `${error instanceof Error ? error.message : String(error)} Your project was not changed.`);
   } finally {
@@ -303,7 +316,7 @@ async function captureAWindow() {
   }
 }
 
-$("b-capture").addEventListener("click", () => void captureAWindow());
+$("b-capture").addEventListener("click", () => void captureIntoTopic());
 
 function select(id: string) {
   selectedId = id;

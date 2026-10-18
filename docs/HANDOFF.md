@@ -62,7 +62,7 @@ not yet used by the app.
 - Use `npm.cmd`, not `npm` (PowerShell blocks the .ps1 shim). The run script already does.
 - a step-by-step screen capturing program hung for minutes when told to capture its own window. OpenExplainer must never capture itself.
 
-## Step 3b, the Windows capture helper: parts 1 to 5 are done, 6 and 7 are next
+## Step 3b, the Windows capture helper: parts 1 to 6 are done, 7 is next
 
 Goal (from the to-do list): capturing a program that has stopped responding never freezes OpenExplainer.
 
@@ -91,10 +91,15 @@ messages, the error codes, and what was and was not tried.
    time limit, a closed window, a helper that never answers, a missing helper. See `docs/capture-helper.md`, "What the app does". Test counts:
    helper 39, app shell 10, TypeScript 13 new (30 pass, 2 old `python3` ones fail on this PC).
 
-Still to build, in this order, testing each on this PC:
-6. Make the button the real thing: region capture in the app (the helper already does it; typed numbers first, drag later), choosing a screen,
-   a capture dialog with the choices in one place, and probably a way to capture with the target active (see below). Keep using the Tauri shell
-   command, not a plugin: no extra permission was needed. Putting the helper in an installer (a Tauri sidecar) is installer work.
+6. The Capture dialog (2026-10-18): one dialog, *Capture into the selected item*, for **a window** (list box, refresh, and a *Bring the window to the
+   front first* tick box that is off unless ticked) or **a rectangle of a chosen screen** (a Screen list, four boxes counted from that screen's top
+   left corner, *Use the whole screen*). Mistakes in the boxes are explained next to them in plain words and the dialog stays open
+   (`src/capture/region.ts`, tested). The helper's `capture-window` took an optional `activate` (makes the window active so its title bar is not grey;
+   black title text 0 with it, grey 145 without). Pictures get `source.kind` `window` or `region`; no format change. Tried in the real window: both
+   screens to the exact colour, the whole screen (size only), mistakes, labels, bring to front, and the part 5 checks again. Counts: helper 40, app
+   shell 10, TypeScript 46 (44 pass; the 2 old `python3` ones fail on this PC).
+
+Still to build, in this order, testing each on this PC (6 left two things for Jason to decide, see "Still open"):
 7. Then click-by-click capture: low-level mouse hook, a still picture per click, and Windows UI Automation details of the clicked item
    (name, role, accelerator/hot key, description, position). NEVER store password fields. Store the click position so the highlight can be
    added or removed later. This needs a format version 3 and a migration, plus a `docs/format-spec.md` update.
@@ -137,8 +142,18 @@ Lessons from part 5:
 - The real window can be driven for tests: start `npm.cmd run tauri dev` with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, then
   talk to `http://127.0.0.1:9222/json` targets over a WebSocket (Node 24 has `WebSocket` built in). A page of its own window (the Cancel window) is a
   second target. `tauri dev` rebuilds and restarts the app when a Rust file changes.
-- A window you capture right after the app had focus may show a greyed title bar (inactive). Whether to wait, activate the target first, or leave it
-  is a workflow decision for part 6.
+- A window you capture right after the app had focus may show a greyed title bar (inactive). Part 6 added the *Bring the window to the front first*
+  choice (the helper's `activate`), off by default.
+
+Lessons from part 6:
+- `SetForegroundWindow` from the helper worked, both from a test tool and from inside the app. Wait about 150 ms after it for the window to repaint
+  as active. Do not do it for a program that is not responding.
+- In a test driver, a frozen test window is only "frozen but not yet flagged" for 5 seconds. Start the capture 1 to 2 seconds after the freeze begins
+  (hang after 4 seconds, wait about 4.8 seconds, then click), or the helper takes its quick route and the Cancel window is gone before a test can find it.
+- A test that starts its own helper to look at windows will itself be counted as a "capture helper still running": check for leftover processes by who
+  started them (parent process id), not by name alone.
+- Never put a backslash-n inside a string in a script written through a shell here (it turns into a real new line): use `String.fromCharCode(10)` or
+  write the file with a file-writing tool.
 
 ## Still open (ask Jason, do not guess)
 
@@ -149,6 +164,14 @@ Lessons from part 5:
 - Capture helper: should the window list also show a program's dialogs (marked as belonging to it) so a native dialog can be captured by itself?
   Region capture can also take one.
 - Capture helper: Windows 11's rounded corners leave a few black or background pixels in the picture's corners. Save with transparent corners, or leave?
+- Capture: the drag-to-select overlay (on the to-do list: "by dragging or by typing four numbers"). Typed numbers are done. Two ways to build the drag:
+  (A) take a snapshot of the chosen screen with the helper, show it full screen in an app window and select on that (easy to make keyboard and screen
+  reader friendly with arrow keys, Shift to resize and the four boxes as the equivalent; whatever was on the screen is frozen, so a menu another
+  program would close can still be captured), then crop; or (B) a transparent live overlay (more work; the window under it keeps changing). Recommended:
+  A. Ask Jason before starting it.
+- Capture: a delay ("wait 5 seconds, then capture") so an author can open a menu first. Small, but not on the to-do list, so ask.
+- Capture: whether "Bring the window to the front first" should be on by default (it is off, because the keyboard is then with the other window and
+  Escape does not reach the Cancel window, and it changes which window is on top).
 - Steps 1 and 2 leftovers: more double-click scripts (build, tests), keyboard and screen reader pass, ARM check.
 
 ## Housekeeping on Jason's PC

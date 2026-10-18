@@ -8,9 +8,9 @@ the app's own build. It only works on Windows.
 
 Status: window list, window capture, screen list and region capture are built and tried on Windows 11 x64
 (Step 3b, parts 1 to 4). The app side of it (part 5: the 20-second timeout, the Cancel window, hiding OpenExplainer
-while it captures, and plain-words failures) is built too, with a plain "Capture a window" button so it can be tried.
-Region capture is not in the app yet. The drag-to-select overlay, the polished Capture dialog and click-by-click
-capture are the next parts. See `docs/HANDOFF.md`.
+while it captures, and plain-words failures) is built too, and part 6 gave the app one **Capture** dialog for a window or
+a rectangle of a chosen screen, with a "bring the window to the front first" choice. The drag-to-select overlay, a delay
+before capturing, and click-by-click capture are not built. See `docs/HANDOFF.md`.
 
 ## How to try it (double-click these)
 
@@ -76,13 +76,20 @@ started it (OpenExplainer), the helper's console window if it has one, and any `
 
 ### `capture-window`
 
-Request: `{"command": "capture-window", "window": 394822, "out": "C:\\...\\picture.png", "exclude_pids": []}`.
+Request: `{"command": "capture-window", "window": 394822, "out": "C:\\...\\picture.png", "exclude_pids": [], "activate": false}`.
 `out` must be a full path ending in `.png`. The folder is made if it is missing. The file is written beside its
 final name first and renamed when complete, so a failure never leaves half a picture.
 
-Result: `path`, `width`, `height`, `method`, `note`, `scale_percent`, `elapsed_ms` and `window` (the same fields as
-a list entry). The picture is the part of the window a person sees: the invisible resize borders that Windows 10 and
-11 put round most windows are trimmed off.
+`activate` is optional and off unless asked. When true, the helper first makes the window the active one and waits a
+moment (about 180 ms), so Windows draws its title bar as active and not grey. It is not done for a program that is not
+responding. Windows only allows this in some situations; it worked from a test tool and from inside the app (the helper
+is started by OpenExplainer, which is in front while it captures). If it did not work the picture is still taken and the
+`note` says the title bar may look inactive. Tried: with the option off, the darkest pixel of the title text was 145
+(grey); with it on, 0 (black).
+
+Result: `path`, `width`, `height`, `method`, `note`, `scale_percent`, `elapsed_ms`, `window` (the same fields as
+a list entry) and, only when `activate` was asked for, `activated` (whether it worked). The picture is the part of the
+window a person sees: the invisible resize borders that Windows 10 and 11 put round most windows are trimmed off.
 
 `method` says how the picture was made, and `note` says why in plain words:
 
@@ -176,10 +183,26 @@ with a pretend one) and never throws: every failure comes back as a message. The
 after a capture has fully worked, so a failed, cancelled or timed-out capture changes nothing. `tauri.ts` is the real
 `Shell`.
 
-**The button.** *Capture a window into the selected item* (Pictures section) lists the open windows in a list box (arrow
-keys, type a letter, screen reader friendly), captures the one chosen, asks for the picture's description exactly as
-Import does (never filled in silently), and adds it with `source.kind` `window`. For a window capture `originalName`
-holds the window's title. No format change. A screen copy (frozen program) is announced with the helper's `note`.
+**The Capture dialog (part 6).** *Capture into the selected item* (Pictures section) opens one dialog. It asks "What do
+you want to capture?" with two radio buttons.
+- **A window**: the open windows in a list box (arrow keys, type a letter, screen reader friendly), a *Refresh the list*
+  button, and a tick box *Bring the window to the front first* (off unless ticked), with a plain explanation that it changes
+  which window is on top and that, while it is in front, the keyboard is with that window, so a slow capture is cancelled
+  with the button in the Cancel window and not with Escape.
+- **A rectangle of the screen**: a *Screen* list (from `list-screens`, the main screen first) and four boxes: distance from
+  the left edge, distance from the top edge, width and height, in pixels, counted from the top left corner of the chosen
+  screen. *Use the whole screen* fills them in (and tells a screen reader it did). The numbers are checked in
+  `src/capture/region.ts` before anything is captured, and a mistake is explained next to the boxes (for example "The
+  rectangle reaches past the right edge of Screen 1, which is 1920 pixels wide. Make the width 1820 or less, or the distance
+  from the left edge smaller."): the message is in a live region, the dialog stays open so nothing typed is lost, the wrong
+  box is marked `aria-invalid` and given the focus, and typing in a box clears the message. The desktop position the helper
+  wants is worked out by adding the screen's own position, which is negative for a screen above or left of the main one.
+
+Either way the picture is captured through the shell (so the 20-second limit, the Cancel window and the "project unchanged"
+rule apply), the description is asked for exactly as Import does (never filled in silently), and the picture is added with
+`source.kind` `window` or `region`. `originalName` holds the window's title, or for a rectangle words such as "Screen 1, 800
+by 600 pixels, 100 from the left and 50 from the top". No format change. A screen copy of a frozen program, or a window that
+could not be brought to the front when asked, is announced with the helper's `note`.
 
 **Where the helper is found:** the file named by the `OPENEXPLAINER_CAPTURE_HELPER` environment variable (for tests),
 else `openexplainer-capture.exe` beside the app, else (while developing) `capture-helper/target/release/` found by walking
@@ -226,9 +249,22 @@ the TypeScript wording and the "failure changes nothing" rules have 13.
 A window kept out of screen copies was tried both ways: with the helper naming it as OpenExplainer's own (not refused,
 and the picture shows what is behind it), and sitting on top of a frozen program being copied (still captured).
 
-Not tried: a screen reader on the window list, the description prompt and the Cancel window; a release build of the
+Part 6 (the Capture dialog) was tried the same way in the real window, with made-up windows with solid red and blue blocks:
+a rectangle over the red block on Screen 1 and over the blue block on Screen 2 (above the main one, so with negative desktop
+positions): each picture was 40 by 40 and three sampled pixels were exactly the block's colour, and each was named by
+screen and place; *Use the whole screen* (the four boxes were filled in and announced; the picture was 1920 by 1080, looked
+at for size only and removed from the project again); four kinds of mistake typed into the boxes (too wide, not a number,
+empty, zero), each explained next to the boxes with the dialog still open, the right box focused and marked, the message
+cleared by typing, Escape closing the dialog, the project unchanged and focus back on the Capture button; every control in
+both modes has a name (`label`, legend or button text); and *Bring the window to the front first*, with a window sitting
+behind another: the darkest pixel of its title text was 145 (grey, inactive) with the option off and 0 (black, active) with
+it on. The part 5 checks (normal, frozen, five ways to cancel, time limit, closed window, a helper that never answers,
+missing helper) were run again against the new dialog and passed.
+
+Not tried: a screen reader on the Capture dialog, the description prompt and the Cancel window; a release build of the
 app (the production build of the web part was checked and contains `capture-bar.html`, but the release `.exe` was not
-run); keyboard-only use start to finish was not walked through by a person; the helper inside an installer.
+run); keyboard-only use start to finish was not walked through by a person; the helper inside an installer; "bring to the
+front" with a program that refuses to be activated.
 
 Not tried: display scaling above 100 percent, Windows on ARM (the helper has not been built for it), a window
 that blocks screen capture on purpose, windows run as administrator, and the other programs on the author's PC

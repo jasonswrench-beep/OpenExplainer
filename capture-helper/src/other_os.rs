@@ -21,7 +21,7 @@ pub fn list_screens() -> Result<Vec<ScreenInfo>, CaptureError> {
     Err(not_supported())
 }
 
-pub fn capture_window(_window: i64, _out: &Path, _exclude_pids: &[u32]) -> Result<Value, CaptureError> {
+pub fn capture_window(_window: i64, _out: &Path, _exclude_pids: &[u32], _activate: bool) -> Result<Value, CaptureError> {
     Err(not_supported())
 }
 

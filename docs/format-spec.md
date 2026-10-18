@@ -28,7 +28,7 @@ Each node holds a list of pictures: `{ id, file, width, height, altText, source 
 
 - `file` is the path inside the package. `width` and `height` are in pixels.
 - `altText` says what the picture shows. It is always asked for and never filled in silently. Empty means it still needs one, and the app shows it as "Needs a description".
-- `source` is `{ kind, capturedAt, originalName? }`. `kind` is `import` for a picture brought in from a file and `window` for a capture of one window (`region` and `click` come with later capture steps). For `import`, `originalName` is the file's name. For `window`, it is the captured window's title. No format change was needed for this: the version stays 2.
+- `source` is `{ kind, capturedAt, originalName? }`. `kind` is `import` for a picture brought in from a file, `window` for a capture of one window and `region` for a capture of a rectangle of a screen (`click` comes with the click-by-click capture step). For `import`, `originalName` is the file's name. For `window`, it is the captured window's title. For `region`, it is words naming the screen and the place, such as "Screen 1, 800 by 600 pixels, 100 from the left and 50 from the top". No format change was needed for this: the version stays 2.
 - Only PNG and JPEG are accepted, so no other format can get into a project.
 - Click positions and annotation shapes will be stored beside each picture and never burned into the file.
 - If a listed picture file is missing from the package, the project still opens and the picture shows as missing.

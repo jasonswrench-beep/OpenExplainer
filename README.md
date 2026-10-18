@@ -8,7 +8,7 @@ add numbered markers and callouts, and publish a printed-quality book or short s
 
 ## Status
 
-Early. You can create a project, build a chapter and topic tree with numbering and status, and save and open it as one file, such as Test1.openexplainer. You can import PNG and JPEG pictures into a topic, each with a description. Screen capture is built as a separate small program, the capture helper: it can list your open windows and capture one, list your screens, and capture a rectangle of the screen. In the app, **Capture a window into the selected item** (in Pictures) uses it, with a 20-second limit and a Cancel window; capturing a rectangle is not in the app yet (see `docs/capture-helper.md`). Page editing and export are not built yet.
+Early. You can create a project, build a chapter and topic tree with numbering and status, and save and open it as one file, such as Test1.openexplainer. You can import PNG and JPEG pictures into a topic, each with a description. Screen capture is built as a separate small program, the capture helper: it can list your open windows and capture one, list your screens, and capture a rectangle of the screen. In the app, **Capture into the selected item** (in Pictures) uses it to capture a window or a rectangle of a screen, with a 20-second limit and a Cancel window (see `docs/capture-helper.md`). Dragging out a rectangle with the mouse is not built yet. Page editing and export are not built yet.
 
 ## What it will do
 

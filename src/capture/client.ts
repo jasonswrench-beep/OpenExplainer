@@ -3,8 +3,9 @@
 import { readImageInfo } from "../project/image.ts";
 import {
   CAPTURE_TIMEOUT_MS, UNCHANGED, failure, failureFor, failureFromHelper,
-  type CaptureResult, type Done, type ShellOutcome, type WindowInfo,
+  type CaptureResult, type Done, type ScreenInfo, type ShellOutcome, type WindowInfo,
 } from "./outcome.ts";
+import type { Region } from "./region.ts";
 
 /** The app's way of running the helper. `tauri.ts` is the real one. */
 export interface Shell {
@@ -24,7 +25,11 @@ export interface CapturedPicture {
 
 export interface CaptureClient {
   listWindows(): Promise<Done<WindowInfo[]>>;
-  captureWindow(window: WindowInfo): Promise<Done<CapturedPicture>>;
+  listScreens(): Promise<Done<ScreenInfo[]>>;
+  /** With `bringToFront`, the window is made the active one first, so its title bar is not drawn grey. */
+  captureWindow(window: WindowInfo, options?: { bringToFront?: boolean }): Promise<Done<CapturedPicture>>;
+  /** A rectangle in real screen pixels on the whole desktop. */
+  captureRegion(region: Region): Promise<Done<CapturedPicture>>;
 }
 
 export function createCaptureClient(shell: Shell, timeoutMs: () => number = () => CAPTURE_TIMEOUT_MS): CaptureClient {
@@ -41,6 +46,20 @@ export function createCaptureClient(shell: Shell, timeoutMs: () => number = () =
     return outcome.reply.ok ? { ok: true, value: outcome.reply.result } : failureFromHelper(outcome.reply.error);
   }
 
+  /** After a capture worked: collects the picture file and checks it really is a picture. */
+  async function collect(result: CaptureResult): Promise<Done<CapturedPicture>> {
+    let bytes: Uint8Array;
+    try {
+      bytes = await shell.takePicture(result.path);
+    } catch (error) {
+      const why = error instanceof Error ? error.message : String(error);
+      return failure("picture-unreadable", `The picture was taken but could not be collected (${why}). ${UNCHANGED}`);
+    }
+    const info = readImageInfo(bytes);
+    if (!info) return failure("picture-unreadable", `The picture the helper made could not be read as a PNG or JPEG. ${UNCHANGED}`);
+    return { ok: true, value: { result, bytes, width: info.width, height: info.height, extension: info.extension } };
+  }
+
   return {
     async listWindows() {
       const answer = await ask({ command: "list-windows" }, false);
@@ -51,20 +70,25 @@ export function createCaptureClient(shell: Shell, timeoutMs: () => number = () =
         : failure("unreadable", `The capture helper's list of windows could not be read. ${UNCHANGED}`);
     },
 
-    async captureWindow(window) {
-      const answer = await ask({ command: "capture-window", window: window.id }, true);
+    async listScreens() {
+      const answer = await ask({ command: "list-screens" }, false);
       if (!answer.ok) return answer;
-      const result = answer.value as CaptureResult;
-      let bytes: Uint8Array;
-      try {
-        bytes = await shell.takePicture(result.path);
-      } catch (error) {
-        const why = error instanceof Error ? error.message : String(error);
-        return failure("picture-unreadable", `The picture was taken but could not be collected (${why}). ${UNCHANGED}`);
-      }
-      const info = readImageInfo(bytes);
-      if (!info) return failure("picture-unreadable", `The picture the helper made could not be read as a PNG or JPEG. ${UNCHANGED}`);
-      return { ok: true, value: { result, bytes, width: info.width, height: info.height, extension: info.extension } };
+      const screens = (answer.value as { screens?: ScreenInfo[] }).screens;
+      return Array.isArray(screens) && screens.length
+        ? { ok: true, value: screens }
+        : failure("unreadable", `The capture helper's list of screens could not be read. ${UNCHANGED}`);
+    },
+
+    async captureWindow(window, options = {}) {
+      const request: Record<string, unknown> = { command: "capture-window", window: window.id };
+      if (options.bringToFront) request.activate = true;
+      const answer = await ask(request, true);
+      return answer.ok ? collect(answer.value as CaptureResult) : answer;
+    },
+
+    async captureRegion(region) {
+      const answer = await ask({ command: "capture-region", x: region.x, y: region.y, width: region.width, height: region.height }, true);
+      return answer.ok ? collect(answer.value as CaptureResult) : answer;
     },
   };
 }

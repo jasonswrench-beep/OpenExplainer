@@ -55,6 +55,9 @@ pub enum Request {
         out: String,
         #[serde(default)]
         exclude_pids: Vec<u32>,
+        /// Bring the window to the front first, so its title bar is drawn as active and not greyed out. Off unless asked.
+        #[serde(default)]
+        activate: bool,
     },
     /// A rectangle of the screen: `x` and `y` are its top left corner, in real screen pixels (negative on a screen
     /// left of or above the main one). `out` is the full path of the PNG to write.
@@ -210,8 +213,14 @@ mod tests {
         let e = parse_line(r#"{"id":2,"command":"capture-window","window":394822,"out":"C:\\a\\b.png"}"#).unwrap();
         assert_eq!(
             e.request,
-            Request::CaptureWindow { window: 394822, out: "C:\\a\\b.png".to_string(), exclude_pids: vec![] }
+            Request::CaptureWindow { window: 394822, out: "C:\\a\\b.png".to_string(), exclude_pids: vec![], activate: false }
         );
+    }
+
+    #[test]
+    fn capture_window_may_ask_for_the_window_to_be_brought_to_the_front_first() {
+        let e = parse_line(r#"{"id":2,"command":"capture-window","window":5,"out":"C:\\a.png","activate":true}"#).unwrap();
+        assert_eq!(e.request, Request::CaptureWindow { window: 5, out: "C:\\a.png".to_string(), exclude_pids: vec![], activate: true });
     }
 
     #[test]

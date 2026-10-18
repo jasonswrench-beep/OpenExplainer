@@ -43,9 +43,9 @@ fn run(request: Request) -> Result<Value, CaptureError> {
             let screens = platform::list_screens()?;
             Ok(json!({ "screens": screens }))
         }
-        Request::CaptureWindow { window, out, exclude_pids } => {
+        Request::CaptureWindow { window, out, exclude_pids, activate } => {
             let path = png_out::check_out_path(&out)?;
-            platform::capture_window(window, &path, &exclude_pids)
+            platform::capture_window(window, &path, &exclude_pids, activate)
         }
         Request::CaptureRegion { x, y, width, height, out, exclude_pids } => {
             let path = png_out::check_out_path(&out)?;

@@ -29,7 +29,7 @@ use windows::Win32::UI::HiDpi::{
     GetDpiForMonitor, GetDpiForWindow, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetAncestor, GetClassNameW, GetWindow, GetWindowDisplayAffinity, GetWindowLongW, GetWindowPlacement, GetWindowRect, GetWindowTextW,
+    EnumWindows, GetAncestor, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowDisplayAffinity, GetWindowLongW, GetWindowPlacement, GetWindowRect, GetWindowTextW,
     GetWindowThreadProcessId, IsHungAppWindow, IsIconic, IsWindow, IsWindowVisible, SetForegroundWindow, WindowFromPoint,
     GA_ROOTOWNER, GWL_EXSTYLE, GW_OWNER, WINDOWPLACEMENT, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
@@ -224,7 +224,7 @@ const PW_RENDERFULLCONTENT: PRINT_WINDOW_FLAGS = PRINT_WINDOW_FLAGS(2);
 /// are in front of it. If a program will not do that (a blank picture, no reply, or not responding), method 2
 /// copies the window's rectangle from the screen, which only gives the right picture when the window is
 /// really in front. The reply says which was used.
-pub fn capture_window(id: i64, out: &Path, exclude_pids: &[u32]) -> Result<Value, CaptureError> {
+pub fn capture_window(id: i64, out: &Path, exclude_pids: &[u32], activate: bool) -> Result<Value, CaptureError> {
     let started = Instant::now();
     let hwnd = HWND(id as isize as *mut c_void);
     let (info, full, visible) = unsafe { check_window(hwnd, exclude_pids)? };
@@ -232,6 +232,15 @@ pub fn capture_window(id: i64, out: &Path, exclude_pids: &[u32]) -> Result<Value
     if i64::from(full.width()) * i64::from(full.height()) > crate::pixels::MOST_PIXELS {
         return Err(CaptureError::new(code::TOO_LARGE, "That window is far bigger than any screen. Nothing was captured."));
     }
+
+    // Asked for: bring the window to the front first, so it is drawn as the active window (a dark title bar, not a grey one).
+    // A program that is not responding is left alone: there is nothing to gain, and it must not be given focus.
+    let activated: Option<bool> = if activate { Some(!info.not_responding && unsafe { bring_to_front(hwnd) }) } else { None };
+    let suffix = if activated == Some(false) {
+        " The window could not be brought to the front first, so its title bar may look inactive."
+    } else {
+        ""
+    };
 
     // Why the first method was not used, in words. Only reached when it did not give a picture.
     let reason: String = if info.not_responding {
@@ -256,8 +265,9 @@ pub fn capture_window(id: i64, out: &Path, exclude_pids: &[u32]) -> Result<Value
                         cut,
                         crop,
                         "print-window",
-                        "Windows drew the window itself, so anything in front of it does not matter.".to_string(),
+                        format!("Windows drew the window itself, so anything in front of it does not matter.{suffix}"),
                         info,
+                        activated,
                         started,
                     );
                 }
@@ -276,10 +286,12 @@ pub fn capture_window(id: i64, out: &Path, exclude_pids: &[u32]) -> Result<Value
         )
         .with_detail(reason));
     }
-    let note = format!("{reason} The picture was copied from the screen instead, as the window looks right now.");
-    finish(out, bgra, Rect { left: 0, top: 0, right: visible.width(), bottom: visible.height() }, "screen-copy", note, info, started)
+    let note = format!("{reason} The picture was copied from the screen instead, as the window looks right now.{suffix}");
+    let size = Rect { left: 0, top: 0, right: visible.width(), bottom: visible.height() };
+    finish(out, bgra, size, "screen-copy", note, info, activated, started)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn finish(
     out: &Path,
     bgra: Vec<u8>,
@@ -287,10 +299,11 @@ fn finish(
     method: &str,
     note: String,
     window: WindowInfo,
+    activated: Option<bool>,
     started: Instant,
 ) -> Result<Value, CaptureError> {
     let (width, height) = save_picture(out, &bgra, size)?;
-    Ok(json!({
+    let mut result = json!({
         "path": out.to_string_lossy(),
         "width": width,
         "height": height,
@@ -299,7 +312,35 @@ fn finish(
         "scale_percent": window.scale_percent,
         "elapsed_ms": started.elapsed().as_millis() as u64,
         "window": window,
-    }))
+    });
+    // Only said when the window was asked to be brought to the front: whether that worked.
+    if let (Some(done), Some(object)) = (activated, result.as_object_mut()) {
+        object.insert("activated".to_string(), json!(done));
+    }
+    Ok(result)
+}
+
+/// Makes the window the active one, so Windows draws its title bar the way a person using it sees it.
+/// Windows only lets a program do this in some situations. One is when the program that started it is the one in front,
+/// and the helper is started by OpenExplainer, which is in front while it captures. Returns whether it worked.
+unsafe fn bring_to_front(hwnd: HWND) -> bool {
+    unsafe {
+        let _ = SetForegroundWindow(hwnd);
+        let deadline = Instant::now() + Duration::from_millis(600);
+        loop {
+            let front = GetForegroundWindow();
+            if front == hwnd || GetAncestor(front, GA_ROOTOWNER) == hwnd {
+                break;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        // Give the window a moment to draw itself as the active window.
+        std::thread::sleep(Duration::from_millis(150));
+        true
+    }
 }
 
 /// Turns blue-green-red pixels into a PNG file. Returns the picture's width and height.

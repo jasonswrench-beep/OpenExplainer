@@ -21,6 +21,17 @@ export interface WindowInfo {
   scale_percent: number;
 }
 
+/** One screen (monitor). `x` and `y` are where its top left corner is on the whole desktop, negative if it is left of or above the main one. */
+export interface ScreenInfo {
+  number: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  primary: boolean;
+  scale_percent: number;
+}
+
 export interface CaptureResult {
   path: string;
   width: number;
@@ -30,6 +41,9 @@ export interface CaptureResult {
   scale_percent: number;
   elapsed_ms: number;
   window?: WindowInfo;
+  region?: { x: number; y: number; width: number; height: number };
+  /** Only present when the window was asked to be brought to the front first: whether that worked. */
+  activated?: boolean;
 }
 
 /** The helper's own answer: a result, or an error that already has plain words in `message`. */
