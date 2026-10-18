@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenExplainer is capturing</title>
+    <style>
+      :root { font-family: "Segoe UI", system-ui, sans-serif; color: #1a1a1a; background: #ffffff; }
+      body { margin: 0; padding: 0.75rem 1rem; }
+      h1 { font-size: 1.15rem; margin: 0 0 0.5rem; }
+      p { margin: 0.4rem 0; }
+      button { font: inherit; padding: 0.5rem 1.25rem; }
+      :focus-visible { outline: 3px solid #b35c00; outline-offset: 2px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Capturing</h1>
+      <p id="what" role="status">OpenExplainer is hidden while it takes the picture. It stops by itself after <span id="limit">20</span> seconds.</p>
+      <!-- The count-down is for people who can see it. A screen reader is not told every second. -->
+      <p aria-hidden="true">Time left: <strong id="left">20</strong> seconds</p>
+      <p><button type="button" id="cancel">Cancel (Esc)</button></p>
+    </main>
+    <script type="module" src="/src/capture-bar.ts"></script>
+  </body>
+</html>

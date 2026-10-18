@@ -7,8 +7,10 @@ helper and carry on. It is not part of the Tauri crate (`src-tauri/`), so a prob
 the app's own build. It only works on Windows.
 
 Status: window list, window capture, screen list and region capture are built and tried on Windows 11 x64
-(Step 3b, parts 1 to 4). The drag-to-select overlay, the timeout and Cancel button in the app, hiding the app during
-capture, the Capture button and click-by-click capture are the next parts. See `docs/HANDOFF.md`.
+(Step 3b, parts 1 to 4). The app side of it (part 5: the 20-second timeout, the Cancel window, hiding OpenExplainer
+while it captures, and plain-words failures) is built too, with a plain "Capture a window" button so it can be tried.
+Region capture is not in the app yet. The drag-to-select overlay, the polished Capture dialog and click-by-click
+capture are the next parts. See `docs/HANDOFF.md`.
 
 ## How to try it (double-click these)
 
@@ -117,7 +119,10 @@ message and nothing saved if one fails:
    helper's own program, the program that started it and every `exclude_pids`, including tool windows and pop-ups
    such as a Cancel overlay, and refuses only if one of them is really what shows at some point inside the
    rectangle. A window that is hidden behind another window, or that only touches the rectangle, does not count.
-   This is the "never captures itself" rule for regions. The app should still hide itself first.
+   This is the "never captures itself" rule for regions. The app should still hide itself first. **One exception:** a
+   window that Windows keeps out of screen copies (display affinity "exclude from capture", which OpenExplainer's
+   Cancel window sets) is never in the picture, so it is allowed to be there, and the helper looks through it. In the same
+   way `capture-window`'s screen copy does not count such a window as "in front".
 
 Result: `path`, `width`, `height`, `method`, `note`, `scale_percent` (of the screen at the middle of the rectangle),
 `elapsed_ms` and `region` (the four numbers again).
@@ -141,16 +146,51 @@ Result: `path`, `width`, `height`, `method`, `note`, `scale_percent` (of the scr
 | `helper-crashed` | A bug inside the helper while handling one request. The helper keeps running. |
 | `not-supported` | A non-Windows build. |
 
-## What the app must do (Step 3b, part 5, not built yet)
+## What the app does (Step 3b, part 5)
 
-The helper does not enforce the 20-second timeout, the Cancel button or hiding the app. The app does: start the
-helper, send the request, and if no reply comes in time (20 seconds by default), stop the helper and say so in plain
-words, leaving the project unchanged. The helper's own limits (5 seconds for Windows to draw a window) are shorter,
-so a stuck program normally still gets a picture. The app window must hide itself before a region capture (and
-should pass its own process number in `exclude_pids`), so it never captures itself. If it forgets, the helper refuses
-a region with `own-window` instead of saving a picture of the app, so a forgotten hide shows up as a plain error and
-not as a wrong picture. The app should also take care that a Cancel overlay it draws during capture does not sit
-inside the rectangle, or hide it too.
+The helper does not enforce the 20-second timeout, the Cancel button or hiding the app. The app does.
+
+**The shell (`src-tauri/src/capture.rs`)** has three commands. It uses no extra Tauri plugin and no extra permission.
+- `capture(request, timeoutMs, hideApp)` starts the helper (with no console window), sends it one request line and waits
+  for one answer line on a background thread, so the app's window is never held up. It stops the helper if no answer
+  comes within `timeoutMs`, or when Cancel is pressed, and always cleans the helper up before returning. It adds the
+  request's `id`, and for `capture-` requests it chooses `out`, a new file in `%TEMP%\openexplainer-capture\`. It returns
+  `{kind: "reply", reply}`, `{kind: "timeout", seconds}`, `{kind: "cancelled"}`, `{kind: "stopped"}` (the helper ended
+  without answering), `{kind: "busy"}` (one capture at a time) or `{kind: "unavailable", reason}` (`missing`,
+  `cannot-start`, `no-cancel-window`, `bad-request`). It does not pass `exclude_pids`: the helper already leaves out its
+  parent, which is the app.
+- `cancel_capture()` stops the capture that is running. A Cancel pressed before the helper has even started is not lost.
+- `take_capture_picture(path)` returns the picture's bytes and deletes the file. It only takes a `.png` that sits in the
+  capture folder in the temporary folder.
+
+With `hideApp`, the shell first opens a small always-on-top **Cancel window** (`capture-bar.html`, top right of the main
+screen, with its own close button counting as Cancel), and only then hides the main window. Both are undone however the
+capture ends, even on an error. The Cancel window is set to be kept out of screen copies, so it is never in a picture, and
+the helper knows to look through it. It has focus on its Cancel button; **Cancel, the Enter or Space key on it, Escape,
+and its close button** all cancel. It shows a count-down for people who can see it, and tells a screen reader once, not
+every second, that it stops by itself after 20 seconds.
+
+**The wording and the rules are in TypeScript (`src/capture/`).** `outcome.ts` turns every way a capture can fail into
+plain words ending "Your project was not changed."; `client.ts` asks the helper through a `Shell` (so it can be tested
+with a pretend one) and never throws: every failure comes back as a message. The app only adds a picture to the project
+after a capture has fully worked, so a failed, cancelled or timed-out capture changes nothing. `tauri.ts` is the real
+`Shell`.
+
+**The button.** *Capture a window into the selected item* (Pictures section) lists the open windows in a list box (arrow
+keys, type a letter, screen reader friendly), captures the one chosen, asks for the picture's description exactly as
+Import does (never filled in silently), and adds it with `source.kind` `window`. For a window capture `originalName`
+holds the window's title. No format change. A screen copy (frozen program) is announced with the helper's `note`.
+
+**Where the helper is found:** the file named by the `OPENEXPLAINER_CAPTURE_HELPER` environment variable (for tests),
+else `openexplainer-capture.exe` beside the app, else (while developing) `capture-helper/target/release/` found by walking
+up from the app. `Run OpenExplainer.bat` builds the helper before it starts the app. Putting the helper inside an installer
+(a Tauri sidecar) is installer work and is not done.
+
+**For tests only:** in a development build, `window.__openexplainerCaptureTimeoutMs = 2000` shortens the 20 seconds.
+
+The helper's own limit (5 seconds for Windows to draw a window) is shorter than the app's, so a stuck program normally
+still gets a picture. A region capture still needs the app out of the way: the shell hides the app, and if anything of
+the app's is showing in the rectangle the helper refuses with `own-window` instead of saving a picture of the app.
 
 ## What has and has not been tried
 
@@ -169,6 +209,26 @@ the way (refused, and not refused when another window covers it, with the pictur
 rectangle elsewhere and one that only touches the window's edge (no false refusal). The test tool's typed input was
 tried with a rectangle, with Enter to quit, with text that is not numbers, and with no input at all (captures
 nothing).
+
+The app side (part 5) was tried in the real OpenExplainer window (a development build, driven through its debugging
+port, clicking its real button and dialogs), with made-up windows: a normal capture (list leaves out OpenExplainer
+itself; one picture added, 602 by 332 pixels; main window back; no helper left running); a program that stopped
+responding (5.5 seconds, picture added, main window hidden and Cancel window shown while it waited, count-down running,
+the app still answering in about 1 ms, button focused); Cancel by the button, by the Escape key, by the window's own
+close button, and by Enter and by Space on the focused button (each: plain message, project unchanged, helper stopped,
+main window back, Cancel window gone); the time limit shortened to 2 seconds (gave up after 2.3 seconds,
+plain message, project unchanged); a window that closed after being chosen (plain message); a pretend helper that never
+answers (stopped at the limit, no process left); the helper file missing (plain message naming `Test Helper.bat`). The
+Cancel window was looked at as a picture and its size was corrected. The shell's own logic has 10 tests (a helper that
+never answers is stopped at the limit, Cancel stops the wait at once, even before the helper starts, and the rest), and
+the TypeScript wording and the "failure changes nothing" rules have 13.
+
+A window kept out of screen copies was tried both ways: with the helper naming it as OpenExplainer's own (not refused,
+and the picture shows what is behind it), and sitting on top of a frozen program being copied (still captured).
+
+Not tried: a screen reader on the window list, the description prompt and the Cancel window; a release build of the
+app (the production build of the web part was checked and contains `capture-bar.html`, but the release `.exe` was not
+run); keyboard-only use start to finish was not walked through by a person; the helper inside an installer.
 
 Not tried: display scaling above 100 percent, Windows on ARM (the helper has not been built for it), a window
 that blocks screen capture on purpose, windows run as administrator, and the other programs on the author's PC

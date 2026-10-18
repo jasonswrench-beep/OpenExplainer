@@ -62,7 +62,7 @@ not yet used by the app.
 - Use `npm.cmd`, not `npm` (PowerShell blocks the .ps1 shim). The run script already does.
 - a step-by-step screen capturing program hung for minutes when told to capture its own window. OpenExplainer must never capture itself.
 
-## Step 3b, the Windows capture helper: parts 1 to 4 are done, 5 to 7 are next
+## Step 3b, the Windows capture helper: parts 1 to 5 are done, 6 and 7 are next
 
 Goal (from the to-do list): capturing a program that has stopped responding never freezes OpenExplainer.
 
@@ -83,11 +83,18 @@ messages, the error codes, and what was and was not tried.
    regions. Tried with exact colours on both screens; double-click test: `Test Region Capture.bat`. The drag-to-select overlay is NOT built (the
    handoff said "later"); it will need a window of its own and the same keyboard and screen reader rules as everything else.
 
+5. The app side (2026-10-18): `src-tauri/src/capture.rs` runs the helper on a background thread with a 20-second limit and stops it on timeout or Cancel;
+   a small always-on-top Cancel window (`capture-bar.html`, kept out of screen copies) is shown and the main window hidden while it runs, and both
+   are restored however it ends; `src/capture/` holds the plain wording and the rule that a failed capture changes nothing; a plain *Capture a window
+   into the selected item* button (Pictures section) lets it be tried. The helper learned to look through windows kept out of screen copies.
+   Tried in the real window (development build driven through its debugging port): a normal capture, a frozen program, five ways to cancel, the
+   time limit, a closed window, a helper that never answers, a missing helper. See `docs/capture-helper.md`, "What the app does". Test counts:
+   helper 39, app shell 10, TypeScript 13 new (30 pass, 2 old `python3` ones fail on this PC).
+
 Still to build, in this order, testing each on this PC:
-5. Timeout (default 20 seconds) enforced by the app, which kills the helper; an always-visible Cancel; the app window hides itself during
-   capture so it never captures itself; a failed capture leaves the project unchanged and says why in plain words.
-6. Wire it into the app: a Capture button that adds the PNG as a Picture with `source.kind` of `window` or `region`
-   (the Picture type already supports it). Use Tauri's sidecar/shell plugin; keep permissions minimal and rebuild after editing them.
+6. Make the button the real thing: region capture in the app (the helper already does it; typed numbers first, drag later), choosing a screen,
+   a capture dialog with the choices in one place, and probably a way to capture with the target active (see below). Keep using the Tauri shell
+   command, not a plugin: no extra permission was needed. Putting the helper in an installer (a Tauri sidecar) is installer work.
 7. Then click-by-click capture: low-level mouse hook, a still picture per click, and Windows UI Automation details of the clicked item
    (name, role, accelerator/hot key, description, position). NEVER store password fields. Store the click position so the highlight can be
    added or removed later. This needs a format version 3 and a migration, plus a `docs/format-spec.md` update.
@@ -106,8 +113,9 @@ Also check ARM: build the helper for `aarch64-pc-windows-msvc` as well as x64, e
 Lessons from parts 1 to 4:
 - Windows may leave gaps between screens set at different heights (here 7 pixels beside the higher screen), so "inside the whole desktop" is not
   the same as "on a screen". Check a region against each screen's own rectangle (`covered_by` in `capture-helper/src/pixels.rs`).
-- A region copy cannot tell which window in front is "the app" unless told, so the app must pass its process number in `exclude_pids`. The helper
-  then decides by what is really showing at points in the overlap, not by overlap on paper.
+- A region copy leaves out the helper's own program and the program that started it (the app, as its parent), plus any `exclude_pids`. The helper decides
+  by what is really showing at points in the overlap, not by overlap on paper, so a window hidden behind another one does not count. When the helper is
+  started by something other than the app (a test tool), name the pretend app in `exclude_pids`.
 - Windows PowerShell passes a bare `-50` to a function as text, which the helper rightly refuses as not a number: type the parameters (`[int]`).
 - A test tool reading typed answers with a new reader for each question loses lines when input is piped from a file; use one reader for the run.
 - When a program stops responding, Windows puts a stand-in window of class `Ghost` in front of it, titled "... (Not Responding)", owned by a
@@ -117,6 +125,20 @@ Lessons from parts 1 to 4:
 - Test with made-up windows, not the author's own: a tiny program built with the `csc.exe` that ships with Windows made a clean target. PowerShell
   `Start-Process -WindowStyle Hidden` hides the target's first window too, and Windows PowerShell 5.1 strips the quotes from JSON passed to a program.
 - A fresh Edge profile can sign in with the PC's account and start syncing by itself, so do not use Edge for test windows.
+
+Lessons from part 5:
+- Tauri's `#[tauri::command] fn` (not `async`) runs on the thread that draws the window, so anything that waits must be an `async fn` that hands the
+  waiting to `tauri::async_runtime::spawn_blocking`. Window changes (hide, show, make a window) are safe from that background thread.
+- `WebviewWindowBuilder::content_protected(true)` sets Windows' "exclude from capture". A window with it is left out of screen copies (BitBlt too, not
+  only recorders), which is how the Cancel window can be always visible and never in a picture. The helper's own-window and in-front checks look through it.
+- Do not pass a query string in `WebviewUrl::App("page.html?x=1")` (it may be encoded); pass values with `initialization_script` instead.
+- A second Tauri window can call the app's own commands (`invoke`) without being listed in `capabilities/default.json`: capabilities only gate
+  plugin and core commands. Nothing was added to the permissions.
+- The real window can be driven for tests: start `npm.cmd run tauri dev` with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, then
+  talk to `http://127.0.0.1:9222/json` targets over a WebSocket (Node 24 has `WebSocket` built in). A page of its own window (the Cancel window) is a
+  second target. `tauri dev` rebuilds and restarts the app when a Rust file changes.
+- A window you capture right after the app had focus may show a greyed title bar (inactive). Whether to wait, activate the target first, or leave it
+  is a workflow decision for part 6.
 
 ## Still open (ask Jason, do not guess)
 

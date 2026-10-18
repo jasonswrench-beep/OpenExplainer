@@ -29,7 +29,7 @@ use windows::Win32::UI::HiDpi::{
     GetDpiForMonitor, GetDpiForWindow, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetAncestor, GetClassNameW, GetWindow, GetWindowLongW, GetWindowPlacement, GetWindowRect, GetWindowTextW,
+    EnumWindows, GetAncestor, GetClassNameW, GetWindow, GetWindowDisplayAffinity, GetWindowLongW, GetWindowPlacement, GetWindowRect, GetWindowTextW,
     GetWindowThreadProcessId, IsHungAppWindow, IsIconic, IsWindow, IsWindowVisible, SetForegroundWindow, WindowFromPoint,
     GA_ROOTOWNER, GWL_EXSTYLE, GW_OWNER, WINDOWPLACEMENT, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
@@ -440,11 +440,56 @@ unsafe fn front_share(hwnd: HWND, area: Rect) -> f32 {
         let showing = points
             .iter()
             .filter(|(x, y)| {
-                let top = GetAncestor(WindowFromPoint(POINT { x: *x, y: *y }), GA_ROOTOWNER);
+                let top = visible_root_at(POINT { x: *x, y: *y });
                 top == mine || is_ghost_of(top, &title)
             })
             .count();
         showing as f32 / points.len() as f32
+    }
+}
+
+/// The affinity value Windows gives a window that is kept out of screen captures and recordings. OpenExplainer's own
+/// Cancel window uses it, so it can sit anywhere without ever appearing in a picture.
+const WDA_EXCLUDEFROMCAPTURE: u32 = 0x11;
+
+/// Is this window kept out of screen copies? A copy of the screen shows what is behind such a window.
+unsafe fn is_protected(hwnd: HWND) -> bool {
+    let mut affinity = 0u32;
+    unsafe { GetWindowDisplayAffinity(hwnd, &mut affinity) }.is_ok() && affinity == WDA_EXCLUDEFROMCAPTURE
+}
+
+/// The top-level window a copy of the screen would show at this point. Normally that is the window under the point, but
+/// a window kept out of screen copies is looked through to the next one down.
+unsafe fn visible_root_at(point: POINT) -> HWND {
+    unsafe {
+        let top = GetAncestor(WindowFromPoint(point), GA_ROOTOWNER);
+        if !is_protected(top) {
+            return top;
+        }
+        struct Look {
+            point: POINT,
+            found: HWND,
+        }
+        let mut look = Look { point, found: top };
+        unsafe extern "system" fn each(hwnd: HWND, data: LPARAM) -> BOOL {
+            let look = unsafe { &mut *(data.0 as *mut Look) };
+            let hidden = unsafe { !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() || is_cloaked(hwnd) || is_protected(hwnd) };
+            if hidden {
+                return BOOL(1);
+            }
+            if let Some(b) = unsafe { visible_bounds(hwnd) } {
+                let (x, y) = (look.point.x, look.point.y);
+                if x >= b.left && x < b.right && y >= b.top && y < b.bottom {
+                    look.found = hwnd;
+                    return BOOL(0);
+                }
+            }
+            BOOL(1)
+        }
+        // EnumWindows goes from the front window to the back one. Stopping early makes it report "false", which is expected.
+        let _ = EnumWindows(Some(each), LPARAM(&mut look as *mut Look as isize));
+        let found = GetAncestor(look.found, GA_ROOTOWNER);
+        if found.0.is_null() { look.found } else { found }
     }
 }
 
@@ -586,6 +631,10 @@ unsafe fn shows_in_region(hwnd: HWND, walk: &OwnWalk) -> bool {
         if !walk.skip.contains(&pid) {
             return false;
         }
+        // A window kept out of screen copies (the Cancel window) is never in the picture, so it is allowed to be there.
+        if is_protected(hwnd) {
+            return false;
+        }
         let Some(bounds) = visible_bounds(hwnd) else { return false };
         let shared = crate::pixels::intersect(bounds, walk.region);
         if shared.is_empty() {
@@ -594,9 +643,7 @@ unsafe fn shows_in_region(hwnd: HWND, walk: &OwnWalk) -> bool {
         // The window overlaps the region on paper. It only matters if it is what actually shows at some point there.
         let mine = GetAncestor(hwnd, GA_ROOTOWNER);
         let mine = if mine.0.is_null() { hwnd } else { mine };
-        crate::pixels::grid_points(shared, 5, 5, 0)
-            .iter()
-            .any(|(x, y)| GetAncestor(WindowFromPoint(POINT { x: *x, y: *y }), GA_ROOTOWNER) == mine)
+        crate::pixels::grid_points(shared, 5, 5, 0).iter().any(|(x, y)| visible_root_at(POINT { x: *x, y: *y }) == mine)
     }
 }
 

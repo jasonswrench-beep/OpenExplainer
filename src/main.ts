@@ -7,7 +7,10 @@ import {
 import { chooseImages, chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
-import { confirmDialog, messageDialog, newProjectDialog, promptText, variablesDialog } from "./dialogs.ts";
+import { chooseWindowDialog, confirmDialog, messageDialog, newProjectDialog, promptText, variablesDialog } from "./dialogs.ts";
+import { createCaptureClient } from "./capture/client.ts";
+import { captureTimeoutMs, tauriShell } from "./capture/tauri.ts";
+import type { WindowInfo } from "./capture/outcome.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("The app container is missing from index.html.");
@@ -66,6 +69,7 @@ app.innerHTML = `
       <h3 id="pictures-heading">Pictures</h3>
       <div class="toolbar">
         <button type="button" id="b-import">Import pictures into the selected item</button>
+        <button type="button" id="b-capture">Capture a window into the selected item</button>
       </div>
       <p id="pictures-empty" class="help"></p>
       <ul id="pictures" class="pictures" aria-label="Pictures in the selected item"></ul>
@@ -158,6 +162,7 @@ function renderPictures() {
   list.replaceChildren();
   const node = selected();
   $<HTMLButtonElement>("b-import").disabled = !node;
+  $<HTMLButtonElement>("b-capture").disabled = !node;
   $("pictures-empty").textContent = !node
     ? "Select a chapter or topic to see or add its pictures."
     : node.pictures.length ? "" : `"${node.title}" has no pictures yet.`;
@@ -248,6 +253,57 @@ async function importPictures() {
 }
 
 $("b-import").addEventListener("click", () => void importPictures());
+
+// ---- Capturing a window ------------------------------------------------------------------
+// The helper (capture-helper/) takes the picture. OpenExplainer hides while it does, a Cancel window shows, and the
+// wait ends by itself after 20 seconds. If anything goes wrong the project is left exactly as it was: the picture is
+// only added after a capture has fully worked.
+const captureClient = createCaptureClient(tauriShell, captureTimeoutMs);
+let capturing = false;
+
+async function captureAWindow() {
+  const node = selected();
+  if (!node || capturing) return;
+  capturing = true;
+  try {
+    announce("Looking for open windows.");
+    let listed = await captureClient.listWindows();
+    let chosen: WindowInfo | null = null;
+    while (listed.ok && !chosen) {
+      const answer = await chooseWindowDialog(listed.value);
+      if (!answer) return;
+      if (answer.kind === "refresh") { listed = await captureClient.listWindows(); continue; }
+      chosen = answer.window;
+    }
+    if (!listed.ok) return void (await messageDialog("Could not list the open windows", listed.message));
+    if (!chosen) return;
+
+    announce(`Capturing ${chosen.title}.`);
+    const taken = await captureClient.captureWindow(chosen);
+    if (!taken.ok) return void (await messageDialog("The capture did not work", taken.message));
+
+    const { bytes, width, height, extension, result } = taken.value;
+    const id = newId();
+    const file = `images/${id}.${extension}`;
+    // The description is asked for, never filled in silently. An empty one is flagged until it is written.
+    const altText = await promptText("Describe the picture", `What does the capture of "${chosen.title}" show? A screen reader reads this aloud. Leave it empty to add it later.`, "", true);
+    assets.set(file, bytes);
+    addPicture(project.tree, node.id, {
+      id, file, width, height, altText: altText ?? "",
+      source: { kind: "window", capturedAt: new Date().toISOString(), originalName: chosen.title },
+    });
+    markDirty();
+    renderPictures();
+    announce(`Captured ${chosen.title}, ${width} by ${height} pixels.${result.method === "screen-copy" ? ` ${result.note}` : ""}`);
+  } catch (error) {
+    await messageDialog("The capture did not work", `${error instanceof Error ? error.message : String(error)} Your project was not changed.`);
+  } finally {
+    capturing = false;
+    $<HTMLButtonElement>("b-capture").focus();
+  }
+}
+
+$("b-capture").addEventListener("click", () => void captureAWindow());
 
 function select(id: string) {
   selectedId = id;

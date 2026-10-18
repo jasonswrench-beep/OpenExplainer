@@ -12,6 +12,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+# For the messages to and from the capture helper. Already part of Tauri's own dependencies.
+serde_json = "1"
 
 [profile.release]
 lto = "thin"

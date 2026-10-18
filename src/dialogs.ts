@@ -1,4 +1,5 @@
 import { cleanVariableName, CORE_VARIABLES, type Project } from "./project/model.ts";
+import type { WindowInfo } from "./capture/outcome.ts";
 
 // Small accessible dialogs built on the browser's own <dialog>, which traps focus
 // while open and closes with Escape. Focus goes back to where it was when they close.
@@ -89,6 +90,53 @@ export async function newProjectDialog(): Promise<{ name: string; template: Proj
   await open(dialog, input);
   const name = input.value.trim();
   return dialog.returnValue === "ok" && name ? { name, template: select.value as Project["template"] } : null;
+}
+
+/** What the author chose in the window list. */
+export type WindowChoice = { kind: "capture"; window: WindowInfo } | { kind: "refresh" };
+
+/** The spoken and written name of one open window: title first, then what and how big it is. */
+export function windowLabel(w: WindowInfo): string {
+  const notes = [`${w.process}`, `${w.width} by ${w.height} pixels`];
+  if (w.minimized) notes.push("minimized, restore it first");
+  if (w.not_responding) notes.push("not responding");
+  return `${w.title} (${notes.join(", ")})`;
+}
+
+/** A list of the open windows to pick one from. A real list box, so arrows, typing a letter and a screen reader all work. */
+export async function chooseWindowDialog(windows: WindowInfo[]): Promise<WindowChoice | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">Capture a window</h2>
+      <p id="cw-help">Choose the window to capture. OpenExplainer hides while it captures, so it is never in the picture,
+        and a window that other windows cover can still be captured. A minimized window has to be restored first.</p>
+      <p><label for="cw-list">Open windows</label><br>
+        <select id="cw-list" size="10" aria-describedby="cw-help"></select></p>
+      <p id="cw-none" class="help" hidden>No open windows were found.</p>
+      <p><button value="capture" id="cw-capture">Capture this window</button>
+         <button value="refresh" formnovalidate>Refresh the list</button>
+         <button value="cancel" formnovalidate>Cancel</button></p>
+    </form>`;
+  const list = dialog.querySelector<HTMLSelectElement>("#cw-list")!;
+  windows.forEach((w, i) => {
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = windowLabel(w);
+    list.append(option);
+  });
+  if (windows.length) list.selectedIndex = 0;
+  else {
+    list.disabled = true;
+    dialog.querySelector<HTMLButtonElement>("#cw-capture")!.disabled = true;
+    dialog.querySelector<HTMLElement>("#cw-none")!.hidden = false;
+  }
+  await open(dialog, windows.length ? list : dialog.querySelector<HTMLButtonElement>('button[value="refresh"]')!);
+  if (dialog.returnValue === "refresh") return { kind: "refresh" };
+  if (dialog.returnValue !== "capture") return null;
+  const chosen = windows[list.selectedIndex];
+  return chosen ? { kind: "capture", window: chosen } : null;
 }
 
 export async function variablesDialog(variables: Record<string, string>): Promise<Record<string, string> | null> {

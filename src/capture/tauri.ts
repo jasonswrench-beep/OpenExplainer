@@ -1,0 +1,18 @@
+// The real route from the app to the capture helper: the commands in src-tauri/src/capture.rs.
+import { invoke } from "@tauri-apps/api/core";
+import { CAPTURE_TIMEOUT_MS, type ShellOutcome } from "./outcome.ts";
+import type { Shell } from "./client.ts";
+
+export const tauriShell: Shell = {
+  run: (request, { timeoutMs, hideApp }) => invoke<ShellOutcome>("capture", { request, timeoutMs, hideApp }),
+  takePicture: async (path) => new Uint8Array(await invoke<ArrayBuffer>("take_capture_picture", { path })),
+};
+
+/** 20 seconds. In a development build only, a test can make it shorter with `window.__openexplainerCaptureTimeoutMs`. */
+export function captureTimeoutMs(): number {
+  if (import.meta.env.DEV) {
+    const shorter = (window as unknown as { __openexplainerCaptureTimeoutMs?: number }).__openexplainerCaptureTimeoutMs;
+    if (typeof shorter === "number" && shorter > 0) return shorter;
+  }
+  return CAPTURE_TIMEOUT_MS;
+}
