@@ -6,6 +6,7 @@ import {
   type CaptureResult, type Done, type ScreenInfo, type ShellOutcome, type WindowInfo,
 } from "./outcome.ts";
 import type { Region } from "./region.ts";
+import type { Rect } from "./selection.ts";
 
 /** The app's way of running the helper. `tauri.ts` is the real one. */
 export interface Shell {
@@ -13,6 +14,22 @@ export interface Shell {
   run(request: Record<string, unknown>, options: { timeoutMs: number; hideApp: boolean }): Promise<ShellOutcome>;
   /** Hands over the picture a capture made (and deletes its temporary file). */
   takePicture(path: string): Promise<Uint8Array>;
+  /**
+   * Takes a snapshot of a screen, shows it full screen for the author to choose a rectangle on, and reports the choice.
+   * `screen` is where the screen is on the desktop; `initial` is the rectangle to start with, counted from the screen's corner.
+   */
+  select(request: { screen: ScreenArea; initial: Rect }, options: { timeoutMs: number }): Promise<ShellOutcome>;
+  /** Deletes a temporary picture (the snapshot). */
+  discard(path: string): Promise<void>;
+}
+
+/** Where a screen is on the whole desktop, with its size. */
+export interface ScreenArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  number?: number;
 }
 
 export interface CapturedPicture {
@@ -30,6 +47,11 @@ export interface CaptureClient {
   captureWindow(window: WindowInfo, options?: { bringToFront?: boolean }): Promise<Done<CapturedPicture>>;
   /** A rectangle in real screen pixels on the whole desktop. */
   captureRegion(region: Region): Promise<Done<CapturedPicture>>;
+  /**
+   * The author drags out a rectangle on a snapshot of the screen, and the picture is cut from that snapshot, so it is exactly
+   * what was chosen even if the screen changed. `rect` is counted from the screen's top left corner.
+   */
+  selectOnScreen(screen: ScreenInfo, initial: Rect): Promise<Done<{ picture: CapturedPicture; rect: Rect }>>;
 }
 
 export function createCaptureClient(shell: Shell, timeoutMs: () => number = () => CAPTURE_TIMEOUT_MS): CaptureClient {
@@ -42,6 +64,7 @@ export function createCaptureClient(shell: Shell, timeoutMs: () => number = () =
       const why = error instanceof Error ? error.message : String(error);
       return failure("app-error", `OpenExplainer could not reach the capture helper (${why}). ${UNCHANGED}`);
     }
+    if (outcome.kind === "selected") return failure("app-error", `OpenExplainer got an answer it did not ask for. ${UNCHANGED}`);
     if (outcome.kind !== "reply") return failureFor(outcome);
     return outcome.reply.ok ? { ok: true, value: outcome.reply.result } : failureFromHelper(outcome.reply.error);
   }
@@ -89,6 +112,32 @@ export function createCaptureClient(shell: Shell, timeoutMs: () => number = () =
     async captureRegion(region) {
       const answer = await ask({ command: "capture-region", x: region.x, y: region.y, width: region.width, height: region.height }, true);
       return answer.ok ? collect(answer.value as CaptureResult) : answer;
+    },
+
+    async selectOnScreen(screen, initial) {
+      let outcome: ShellOutcome;
+      try {
+        const area = { x: screen.x, y: screen.y, width: screen.width, height: screen.height, number: screen.number };
+        outcome = await shell.select({ screen: area, initial }, { timeoutMs: timeoutMs() });
+      } catch (error) {
+        const why = error instanceof Error ? error.message : String(error);
+        return failure("app-error", `OpenExplainer could not reach the capture helper (${why}). ${UNCHANGED}`);
+      }
+      // The snapshot step already succeeded when the shell says "selected"; a plain reply here is the helper refusing it.
+      if (outcome.kind === "reply") {
+        return outcome.reply.ok ? failure("unreadable", `The snapshot could not be used. ${UNCHANGED}`) : failureFromHelper(outcome.reply.error);
+      }
+      if (outcome.kind !== "selected") return failureFor(outcome);
+      const { snapshot, rect } = outcome;
+      try {
+        const cut = await ask({ command: "crop-picture", source: snapshot, x: rect.left, y: rect.top, width: rect.width, height: rect.height }, false);
+        if (!cut.ok) return cut;
+        const picture = await collect(cut.value as CaptureResult);
+        return picture.ok ? { ok: true, value: { picture: picture.value, rect } } : picture;
+      } finally {
+        // The snapshot shows the author's whole screen, so it never stays behind.
+        try { await shell.discard(snapshot); } catch { /* already gone */ }
+      }
     },
   };
 }

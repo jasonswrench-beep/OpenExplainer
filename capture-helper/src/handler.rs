@@ -47,6 +47,21 @@ fn run(request: Request) -> Result<Value, CaptureError> {
             let path = png_out::check_out_path(&out)?;
             platform::capture_window(window, &path, &exclude_pids, activate)
         }
+        Request::CropPicture { source, x, y, width, height, out } => {
+            let started = std::time::Instant::now();
+            let source = png_out::check_source_path(&source)?;
+            let out = png_out::check_out_path(&out)?;
+            let (width, height) = png_out::crop_picture(&source, x, y, width, height, &out)?;
+            Ok(json!({
+                "path": out.to_string_lossy(),
+                "width": width,
+                "height": height,
+                "method": "crop",
+                "note": "Cut out of a saved picture.",
+                "elapsed_ms": started.elapsed().as_millis() as u64,
+                "region": { "x": x, "y": y, "width": width, "height": height },
+            }))
+        }
         Request::CaptureRegion { x, y, width, height, out, exclude_pids } => {
             let path = png_out::check_out_path(&out)?;
             let region = pixels::check_region(x, y, width, height)?;
@@ -83,6 +98,16 @@ mod tests {
         let error = reply.error.unwrap();
         assert_eq!(error.code, code::BAD_REQUEST);
         assert!(error.message.contains("width and a height"));
+    }
+
+    #[test]
+    fn a_cut_out_asks_for_full_paths_and_never_touches_anything_else() {
+        let a = handle_line(r#"{"id":1,"command":"crop-picture","source":"a.png","x":0,"y":0,"width":1,"height":1,"out":"C:\\b.png"}"#);
+        assert!(a.error.unwrap().message.contains("full path of a .png picture"));
+        let b = handle_line(r#"{"id":2,"command":"crop-picture","source":"C:\\a.png","x":0,"y":0,"width":1,"height":1,"out":"b.png"}"#);
+        assert!(b.error.unwrap().message.contains("full path"));
+        let c = handle_line(r#"{"id":3,"command":"crop-picture","source":"C:\\no\\such\\folder\\a.png","x":0,"y":0,"width":1,"height":1,"out":"C:\\b.png"}"#);
+        assert!(c.error.unwrap().message.contains("could not be opened"));
     }
 
     #[test]

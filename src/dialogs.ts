@@ -1,6 +1,7 @@
 import { cleanVariableName, CORE_VARIABLES, type Project } from "./project/model.ts";
 import type { Done, ScreenInfo, WindowInfo } from "./capture/outcome.ts";
 import { checkRegionInput, screenLabel, screenName, wholeScreen, type Region, type RegionInput } from "./capture/region.ts";
+import type { Rect } from "./capture/selection.ts";
 
 // Small accessible dialogs built on the browser's own <dialog>, which traps focus
 // while open and closes with Escape. Focus goes back to where it was when they close.
@@ -104,7 +105,9 @@ export function windowLabel(w: WindowInfo): string {
 /** What the author chose in the Capture dialog. */
 export type CaptureChoice =
   | { kind: "window"; window: WindowInfo; bringToFront: boolean }
-  | { kind: "region"; screen: ScreenInfo; region: Region; left: number; top: number };
+  | { kind: "region"; screen: ScreenInfo; region: Region; left: number; top: number }
+  /** The author wants to drag out a rectangle on a snapshot of the screen. `initial` is where the rectangle starts, counted from the screen's corner. */
+  | { kind: "select"; screen: ScreenInfo; initial: Rect };
 
 export interface CaptureDialogOptions {
   windows: WindowInfo[];
@@ -156,6 +159,9 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
         <p><label for="cr-screen">Screen</label><br><select id="cr-screen" aria-describedby="cr-help"></select></p>
         ${REGION_BOXES.map((b) => `<p><label for="${b.id}">${b.label}</label><br><input id="${b.id}" type="text" inputmode="numeric" size="8" autocomplete="off" aria-describedby="cap-error"></p>`).join("")}
         <p><button type="button" id="cr-whole">Use the whole screen</button></p>
+        <p><button type="button" id="cr-select" aria-describedby="cr-select-help">Select on the screen</button><br>
+          <span id="cr-select-help" class="help">Takes a snapshot of the screen you chose and shows it full screen. Drag out the rectangle with the mouse,
+            or use the arrow keys or the four number boxes there. The picture is cut from that snapshot.</span></p>
       </div>
       <p id="cap-status" class="visually-hidden" role="status"></p>
       <p id="cap-error" class="error" role="alert"></p>
@@ -168,6 +174,7 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
   const front = $<HTMLInputElement>("#cw-front");
   const screenSelect = $<HTMLSelectElement>("#cr-screen");
   const boxes = REGION_BOXES.map((b) => ({ ...b, input: $<HTMLInputElement>(`#${b.id}`) }));
+  let chosen: CaptureChoice | null = null;
   const errorEl = $<HTMLElement>("#cap-error");
   const statusEl = $<HTMLElement>("#cap-status");
 
@@ -232,6 +239,17 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
   });
   boxes.forEach((b) => b.input.addEventListener("input", clearError));
 
+  // Choosing on a snapshot starts from the numbers in the boxes if they make a good rectangle, and from a sensible one if not.
+  $<HTMLButtonElement>("#cr-select").addEventListener("click", () => {
+    const screen = chosenScreen();
+    const typed = checkRegionInput(screen, Object.fromEntries(boxes.map((b) => [b.field, b.input.value])) as unknown as RegionInput);
+    const initial: Rect = typed.ok
+      ? { left: typed.region.x - screen.x, top: typed.region.y - screen.y, width: typed.region.width, height: typed.region.height }
+      : { left: Math.round(screen.width * 0.3), top: Math.round(screen.height * 0.3), width: Math.round(screen.width * 0.4), height: Math.round(screen.height * 0.4) }; // a smaller one in the middle, so a new one is easy to drag outside it
+    chosen = { kind: "select", screen, initial };
+    dialog.close("select");
+  });
+
   const refresh = $<HTMLButtonElement>("#cw-refresh");
   refresh.addEventListener("click", async () => {
     clearError();
@@ -245,7 +263,6 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
     say(`The list was refreshed: ${windows.length} open ${windows.length === 1 ? "window" : "windows"}.`);
   });
 
-  let chosen: CaptureChoice | null = null;
   const form = $<HTMLFormElement>("form");
   form.addEventListener("submit", (event) => {
     // The dialog only closes when the choice is complete, so a mistake never costs the author what they typed.
@@ -274,7 +291,7 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
   });
 
   await open(dialog, startWithWindow ? radioWindow : radioRegion);
-  return dialog.returnValue === "capture" ? chosen : null;
+  return dialog.returnValue === "capture" || dialog.returnValue === "select" ? chosen : null;
 }
 
 export async function variablesDialog(variables: Record<string, string>): Promise<Record<string, string> | null> {

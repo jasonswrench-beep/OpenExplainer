@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Select the part of the screen to capture</title>
+    <style>
+      :root { font-family: "Segoe UI", system-ui, sans-serif; color: #1a1a1a; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+      /* The snapshot of the screen, shown at its real size. */
+      #stage { position: relative; overflow: hidden; user-select: none; touch-action: none; cursor: crosshair; background: #202020; }
+      #shot { display: block; pointer-events: none; }
+      /* The rectangle. The huge shadow darkens everything outside it. The double outline (white, then black) shows against any background. */
+      #box { position: absolute; box-sizing: border-box; border: 2px solid #fff; outline: 2px solid #000; box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.5); cursor: move; }
+      #box:focus-visible { outline: 3px solid #ffbf47; outline-offset: 2px; }
+      /* Corner handles: a small square, with a bigger area around it that also counts as the handle. */
+      .handle { position: absolute; width: 12px; height: 12px; background: #fff; border: 2px solid #000; box-sizing: border-box; }
+      .handle::before { content: ""; position: absolute; inset: -10px; }
+      .handle[data-corner="top-left"] { left: -8px; top: -8px; cursor: nwse-resize; }
+      .handle[data-corner="top-right"] { right: -8px; top: -8px; cursor: nesw-resize; }
+      .handle[data-corner="bottom-left"] { left: -8px; bottom: -8px; cursor: nesw-resize; }
+      .handle[data-corner="bottom-right"] { right: -8px; bottom: -8px; cursor: nwse-resize; }
+      /* The size, in words and numbers, next to the rectangle. */
+      #size { position: absolute; background: #000; color: #fff; font-size: 14px; padding: 2px 8px; border: 1px solid #fff; white-space: nowrap; pointer-events: none; }
+      #panel { position: fixed; left: 50%; transform: translateX(-50%); width: min(700px, 94vw); box-sizing: border-box; background: #fff; border: 3px solid #1f4e8c; border-radius: 6px; padding: 0.6rem 1rem; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5); cursor: default; }
+      #panel.top { top: 12px; }
+      #panel.bottom { bottom: 12px; }
+      h1 { font-size: 1.1rem; margin: 0 0 0.25rem; }
+      p { margin: 0.3rem 0; }
+      .help { color: #404040; font-size: 0.9rem; }
+      .fields { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0.4rem 0; }
+      label { display: block; font-size: 0.9rem; }
+      input { font: inherit; width: 6rem; padding: 0.2rem 0.4rem; margin-top: 0.15rem; }
+      input[aria-invalid="true"] { border: 2px solid #8a1c1c; }
+      button { font: inherit; padding: 0.45rem 1.1rem; margin-right: 0.5rem; }
+      :focus-visible { outline: 3px solid #b35c00; outline-offset: 2px; }
+      #problem { color: #8a1c1c; font-weight: 600; min-height: 1.2em; }
+      .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <!-- The snapshot is a picture of the screen: the four number boxes and the live announcements are how it is used without seeing it. -->
+      <img id="shot" alt="" />
+      <div id="box" role="application" tabindex="0" aria-label="Rectangle to capture" aria-describedby="help">
+        <span class="handle" data-corner="top-left" aria-hidden="true"></span>
+        <span class="handle" data-corner="top-right" aria-hidden="true"></span>
+        <span class="handle" data-corner="bottom-left" aria-hidden="true"></span>
+        <span class="handle" data-corner="bottom-right" aria-hidden="true"></span>
+      </div>
+      <div id="size" aria-hidden="true"></div>
+    </div>
+    <section id="panel" class="top" aria-labelledby="title">
+      <h1 id="title">Select the part of the screen to capture</h1>
+      <p id="where" class="help"></p>
+      <p id="help" class="help">
+        Drag on the picture to choose a rectangle: start from outside the current one to draw a new one. Drag a corner to resize it, or drag inside it to move it.
+        Or use the keys: the arrow keys move it, Shift with the arrow keys changes its size, and Control makes each step 10 pixels.
+        Enter captures it. Escape cancels.
+      </p>
+      <div class="fields">
+        <label>Distance from the left edge<br /><input id="f-left" type="text" inputmode="numeric" autocomplete="off" /></label>
+        <label>Distance from the top edge<br /><input id="f-top" type="text" inputmode="numeric" autocomplete="off" /></label>
+        <label>Width<br /><input id="f-width" type="text" inputmode="numeric" autocomplete="off" /></label>
+        <label>Height<br /><input id="f-height" type="text" inputmode="numeric" autocomplete="off" /></label>
+      </div>
+      <p id="state" class="visually-hidden" role="status"></p>
+      <p id="problem" role="alert"></p>
+      <p>
+        <button type="button" id="go">Capture this rectangle (Enter)</button>
+        <button type="button" id="stop">Cancel (Esc)</button>
+      </p>
+    </section>
+    <script type="module" src="/src/selection.ts"></script>
+  </body>
+</html>

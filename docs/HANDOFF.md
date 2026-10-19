@@ -96,8 +96,13 @@ messages, the error codes, and what was and was not tried.
    left corner, *Use the whole screen*). Mistakes in the boxes are explained next to them in plain words and the dialog stays open
    (`src/capture/region.ts`, tested). The helper's `capture-window` took an optional `activate` (makes the window active so its title bar is not grey;
    black title text 0 with it, grey 145 without). Pictures get `source.kind` `window` or `region`; no format change. Tried in the real window: both
-   screens to the exact colour, the whole screen (size only), mistakes, labels, bring to front, and the part 5 checks again. Counts: helper 40, app
-   shell 10, TypeScript 46 (44 pass; the 2 old `python3` ones fail on this PC).
+   screens to the exact colour, the whole screen (size only), mistakes, labels, bring to front, and the part 5 checks again.
+   **Select on the screen** (2026-10-18, Jason chose the snapshot approach): a button in the rectangle part of the dialog takes a snapshot of the chosen
+   screen, shows it full screen in its own window (`selection.html`, `src/selection.ts`, rules and tests in `src/capture/selection.ts`), and the picture is
+   cut from that snapshot by a new helper command `crop-picture`. Mouse (draw from outside, move inside, corner handles), keyboard (arrows, Shift resizes,
+   Control x10, Enter, Escape) and the four number boxes work together, with a live region and a written size. Fail-safes: Escape, Cancel, window close,
+   a 5-second start limit, a vanished window counts as Cancel; snapshots are deleted on every path and old ones swept at start. Tried in the real window
+   on screen 2 (see `docs/capture-helper.md`). Counts: helper 47, app shell 13, TypeScript 67 (65 pass; the 2 old `python3` ones fail on this PC).
 
 Still to build, in this order, testing each on this PC (6 left two things for Jason to decide, see "Still open"):
 7. Then click-by-click capture: low-level mouse hook, a still picture per click, and Windows UI Automation details of the clicked item
@@ -145,6 +150,17 @@ Lessons from part 5:
 - A window you capture right after the app had focus may show a greyed title bar (inactive). Part 6 added the *Bring the window to the front first*
   choice (the helper's `activate`), off by default.
 
+Lessons from Select on the screen:
+- A full-screen always-on-top window must have every way out: Escape, a Cancel button, the window's close, a start limit that closes it if its page never
+  reports in (the app, not the page, enforces it), and a vanished window counted as Cancel. Keep it in the taskbar so Alt+Tab still finds it.
+- Show the snapshot at `natural size / devicePixelRatio` and convert mouse positions back with the same ratio: the window is sized in real pixels
+  (`set_size(PhysicalSize)`), so at 150 percent the page is 1280 pixels wide for a 1920 pixel snapshot. Only 100 percent was tried.
+- Dragging inside the current rectangle moves it, so a big starting rectangle makes drawing a new one awkward: the start is a smaller centred rectangle
+  and the instructions say to drag from outside.
+- A test driver must wait for a page to finish loading before asking it questions (a connection can open before the DOM exists), and must close a
+  selection window it leaves open, or every later scenario fails.
+- Killing the app while the selection window is open leaves the snapshot in `%TEMP%\openexplainer-capture`; the startup sweep removes it after an hour.
+
 Lessons from part 6:
 - `SetForegroundWindow` from the helper worked, both from a test tool and from inside the app. Wait about 150 ms after it for the window to repaint
   as active. Do not do it for a program that is not responding.
@@ -164,12 +180,9 @@ Lessons from part 6:
 - Capture helper: should the window list also show a program's dialogs (marked as belonging to it) so a native dialog can be captured by itself?
   Region capture can also take one.
 - Capture helper: Windows 11's rounded corners leave a few black or background pixels in the picture's corners. Save with transparent corners, or leave?
-- Capture: the drag-to-select overlay (on the to-do list: "by dragging or by typing four numbers"). Typed numbers are done. Two ways to build the drag:
-  (A) take a snapshot of the chosen screen with the helper, show it full screen in an app window and select on that (easy to make keyboard and screen
-  reader friendly with arrow keys, Shift to resize and the four boxes as the equivalent; whatever was on the screen is frozen, so a menu another
-  program would close can still be captured), then crop; or (B) a transparent live overlay (more work; the window under it keeps changing). Recommended:
-  A. Ask Jason before starting it.
-- Capture: a delay ("wait 5 seconds, then capture") so an author can open a menu first. Small, but not on the to-do list, so ask.
+- Capture: a delay ("wait 5 seconds, then capture") so an author can open a menu first. The snapshot of Select on the screen does NOT capture a menu by
+  itself: pressing OpenExplainer's button closes the menu before the snapshot is taken. A delay before the snapshot would. Small, but not on the to-do
+  list, so ask.
 - Capture: whether "Bring the window to the front first" should be on by default (it is off, because the keyboard is then with the other window and
   Escape does not reach the Cancel window, and it changes which window is on top).
 - Steps 1 and 2 leftovers: more double-click scripts (build, tests), keyboard and screen reader pass, ARM check.

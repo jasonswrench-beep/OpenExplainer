@@ -8,7 +8,7 @@ import { chooseImages, chooseOpenPath, chooseSavePath, loadProject, saveProject 
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
 import { captureDialog, confirmDialog, messageDialog, newProjectDialog, promptText, variablesDialog } from "./dialogs.ts";
-import { createCaptureClient } from "./capture/client.ts";
+import { createCaptureClient, type CapturedPicture } from "./capture/client.ts";
 import { captureTimeoutMs, tauriShell } from "./capture/tauri.ts";
 import { regionName, screenName } from "./capture/region.ts";
 
@@ -280,27 +280,47 @@ async function captureIntoTopic() {
     });
     if (!choice) return;
 
-    const what = choice.kind === "window"
-      ? choice.window.title
-      : regionName(choice.screen, choice.left, choice.top, choice.region.width, choice.region.height);
-    announce(`Capturing ${what}.`);
-    const taken = choice.kind === "window"
-      ? await captureClient.captureWindow(choice.window, { bringToFront: choice.bringToFront })
-      : await captureClient.captureRegion(choice.region);
-    if (!taken.ok) return void (await messageDialog("The capture did not work", taken.message));
+    // What was captured, in words; the question asked about it; and the picture itself.
+    let what: string;
+    let question: string;
+    let picture: CapturedPicture;
+    if (choice.kind === "window") {
+      announce(`Capturing ${choice.window.title}.`);
+      const taken = await captureClient.captureWindow(choice.window, { bringToFront: choice.bringToFront });
+      if (!taken.ok) return void (await messageDialog("The capture did not work", taken.message));
+      picture = taken.value;
+      what = choice.window.title;
+      question = `What does the capture of "${choice.window.title}" show?`;
+    } else if (choice.kind === "region") {
+      what = regionName(choice.screen, choice.left, choice.top, choice.region.width, choice.region.height);
+      announce(`Capturing ${what}.`);
+      const taken = await captureClient.captureRegion(choice.region);
+      if (!taken.ok) return void (await messageDialog("The capture did not work", taken.message));
+      picture = taken.value;
+      question = `What does this part of ${screenName(choice.screen)} show?`;
+    } else {
+      announce(`Taking a snapshot of ${screenName(choice.screen)} to choose from.`);
+      const chosen = await captureClient.selectOnScreen(choice.screen, choice.initial);
+      if (!chosen.ok) {
+        // Changing your mind is not an error: no message box, just the words, and focus stays on the Capture button.
+        if (chosen.code === "cancelled") return void announce("The selection was cancelled. Your project was not changed.");
+        return void (await messageDialog("The capture did not work", chosen.message));
+      }
+      picture = chosen.value.picture;
+      const { rect } = chosen.value;
+      what = regionName(choice.screen, rect.left, rect.top, rect.width, rect.height);
+      question = `What does this part of ${screenName(choice.screen)} show?`;
+    }
 
-    const { bytes, width, height, extension, result } = taken.value;
+    const { bytes, width, height, extension, result } = picture;
     const id = newId();
     const file = `images/${id}.${extension}`;
-    const question = choice.kind === "window"
-      ? `What does the capture of "${choice.window.title}" show?`
-      : `What does this part of ${screenName(choice.screen)} show?`;
     // The description is asked for, never filled in silently. An empty one is flagged until it is written.
     const altText = await promptText("Describe the picture", `${question} A screen reader reads this aloud. Leave it empty to add it later.`, "", true);
     assets.set(file, bytes);
     addPicture(project.tree, node.id, {
       id, file, width, height, altText: altText ?? "",
-      source: { kind: choice.kind, capturedAt: new Date().toISOString(), originalName: what },
+      source: { kind: choice.kind === "window" ? "window" : "region", capturedAt: new Date().toISOString(), originalName: what },
     });
     markDirty();
     renderPictures();

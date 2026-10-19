@@ -82,6 +82,8 @@ function pretend(outcome: ShellOutcome, picture: Uint8Array = pngBytes(40, 30)) 
   const shell: Shell = {
     async run(request, options) { asked.push({ request, hideApp: options.hideApp }); return outcome; },
     async takePicture(path) { taken.push(path); return picture; },
+    async select() { throw new Error("these tests do not choose on a snapshot"); },
+    async discard() { /* nothing to delete */ },
   };
   return { shell, asked, taken };
 }

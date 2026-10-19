@@ -6,6 +6,8 @@ import type { Shell } from "./client.ts";
 export const tauriShell: Shell = {
   run: (request, { timeoutMs, hideApp }) => invoke<ShellOutcome>("capture", { request, timeoutMs, hideApp }),
   takePicture: async (path) => new Uint8Array(await invoke<ArrayBuffer>("take_capture_picture", { path })),
+  select: ({ screen, initial }, { timeoutMs }) => invoke<ShellOutcome>("select_region", { screen, initial, timeoutMs }),
+  discard: async (path) => { await invoke("discard_capture_picture", { path }); },
 };
 
 /** 20 seconds. In a development build only, a test can make it shorter with `window.__openexplainerCaptureTimeoutMs`. */

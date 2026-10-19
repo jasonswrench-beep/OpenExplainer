@@ -54,11 +54,13 @@ export type HelperReply =
 /** What the app's shell reports after running the helper once. */
 export type ShellOutcome =
   | { kind: "reply"; reply: HelperReply }
+  /** The author chose a rectangle on a snapshot of a screen. `snapshot` is the temporary picture it is cut from. */
+  | { kind: "selected"; snapshot: string; rect: { left: number; top: number; width: number; height: number } }
   | { kind: "timeout"; seconds: number }
   | { kind: "cancelled" }
   | { kind: "stopped" }
   | { kind: "busy" }
-  | { kind: "unavailable"; reason: "missing" | "cannot-start" | "bad-request" | "no-cancel-window"; detail?: string };
+  | { kind: "unavailable"; reason: "missing" | "cannot-start" | "bad-request" | "no-cancel-window" | "selection-window"; detail?: string };
 
 /** A capture that did not work. `message` is for the author to read, `code` is for the app to act on. */
 export interface Failure {
@@ -74,7 +76,7 @@ export function failure(code: string, message: string): Failure {
 }
 
 /** The plain words for everything that can go wrong before the helper gives an answer. */
-export function failureFor(outcome: Exclude<ShellOutcome, { kind: "reply" }>): Failure {
+export function failureFor(outcome: Exclude<ShellOutcome, { kind: "reply" } | { kind: "selected" }>): Failure {
   switch (outcome.kind) {
     case "timeout":
       return failure(
@@ -96,6 +98,11 @@ export function failureFor(outcome: Exclude<ShellOutcome, { kind: "reply" }>): F
           );
         case "cannot-start":
           return failure("helper-cannot-start", `The capture helper could not start${outcome.detail ? ` (${outcome.detail})` : ""}. ${UNCHANGED}`);
+        case "selection-window":
+          return failure(
+            "selection-window",
+            `The window for choosing a rectangle did not start, so nothing was captured. ${UNCHANGED} Try again, or type the four numbers instead.`,
+          );
         case "no-cancel-window":
           return failure(
             "no-cancel-window",

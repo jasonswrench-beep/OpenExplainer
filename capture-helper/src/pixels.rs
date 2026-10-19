@@ -134,6 +134,23 @@ pub fn crop_bgra(src: &[u8], src_width: u32, src_height: u32, part: Rect) -> Opt
     Some(out)
 }
 
+/// Cuts a rectangle out of a 3-bytes-per-pixel (red, green, blue) picture. `None` if it does not fit inside it.
+pub fn crop_rgb(src: &[u8], src_width: u32, src_height: u32, part: Rect) -> Option<Vec<u8>> {
+    if part.is_empty() || part.left < 0 || part.top < 0 || part.right > src_width as i32 || part.bottom > src_height as i32 {
+        return None;
+    }
+    if src.len() != src_width as usize * src_height as usize * 3 {
+        return None;
+    }
+    let (w, h) = (part.width() as usize, part.height() as usize);
+    let mut out = Vec::with_capacity(w * h * 3);
+    for row in 0..h {
+        let start = ((part.top as usize + row) * src_width as usize + part.left as usize) * 3;
+        out.extend_from_slice(&src[start..start + w * 3]);
+    }
+    Some(out)
+}
+
 /// Windows hands pictures back as blue, green, red and a spare byte. PNG files want red, green, blue.
 pub fn bgra_to_rgb(bgra: &[u8]) -> Vec<u8> {
     let mut rgb = Vec::with_capacity(bgra.len() / 4 * 3);
@@ -209,6 +226,23 @@ mod tests {
         assert!(crop_bgra(&src, 3, 2, rect(-1, 0, 2, 2)).is_none());
         assert!(crop_bgra(&src, 3, 2, rect(1, 1, 1, 2)).is_none());
         assert!(crop_bgra(&src[..10], 3, 2, rect(0, 0, 1, 1)).is_none());
+    }
+
+    #[test]
+    fn crop_rgb_takes_the_right_pixels_and_refuses_what_does_not_fit() {
+        // 3 wide, 2 tall, 3 bytes per pixel: the first byte of each pixel is its number 0..5.
+        let mut src = Vec::new();
+        for i in 0..6u8 {
+            src.extend_from_slice(&[i, 100 + i, 200 + i]);
+        }
+        let cut = crop_rgb(&src, 3, 2, rect(1, 0, 3, 2)).unwrap();
+        let firsts: Vec<u8> = cut.chunks_exact(3).map(|p| p[0]).collect();
+        assert_eq!(firsts, vec![1, 2, 4, 5]);
+        assert_eq!(&cut[..3], &[1, 101, 201], "all three colour bytes travel together");
+        assert!(crop_rgb(&src, 3, 2, rect(0, 0, 4, 2)).is_none());
+        assert!(crop_rgb(&src, 3, 2, rect(-1, 0, 2, 2)).is_none());
+        assert!(crop_rgb(&src, 3, 2, rect(1, 1, 1, 2)).is_none());
+        assert!(crop_rgb(&src[..5], 3, 2, rect(0, 0, 1, 1)).is_none());
     }
 
     #[test]

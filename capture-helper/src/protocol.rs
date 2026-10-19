@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The commands the helper knows, in the order `docs/capture-helper.md` lists them.
-pub const COMMANDS: [&str; 5] = ["ping", "list-windows", "list-screens", "capture-window", "capture-region"];
+pub const COMMANDS: [&str; 6] = ["ping", "list-windows", "list-screens", "capture-window", "capture-region", "crop-picture"];
 
 /// Error codes. The app can switch on these; `message` is always plain words for the author.
 pub mod code {
@@ -69,6 +69,16 @@ pub enum Request {
         out: String,
         #[serde(default)]
         exclude_pids: Vec<u32>,
+    },
+    /// Cuts a rectangle out of a saved PNG (`source`) and saves it as a new PNG (`out`). `x` and `y` count pixels from the
+    /// source picture's top left corner. Used to cut the author's chosen rectangle out of a snapshot of a screen.
+    CropPicture {
+        source: String,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        out: String,
     },
 }
 
@@ -221,6 +231,15 @@ mod tests {
     fn capture_window_may_ask_for_the_window_to_be_brought_to_the_front_first() {
         let e = parse_line(r#"{"id":2,"command":"capture-window","window":5,"out":"C:\\a.png","activate":true}"#).unwrap();
         assert_eq!(e.request, Request::CaptureWindow { window: 5, out: "C:\\a.png".to_string(), exclude_pids: vec![], activate: true });
+    }
+
+    #[test]
+    fn crop_picture_reads_the_source_the_four_numbers_and_the_result() {
+        let e = parse_line(r#"{"id":8,"command":"crop-picture","source":"C:\\a.png","x":10,"y":20,"width":30,"height":40,"out":"C:\\b.png"}"#).unwrap();
+        assert_eq!(
+            e.request,
+            Request::CropPicture { source: "C:\\a.png".to_string(), x: 10, y: 20, width: 30, height: 40, out: "C:\\b.png".to_string() }
+        );
     }
 
     #[test]

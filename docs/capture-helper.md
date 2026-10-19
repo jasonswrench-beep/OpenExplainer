@@ -9,8 +9,10 @@ the app's own build. It only works on Windows.
 Status: window list, window capture, screen list and region capture are built and tried on Windows 11 x64
 (Step 3b, parts 1 to 4). The app side of it (part 5: the 20-second timeout, the Cancel window, hiding OpenExplainer
 while it captures, and plain-words failures) is built too, and part 6 gave the app one **Capture** dialog for a window or
-a rectangle of a chosen screen, with a "bring the window to the front first" choice. The drag-to-select overlay, a delay
-before capturing, and click-by-click capture are not built. See `docs/HANDOFF.md`.
+a rectangle of a chosen screen, with a "bring the window to the front first" choice. **Select on the screen** (part 6,
+continued) takes a snapshot of a screen, shows it full screen, lets the author drag out a rectangle (or use the keys or four
+number boxes), and cuts the picture from that snapshot. A delay before capturing and click-by-click capture are not built.
+See `docs/HANDOFF.md`.
 
 ## How to try it (double-click these)
 
@@ -134,6 +136,17 @@ message and nothing saved if one fails:
 Result: `path`, `width`, `height`, `method`, `note`, `scale_percent` (of the screen at the middle of the rectangle),
 `elapsed_ms` and `region` (the four numbers again).
 
+### `crop-picture`
+
+Request: `{"command": "crop-picture", "source": "C:\\...\\snapshot.png", "x": 100, "y": 50, "width": 300, "height": 200,
+"out": "C:\\...\\part.png"}`. Cuts a rectangle out of a saved PNG and saves it as a new PNG. The four numbers count pixels from
+the source picture's top left corner. `source` and `out` must be full paths ending in `.png`, and they may not be the same
+file; the source is never changed. It needs no screen, so it works the same on any computer. Result: `path`, `width`,
+`height`, `method` (`crop`), `note`, `elapsed_ms` and `region`. A rectangle that reaches past the edge of the picture, or has
+no size, is refused with `bad-request` and plain words that give the picture's size; a source that is missing, not a PNG or
+damaged is explained too. Only 8-bit red-green-blue (and with alpha) PNGs, which is what the helper makes, can be cut.
+It is how Select on the screen gets the author's rectangle out of the snapshot.
+
 ### Error codes
 
 | Code | When |
@@ -204,6 +217,38 @@ rule apply), the description is asked for exactly as Import does (never filled i
 by 600 pixels, 100 from the left and 50 from the top". No format change. A screen copy of a frozen program, or a window that
 could not be brought to the front when asked, is announced with the helper's `note`.
 
+**Select on the screen.** In the rectangle part of the dialog, the button *Select on the screen* takes a snapshot of the
+chosen screen and shows it, full size, in a window of its own, so the author can choose the rectangle on a frozen picture.
+- **The shell** (`select_region`) hides the main window and shows the Cancel window exactly as a capture does, has the helper
+  take the snapshot (`capture-region` of the whole screen into a temporary file, with the same 20-second limit), and then
+  closes the Cancel window and opens the selection window (`selection.html`) exactly over that screen: borderless, always on
+  top, still in the taskbar and Alt+Tab. It waits for the author's answer. There is no time limit on choosing.
+  **Fail-safes so a full-screen window can never trap anyone:** Escape, the Cancel button and the window's close (Alt+F4, the
+  taskbar) all cancel; if the page has not reported it is showing (`selection_ready`) within 5 seconds, the app closes the
+  window by itself and says "The window for choosing a rectangle did not start, so nothing was captured. Your project was
+  not changed. Try again, or type the four numbers instead."; and if the window vanishes, that counts as Cancel. The snapshot
+  is deleted on cancel and on every failure, and `Select on the screen` cuts the picture from it through `crop-picture` and
+  then deletes it. Because it shows the author's whole screen, leftover pictures in the temporary capture folder that are an
+  hour old are swept out when the app starts.
+- **The page** (`src/selection.ts`, rules in `src/capture/selection.ts`) shows the snapshot at its real size (a page pixel
+  may be several screen pixels on a scaled display, so it divides by `devicePixelRatio`; only 100 percent could be tried).
+  Three ways of working, always in step: **the mouse** (drag from outside the rectangle to draw a new one, drag inside to move
+  it, drag a corner to resize it; a click without a drag changes nothing), **the keyboard** (arrow keys move it by 1 pixel,
+  Shift with them resizes, Control makes the step 10, Enter captures, Escape cancels) and **four number boxes** (the same
+  four as in the dialog, with the same plain-words checks), which are also the main route for a screen reader. A live region
+  says "Rectangle: 40 by 40 pixels, 20 from the left and 200 from the top." after the changes settle, and the size is also
+  written on the screen. The rectangle has a white-and-black double outline so it shows on any background, the outside is
+  dimmed, and the panel of controls moves to the other side if the rectangle is under it. The rectangle starts as the dialog's
+  four numbers, or a smaller one in the middle if those were not a good rectangle.
+- **After the choice** the app cuts the picture out of the snapshot (`crop-picture`, no hiding needed), asks for the
+  description as usual, and adds it with `source.kind` `region` named by screen and place. A cancelled selection is announced
+  quietly ("The selection was cancelled. Your project was not changed.") and is not shown as an error.
+- **For tests:** `OPENEXPLAINER_SELECTION_PAGE=no-such-page.html` makes the window fail to start, to prove the fail-safe.
+
+A snapshot is a frozen picture, which is what makes the choice exact. It does not by itself let the author capture a menu
+that another program closes: pressing OpenExplainer's button closes that menu before the snapshot is taken. That needs a delay
+before the snapshot, which is not built.
+
 **Where the helper is found:** the file named by the `OPENEXPLAINER_CAPTURE_HELPER` environment variable (for tests),
 else `openexplainer-capture.exe` beside the app, else (while developing) `capture-helper/target/release/` found by walking
 up from the app. `Run OpenExplainer.bat` builds the helper before it starts the app. Putting the helper inside an installer
@@ -261,7 +306,22 @@ behind another: the darkest pixel of its title text was 145 (grey, inactive) wit
 it on. The part 5 checks (normal, frozen, five ways to cancel, time limit, closed window, a helper that never answers,
 missing helper) were run again against the new dialog and passed.
 
-Not tried: a screen reader on the Capture dialog, the description prompt and the Cancel window; a release build of the
+Select on the screen was tried in the real window, with a made-up window that fills most of screen 2 (so the snapshot is almost
+all that window): the window opens exactly over screen 2 (position and size 1920 by 1080, the snapshot is 1920 by 1080 and
+fills it, the rectangle has the keyboard focus, and OpenExplainer's only visible window is the selection window); a mouse drag
+from outside the rectangle gave exactly the typed numbers, the live region said the size and place, Enter captured it, and the
+picture was 40 by 40 and exactly the red block, named by screen and place; the arrow keys, Control for 10 pixels, Shift for
+the size, and Shift with Control all moved and resized as described; dragging inside moved the rectangle, dragging the bottom
+right and the top left corners resized it with the opposite corner fixed, and a click without a drag changed nothing; typing
+into the four boxes moved the rectangle, a mistake was explained and the Capture button then refused and focused the box with
+the mistake; Escape and a close message to the window both cancelled quietly (no error box, nothing added, snapshot deleted,
+main window and focus back); and with the page deliberately missing, the app gave up by itself after about 6.5 seconds with the
+plain message, deleted the snapshot and left only the main window. The page was looked at as pictures clipped to the parts that
+show only the made-up window. The part 6 dialog checks (including every control having a name) were run again with the new
+button present and passed. `crop-picture` has 7 helper tests and was also tried on a real snapshot (colours exact, 7 ms).
+
+Not tried: Select on the screen at a display scaling above 100 percent (the page is written to divide by `devicePixelRatio`),
+a screen reader on the selection page, and keyboard-only use start to finish by a person; a screen reader on the Capture dialog, the description prompt and the Cancel window; a release build of the
 app (the production build of the web part was checked and contains `capture-bar.html`, but the release `.exe` was not
 run); keyboard-only use start to finish was not walked through by a person; the helper inside an installer; "bring to the
 front" with a program that refuses to be activated.

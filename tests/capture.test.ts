@@ -33,6 +33,12 @@ function pretendShell(outcome: ShellOutcome | Error, picture: Uint8Array | Error
       if (picture instanceof Error) throw picture;
       return picture;
     },
+    async select() {
+      throw new Error("these tests do not choose on a snapshot");
+    },
+    async discard() {
+      // nothing to delete
+    },
   };
   return { shell, asked, taken };
 }
@@ -48,11 +54,12 @@ const everyKindOfFailure: ShellOutcome[] = [
   { kind: "unavailable", reason: "cannot-start", detail: "access denied" },
   { kind: "unavailable", reason: "no-cancel-window", detail: "x" },
   { kind: "unavailable", reason: "bad-request", detail: "x" },
+  { kind: "unavailable", reason: "selection-window", detail: "x" },
 ];
 
 test("every way a capture can fail says so in plain words, and that the project was not changed", () => {
   for (const outcome of everyKindOfFailure) {
-    if (outcome.kind === "reply") continue;
+    if (outcome.kind === "reply" || outcome.kind === "selected") continue;
     const failed = failureFor(outcome);
     assert.equal(failed.ok, false);
     assert.ok(failed.message.includes(UNCHANGED), `${outcome.kind}: ${failed.message}`);

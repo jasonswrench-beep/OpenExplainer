@@ -14,7 +14,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 /// The name of the helper program.
 pub const HELPER_FILE: &str = "openexplainer-capture.exe";
@@ -153,12 +153,19 @@ pub fn capture_folder() -> PathBuf {
 
 // ---- The app's side: state, windows and commands -------------------------------------------------------
 
+/// A rectangle as four whole numbers: left, top, width, height.
+pub type Rect4 = (i32, i32, i32, i32);
+
 #[derive(Default)]
 pub struct CaptureState {
     busy: AtomicBool,
     cancel: AtomicBool,
     running: Mutex<Option<Arc<HelperRun>>>,
     counter: AtomicU64,
+    /// Where the selection window sends the author's answer: a rectangle, or `None` for Cancel.
+    selection: Mutex<Option<mpsc::Sender<Option<Rect4>>>>,
+    /// Set by the selection window once its page has started, so the app knows it is really there.
+    selection_ready: AtomicBool,
 }
 
 /// Puts the main window back, and closes the Cancel window, however the capture ended.
@@ -177,6 +184,13 @@ impl Choreography {
             hid_main = main.hide().is_ok();
         }
         Ok(Choreography { app: app.clone(), bar: Some(bar), hid_main })
+    }
+
+    /// Closes the Cancel window but keeps the main window hidden: the snapshot is taken, and the selection window is next.
+    fn end_bar(&mut self) {
+        if let Some(bar) = self.bar.take() {
+            let _ = bar.destroy();
+        }
     }
 }
 
@@ -256,7 +270,7 @@ fn outcome_to_json(outcome: Outcome, seconds: u64) -> Value {
 /// window shown for the duration.
 ///
 /// Returns `{kind: "reply", reply}`, `{kind: "timeout", seconds}`, `{kind: "cancelled"}`, `{kind: "stopped"}`,
-/// `{kind: "busy"}` or `{kind: "unavailable", reason, detail?}`. The picture of a successful capture is in a temporary
+/// `{kind: "busy"}` or `{kind: "unavailable", reason, detail?}`. `crop-picture` also gets an `out` chosen here. The picture of a successful capture is in a temporary
 /// file named in the reply's `result.path`; `take_capture_picture` hands it over and deletes it.
 #[tauri::command]
 pub async fn capture(app: AppHandle, request: Value, timeout_ms: u64, hide_app: bool) -> Result<Value, String> {
@@ -284,7 +298,7 @@ fn capture_inner(app: &AppHandle, state: &CaptureState, request: Value, timeout_
     let Some(mut object) = request.as_object().cloned() else {
         return json!({ "kind": "unavailable", "reason": "bad-request", "detail": "The capture request was not an object." });
     };
-    let wants_picture = object.get("command").and_then(Value::as_str).map(|c| c.starts_with("capture-")).unwrap_or(false);
+    let wants_picture = object.get("command").and_then(Value::as_str).map(|c| c.starts_with("capture-") || c == "crop-picture").unwrap_or(false);
     object.insert("id".into(), json!(1));
     if wants_picture {
         let path = new_picture_path(&state.counter);
@@ -321,6 +335,11 @@ pub fn take_capture_picture(path: String) -> Result<tauri::ipc::Response, String
 }
 
 pub fn take_picture_file(path: &Path, folder: &Path) -> Result<Vec<u8>, String> {
+    read_picture_file(path, folder, true)
+}
+
+/// Reads a picture a capture made, optionally deleting the file. Only a `.png` directly inside the capture folder is allowed.
+fn read_picture_file(path: &Path, folder: &Path, delete: bool) -> Result<Vec<u8>, String> {
     let file = path.canonicalize().map_err(|e| format!("The picture file could not be found: {e}"))?;
     let folder = folder.canonicalize().map_err(|e| format!("The capture folder could not be found: {e}"))?;
     let is_png = file.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("png")).unwrap_or(false);
@@ -328,8 +347,235 @@ pub fn take_picture_file(path: &Path, folder: &Path) -> Result<Vec<u8>, String> 
         return Err("That file is not a picture made by a capture.".to_string());
     }
     let bytes = std::fs::read(&file).map_err(|e| format!("The picture file could not be read: {e}"))?;
-    let _ = std::fs::remove_file(&file);
+    if delete {
+        let _ = std::fs::remove_file(&file);
+    }
     Ok(bytes)
+}
+
+/// Hands over a picture a capture made WITHOUT deleting it. The selection window uses this to show the snapshot.
+#[tauri::command]
+pub fn read_capture_picture(path: String) -> Result<tauri::ipc::Response, String> {
+    Ok(tauri::ipc::Response::new(read_picture_file(Path::new(&path), &capture_folder(), false)?))
+}
+
+/// Deletes a picture a capture made. Only a `.png` directly inside the capture folder can be deleted.
+#[tauri::command]
+pub fn discard_capture_picture(path: String) -> Result<(), String> {
+    read_picture_file(Path::new(&path), &capture_folder(), true).map(|_| ())
+}
+
+/// Deletes capture pictures that are older than `older_than`, such as the leftovers of a run that was stopped. Returns how many.
+pub fn sweep_old_pictures(folder: &Path, older_than: Duration) -> usize {
+    let Ok(entries) = std::fs::read_dir(folder) else { return 0 };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_lowercase();
+        let ours = name.ends_with(".png") || name.ends_with(".png.partial");
+        let age = entry.metadata().and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok());
+        if ours && age.is_some_and(|age| age >= older_than) && std::fs::remove_file(entry.path()).is_ok() {
+            removed += 1;
+        }
+    }
+    removed
+}
+
+// ---- Choosing a rectangle on a snapshot of a screen ------------------------------------------------------
+
+/// The label of the full-screen selection window.
+const SELECTION_LABEL: &str = "selection";
+/// How long the selection page has to start before the app gives up on it and closes the window.
+const SELECTION_START_LIMIT: Duration = Duration::from_secs(5);
+
+fn four_numbers(value: &Value, names: [&str; 4]) -> Option<Rect4> {
+    let get = |name: &str| value.get(name).and_then(Value::as_i64).and_then(|n| i32::try_from(n).ok());
+    Some((get(names[0])?, get(names[1])?, get(names[2])?, get(names[3])?))
+}
+
+/// `{left, top, width, height}` as numbers.
+fn rect_from(value: &Value) -> Option<Rect4> {
+    four_numbers(value, ["left", "top", "width", "height"])
+}
+
+/// `{x, y, width, height}` as numbers: a screen's place on the whole desktop.
+fn screen_from(value: &Value) -> Option<Rect4> {
+    four_numbers(value, ["x", "y", "width", "height"])
+}
+
+/// What the author did in the selection window.
+#[derive(Debug, PartialEq)]
+enum Answer {
+    Rect(Rect4),
+    Cancelled,
+    /// The page never started, so nothing could be chosen.
+    NeverStarted,
+}
+
+fn finish_selection(app: &AppHandle, answer: Option<Rect4>) {
+    let state = app.state::<CaptureState>();
+    let sender = state.selection.lock().ok().and_then(|slot| slot.clone());
+    if let Some(sender) = sender {
+        let _ = sender.send(answer);
+    }
+}
+
+/// The selection page calls this once it has started and its snapshot is showing.
+#[tauri::command]
+pub fn selection_ready(app: AppHandle) {
+    app.state::<CaptureState>().selection_ready.store(true, Ordering::SeqCst);
+}
+
+/// The selection page calls this when the author captures the rectangle (`rect`) or cancels (`rect` is null).
+#[tauri::command]
+pub fn selection_finish(app: AppHandle, rect: Option<Value>) {
+    finish_selection(&app, rect.as_ref().and_then(rect_from));
+}
+
+/// Takes a snapshot of one screen, shows it full screen so the author can choose a rectangle on it, and reports the
+/// choice. `screen` is `{x, y, width, height}` from `list-screens`; `initial` is `{left, top, width, height}` for the
+/// rectangle to start with. Like `capture`, the main window hides and the Cancel window shows while the snapshot is taken.
+///
+/// Returns `{kind: "selected", snapshot, rect}` (the snapshot is left in the capture folder: the app cuts the rectangle
+/// out of it and then discards it), `{kind: "cancelled"}` (the snapshot is already deleted), or one of the kinds
+/// `capture` returns, including `{kind: "unavailable", reason: "selection-window"}` if the selection page did not start.
+#[tauri::command]
+pub async fn select_region(app: AppHandle, screen: Value, initial: Value, timeout_ms: u64) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || select_blocking(app, screen, initial, timeout_ms))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+fn select_blocking(app: AppHandle, screen: Value, initial: Value, timeout_ms: u64) -> Value {
+    let state = app.state::<CaptureState>();
+    if state.busy.swap(true, Ordering::SeqCst) {
+        return json!({ "kind": "busy" });
+    }
+    state.cancel.store(false, Ordering::SeqCst);
+    let result = select_inner(&app, &state, &screen, &initial, timeout_ms);
+    state.busy.store(false, Ordering::SeqCst);
+    result
+}
+
+fn select_inner(app: &AppHandle, state: &CaptureState, screen: &Value, initial: &Value, timeout_ms: u64) -> Value {
+    let seconds = (timeout_ms + 999) / 1000;
+    let Some(helper) = find_helper(&app_dir(), std::env::var_os("OPENEXPLAINER_CAPTURE_HELPER").map(PathBuf::from)) else {
+        return json!({ "kind": "unavailable", "reason": "missing" });
+    };
+    let Some(place) = screen_from(screen) else {
+        return json!({ "kind": "unavailable", "reason": "bad-request", "detail": "The screen was not described with x, y, width and height." });
+    };
+    let (sx, sy, sw, sh) = place;
+    let snapshot = new_picture_path(&state.counter);
+    let request = json!({ "id": 1, "command": "capture-region", "x": sx, "y": sy, "width": sw, "height": sh, "out": snapshot.to_string_lossy() }).to_string();
+
+    // 1. The snapshot, with the main window hidden and the Cancel window shown, exactly like a capture.
+    let mut windows = match Choreography::begin(app, seconds) {
+        Ok(windows) => windows,
+        Err(why) => return json!({ "kind": "unavailable", "reason": "no-cancel-window", "detail": why }),
+    };
+    let outcome = run_helper(Command::new(&helper), &request, Duration::from_millis(timeout_ms), &state.cancel, &state.running);
+    windows.end_bar();
+    let line = match outcome {
+        Outcome::Reply(line) => line,
+        other => return outcome_to_json(other, seconds),
+    };
+    let Ok(reply) = serde_json::from_str::<Value>(&line) else { return json!({ "kind": "stopped" }) };
+    if reply.get("ok") != Some(&Value::Bool(true)) {
+        return json!({ "kind": "reply", "reply": reply });
+    }
+    let snapshot_text = reply.pointer("/result/path").and_then(Value::as_str).unwrap_or_default().to_string();
+    let discard = || {
+        let _ = std::fs::remove_file(&snapshot_text);
+    };
+
+    // 2. The full-screen selection window. It is always closed, and the snapshot deleted unless a rectangle was chosen.
+    let (send, receive) = mpsc::channel();
+    if let Ok(mut slot) = state.selection.lock() {
+        *slot = Some(send);
+    }
+    state.selection_ready.store(false, Ordering::SeqCst);
+    let window = match open_selection(app, &snapshot_text, place, screen, initial) {
+        Ok(window) => window,
+        Err(why) => {
+            discard();
+            return json!({ "kind": "unavailable", "reason": "selection-window", "detail": why });
+        }
+    };
+    let answer = wait_for_answer(app, state, &receive);
+    if let Ok(mut slot) = state.selection.lock() {
+        *slot = None;
+    }
+    let _ = window.destroy();
+    match answer {
+        Answer::Rect(rect @ (left, top, width, height)) if left >= 0 && top >= 0 && width >= 1 && height >= 1 && left + width <= sw && top + height <= sh => {
+            json!({ "kind": "selected", "snapshot": snapshot_text, "rect": { "left": rect.0, "top": rect.1, "width": rect.2, "height": rect.3 } })
+        }
+        Answer::Rect(_) => {
+            discard();
+            json!({ "kind": "unavailable", "reason": "bad-request", "detail": "The rectangle that was chosen is not on the screen." })
+        }
+        Answer::Cancelled => {
+            discard();
+            json!({ "kind": "cancelled" })
+        }
+        Answer::NeverStarted => {
+            discard();
+            json!({ "kind": "unavailable", "reason": "selection-window", "detail": "The selection page did not start." })
+        }
+    }
+}
+
+/// Waits for the author's answer. There is no time limit on choosing, but the window must start within a few seconds, and
+/// a window that has vanished counts as Cancel, so a full-screen window can never be left stuck on the screen.
+fn wait_for_answer(app: &AppHandle, state: &CaptureState, receive: &mpsc::Receiver<Option<Rect4>>) -> Answer {
+    let started = Instant::now();
+    loop {
+        match receive.recv_timeout(Duration::from_millis(100)) {
+            Ok(Some(rect)) => return Answer::Rect(rect),
+            Ok(None) | Err(mpsc::RecvTimeoutError::Disconnected) => return Answer::Cancelled,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if !state.selection_ready.load(Ordering::SeqCst) && started.elapsed() > SELECTION_START_LIMIT {
+                    return Answer::NeverStarted;
+                }
+                if app.get_webview_window(SELECTION_LABEL).is_none() {
+                    return Answer::Cancelled;
+                }
+            }
+        }
+    }
+}
+
+/// Opens the selection window over one screen (given by its place on the desktop, in real pixels).
+fn open_selection(app: &AppHandle, snapshot: &str, place: Rect4, screen: &Value, initial: &Value) -> Result<WebviewWindow, String> {
+    let (x, y, width, height) = place;
+    // A page that does not exist is how a test makes the window fail to start, to prove the fail-safe works.
+    let page = std::env::var("OPENEXPLAINER_SELECTION_PAGE").unwrap_or_else(|_| "selection.html".to_string());
+    let data = json!({ "snapshot": snapshot, "screen": screen, "initial": initial });
+    let window = WebviewWindowBuilder::new(app, SELECTION_LABEL, WebviewUrl::App(page.into()))
+        .title("Select the part of the screen to capture")
+        .decorations(false)
+        .resizable(false)
+        .always_on_top(true)
+        .skip_taskbar(false) // stays in the taskbar and in Alt+Tab, so there is always a way back
+        .shadow(false)
+        .visible(false)
+        .focused(true)
+        .initialization_script(format!("window.__SELECTION = {data};"))
+        .build()
+        .map_err(|e| e.to_string())?;
+    // Exactly over the screen, in real pixels, wherever that screen is on the desktop and whatever its display scaling.
+    let _ = window.set_position(PhysicalPosition::new(x, y));
+    let _ = window.set_size(PhysicalSize::new(width.max(1) as u32, height.max(1) as u32));
+    window.show().map_err(|e| e.to_string())?;
+    let _ = window.set_focus();
+    // Closing the window any other way (Alt+F4, the taskbar) counts as Cancel.
+    let handle = app.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { .. } = event {
+            finish_selection(&handle, None);
+        }
+    });
+    Ok(window)
 }
 
 #[cfg(test)]
@@ -469,6 +715,47 @@ mod tests {
         std::fs::write(&not_a_picture, b"x").unwrap();
         assert!(take_picture_file(&not_a_picture, &folder).is_err());
         let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn a_picture_can_be_read_without_being_deleted_and_only_from_the_capture_folder() {
+        let folder = fresh_folder("read");
+        let picture = folder.join("snap.png");
+        std::fs::write(&picture, b"pixels").unwrap();
+        assert_eq!(read_picture_file(&picture, &folder, false).unwrap(), b"pixels".to_vec());
+        assert!(picture.exists(), "reading does not delete");
+        assert_eq!(read_picture_file(&picture, &folder, true).unwrap(), b"pixels".to_vec());
+        assert!(!picture.exists(), "taking does");
+        let elsewhere = fresh_folder("read-elsewhere").join("x.png");
+        std::fs::write(&elsewhere, b"x").unwrap();
+        assert!(read_picture_file(&elsewhere, &folder, false).is_err());
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn old_pictures_are_swept_out_and_nothing_else_is_touched() {
+        let folder = fresh_folder("sweep");
+        std::fs::write(folder.join("a.png"), b"x").unwrap();
+        std::fs::write(folder.join("b.PNG.partial"), b"x").unwrap();
+        std::fs::write(folder.join("keep.txt"), b"x").unwrap();
+        assert_eq!(sweep_old_pictures(&folder, Duration::from_secs(3600)), 0, "nothing is an hour old yet");
+        assert!(folder.join("a.png").exists());
+        std::thread::sleep(Duration::from_millis(30));
+        assert_eq!(sweep_old_pictures(&folder, Duration::from_millis(10)), 2, "both pictures are older than 10 ms");
+        assert!(!folder.join("a.png").exists() && !folder.join("b.PNG.partial").exists());
+        assert!(folder.join("keep.txt").exists(), "a file that is not a capture picture is left alone");
+        assert_eq!(sweep_old_pictures(&folder.join("missing"), Duration::ZERO), 0, "a missing folder is fine");
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn rectangles_and_screens_are_read_from_their_numbers() {
+        assert_eq!(rect_from(&json!({ "left": 1, "top": 2, "width": 3, "height": 4 })), Some((1, 2, 3, 4)));
+        assert_eq!(screen_from(&json!({ "x": 7, "y": -1080, "width": 1920, "height": 1080, "primary": false })), Some((7, -1080, 1920, 1080)));
+        assert_eq!(rect_from(&json!({ "left": 1, "top": 2, "width": 3 })), None, "a missing number");
+        assert_eq!(rect_from(&json!({ "left": "1", "top": 2, "width": 3, "height": 4 })), None, "text is not a number");
+        assert_eq!(rect_from(&json!({ "left": 1.5, "top": 2, "width": 3, "height": 4 })), None, "a fraction is not a whole number");
+        assert_eq!(rect_from(&json!({ "left": 99999999999i64, "top": 2, "width": 3, "height": 4 })), None, "too large");
     }
 
     #[test]
