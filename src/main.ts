@@ -11,6 +11,7 @@ import { captureDialog, confirmDialog, messageDialog, newProjectDialog, promptTe
 import { createCaptureClient, type CapturedPicture } from "./capture/client.ts";
 import { captureTimeoutMs, tauriShell } from "./capture/tauri.ts";
 import { regionName, screenName } from "./capture/region.ts";
+import { describeWait } from "./capture/wait.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("The app container is missing from index.html.");
@@ -261,6 +262,11 @@ $("b-import").addEventListener("click", () => void importPictures());
 const captureClient = createCaptureClient(tauriShell, captureTimeoutMs);
 let capturing = false;
 
+/** " after waiting 5 seconds", or nothing if there is no wait. */
+function waitWords(seconds: number): string {
+  return seconds > 0 ? `, after waiting ${describeWait(seconds)}` : "";
+}
+
 async function captureIntoTopic() {
   const node = selected();
   if (!node || capturing) return;
@@ -285,22 +291,22 @@ async function captureIntoTopic() {
     let question: string;
     let picture: CapturedPicture;
     if (choice.kind === "window") {
-      announce(`Capturing ${choice.window.title}.`);
-      const taken = await captureClient.captureWindow(choice.window, { bringToFront: choice.bringToFront });
+      announce(`Capturing ${choice.window.title}${waitWords(choice.waitSeconds)}.`);
+      const taken = await captureClient.captureWindow(choice.window, { bringToFront: choice.bringToFront, waitSeconds: choice.waitSeconds });
       if (!taken.ok) return void (await messageDialog("The capture did not work", taken.message));
       picture = taken.value;
       what = choice.window.title;
       question = `What does the capture of "${choice.window.title}" show?`;
     } else if (choice.kind === "region") {
       what = regionName(choice.screen, choice.left, choice.top, choice.region.width, choice.region.height);
-      announce(`Capturing ${what}.`);
-      const taken = await captureClient.captureRegion(choice.region);
+      announce(`Capturing ${what}${waitWords(choice.waitSeconds)}.`);
+      const taken = await captureClient.captureRegion(choice.region, { waitSeconds: choice.waitSeconds });
       if (!taken.ok) return void (await messageDialog("The capture did not work", taken.message));
       picture = taken.value;
       question = `What does this part of ${screenName(choice.screen)} show?`;
     } else {
-      announce(`Taking a snapshot of ${screenName(choice.screen)} to choose from.`);
-      const chosen = await captureClient.selectOnScreen(choice.screen, choice.initial);
+      announce(`Taking a snapshot of ${screenName(choice.screen)} to choose from${waitWords(choice.waitSeconds)}.`);
+      const chosen = await captureClient.selectOnScreen(choice.screen, choice.initial, { waitSeconds: choice.waitSeconds });
       if (!chosen.ok) {
         // Changing your mind is not an error: no message box, just the words, and focus stays on the Capture button.
         if (chosen.code === "cancelled") return void announce("The selection was cancelled. Your project was not changed.");

@@ -18,6 +18,31 @@ use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, Webv
 
 /// The name of the helper program.
 pub const HELPER_FILE: &str = "openexplainer-capture.exe";
+/// The longest wait before a capture, in milliseconds. The app's own check, whatever the page asks for.
+pub const MOST_WAIT_MS: u64 = 60_000;
+
+/// Waits `duration`, looking at the Cancel flag every few milliseconds. Returns `true` if the whole wait passed and `false`
+/// if the author cancelled during it, so a long wait never makes Cancel slow.
+pub fn wait_or_cancel(duration: Duration, cancel: &AtomicBool) -> bool {
+    let deadline = Instant::now() + duration;
+    loop {
+        if cancel.load(Ordering::SeqCst) {
+            return false;
+        }
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return true;
+        }
+        std::thread::sleep(left.min(Duration::from_millis(25)));
+    }
+}
+
+/// The wait asked for, as a length of time: nothing unless the app is hidden (the Cancel window must be there to stop it),
+/// and never more than the longest wait.
+fn wait_asked_for(delay_ms: Option<u64>, hide_app: bool) -> Duration {
+    if hide_app { Duration::from_millis(delay_ms.unwrap_or(0).min(MOST_WAIT_MS)) } else { Duration::ZERO }
+}
+
 /// The label of the small Cancel window.
 const BAR_LABEL: &str = "capture-bar";
 const BAR_WIDTH: f64 = 440.0;
@@ -177,8 +202,8 @@ struct Choreography {
 
 impl Choreography {
     /// Shows the Cancel window first, so there is always a way to stop, and only then hides the main window.
-    fn begin(app: &AppHandle, seconds: u64) -> Result<Self, String> {
-        let bar = open_bar(app, seconds)?;
+    fn begin(app: &AppHandle, seconds: u64, wait_seconds: u64) -> Result<Self, String> {
+        let bar = open_bar(app, seconds, wait_seconds)?;
         let mut hid_main = false;
         if let Some(main) = app.get_webview_window("main") {
             hid_main = main.hide().is_ok();
@@ -209,7 +234,7 @@ impl Drop for Choreography {
     }
 }
 
-fn open_bar(app: &AppHandle, seconds: u64) -> Result<WebviewWindow, String> {
+fn open_bar(app: &AppHandle, seconds: u64, wait_seconds: u64) -> Result<WebviewWindow, String> {
     let mut builder = WebviewWindowBuilder::new(app, BAR_LABEL, WebviewUrl::App("capture-bar.html".into()))
         .title("OpenExplainer is capturing")
         .inner_size(BAR_WIDTH, BAR_HEIGHT)
@@ -218,8 +243,9 @@ fn open_bar(app: &AppHandle, seconds: u64) -> Result<WebviewWindow, String> {
         .maximizable(false)
         .always_on_top(true)
         .content_protected(true) // Windows leaves this window out of screen copies, so it is never in a picture
-        .focused(true)
-        .initialization_script(format!("window.__CAPTURE_SECONDS = {seconds};"));
+        // While it counts down to a capture the author is using another program, so this window must not take the keyboard from it.
+        .focused(wait_seconds == 0)
+        .initialization_script(format!("window.__CAPTURE_SECONDS = {seconds}; window.__CAPTURE_WAIT = {wait_seconds};"));
     // The top right corner of the main screen.
     if let Ok(Some(monitor)) = app.primary_monitor() {
         let scale = monitor.scale_factor();
@@ -273,25 +299,26 @@ fn outcome_to_json(outcome: Outcome, seconds: u64) -> Value {
 /// `{kind: "busy"}` or `{kind: "unavailable", reason, detail?}`. `crop-picture` also gets an `out` chosen here. The picture of a successful capture is in a temporary
 /// file named in the reply's `result.path`; `take_capture_picture` hands it over and deletes it.
 #[tauri::command]
-pub async fn capture(app: AppHandle, request: Value, timeout_ms: u64, hide_app: bool) -> Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(move || capture_blocking(app, request, timeout_ms, hide_app))
+pub async fn capture(app: AppHandle, request: Value, timeout_ms: u64, hide_app: bool, delay_ms: Option<u64>) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || capture_blocking(app, request, timeout_ms, hide_app, delay_ms))
         .await
         .map_err(|e| e.to_string())
 }
 
-fn capture_blocking(app: AppHandle, request: Value, timeout_ms: u64, hide_app: bool) -> Value {
+fn capture_blocking(app: AppHandle, request: Value, timeout_ms: u64, hide_app: bool, delay_ms: Option<u64>) -> Value {
     let state = app.state::<CaptureState>();
     if state.busy.swap(true, Ordering::SeqCst) {
         return json!({ "kind": "busy" });
     }
     state.cancel.store(false, Ordering::SeqCst);
-    let result = capture_inner(&app, &state, request, timeout_ms, hide_app);
+    let result = capture_inner(&app, &state, request, timeout_ms, hide_app, delay_ms);
     state.busy.store(false, Ordering::SeqCst);
     result
 }
 
-fn capture_inner(app: &AppHandle, state: &CaptureState, request: Value, timeout_ms: u64, hide_app: bool) -> Value {
+fn capture_inner(app: &AppHandle, state: &CaptureState, request: Value, timeout_ms: u64, hide_app: bool, delay_ms: Option<u64>) -> Value {
     let seconds = (timeout_ms + 999) / 1000;
+    let wait = wait_asked_for(delay_ms, hide_app);
     let Some(helper) = find_helper(&app_dir(), std::env::var_os("OPENEXPLAINER_CAPTURE_HELPER").map(PathBuf::from)) else {
         return json!({ "kind": "unavailable", "reason": "missing" });
     };
@@ -308,13 +335,17 @@ fn capture_inner(app: &AppHandle, state: &CaptureState, request: Value, timeout_
 
     // The Cancel window and the hidden main window last exactly as long as `_windows`.
     let _windows = if hide_app {
-        match Choreography::begin(app, seconds) {
+        match Choreography::begin(app, seconds, wait.as_secs()) {
             Ok(windows) => Some(windows),
             Err(why) => return json!({ "kind": "unavailable", "reason": "no-cancel-window", "detail": why }),
         }
     } else {
         None
     };
+    // The wait the author asked for, so they can get the other program ready. The limit for the helper starts after it.
+    if !wait.is_zero() && !wait_or_cancel(wait, &state.cancel) {
+        return json!({ "kind": "cancelled" });
+    }
     let outcome = run_helper(Command::new(&helper), &line, Duration::from_millis(timeout_ms), &state.cancel, &state.running);
     outcome_to_json(outcome, seconds)
 }
@@ -439,25 +470,26 @@ pub fn selection_finish(app: AppHandle, rect: Option<Value>) {
 /// out of it and then discards it), `{kind: "cancelled"}` (the snapshot is already deleted), or one of the kinds
 /// `capture` returns, including `{kind: "unavailable", reason: "selection-window"}` if the selection page did not start.
 #[tauri::command]
-pub async fn select_region(app: AppHandle, screen: Value, initial: Value, timeout_ms: u64) -> Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(move || select_blocking(app, screen, initial, timeout_ms))
+pub async fn select_region(app: AppHandle, screen: Value, initial: Value, timeout_ms: u64, delay_ms: Option<u64>) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || select_blocking(app, screen, initial, timeout_ms, delay_ms))
         .await
         .map_err(|e| e.to_string())
 }
 
-fn select_blocking(app: AppHandle, screen: Value, initial: Value, timeout_ms: u64) -> Value {
+fn select_blocking(app: AppHandle, screen: Value, initial: Value, timeout_ms: u64, delay_ms: Option<u64>) -> Value {
     let state = app.state::<CaptureState>();
     if state.busy.swap(true, Ordering::SeqCst) {
         return json!({ "kind": "busy" });
     }
     state.cancel.store(false, Ordering::SeqCst);
-    let result = select_inner(&app, &state, &screen, &initial, timeout_ms);
+    let result = select_inner(&app, &state, &screen, &initial, timeout_ms, delay_ms);
     state.busy.store(false, Ordering::SeqCst);
     result
 }
 
-fn select_inner(app: &AppHandle, state: &CaptureState, screen: &Value, initial: &Value, timeout_ms: u64) -> Value {
+fn select_inner(app: &AppHandle, state: &CaptureState, screen: &Value, initial: &Value, timeout_ms: u64, delay_ms: Option<u64>) -> Value {
     let seconds = (timeout_ms + 999) / 1000;
+    let wait = wait_asked_for(delay_ms, true);
     let Some(helper) = find_helper(&app_dir(), std::env::var_os("OPENEXPLAINER_CAPTURE_HELPER").map(PathBuf::from)) else {
         return json!({ "kind": "unavailable", "reason": "missing" });
     };
@@ -469,10 +501,14 @@ fn select_inner(app: &AppHandle, state: &CaptureState, screen: &Value, initial: 
     let request = json!({ "id": 1, "command": "capture-region", "x": sx, "y": sy, "width": sw, "height": sh, "out": snapshot.to_string_lossy() }).to_string();
 
     // 1. The snapshot, with the main window hidden and the Cancel window shown, exactly like a capture.
-    let mut windows = match Choreography::begin(app, seconds) {
+    let mut windows = match Choreography::begin(app, seconds, wait.as_secs()) {
         Ok(windows) => windows,
         Err(why) => return json!({ "kind": "unavailable", "reason": "no-cancel-window", "detail": why }),
     };
+    // The wait comes before the snapshot, so a menu opened during it is in the snapshot.
+    if !wait.is_zero() && !wait_or_cancel(wait, &state.cancel) {
+        return json!({ "kind": "cancelled" });
+    }
     let outcome = run_helper(Command::new(&helper), &request, Duration::from_millis(timeout_ms), &state.cancel, &state.running);
     windows.end_bar();
     let line = match outcome {
@@ -746,6 +782,38 @@ mod tests {
         assert!(folder.join("keep.txt").exists(), "a file that is not a capture picture is left alone");
         assert_eq!(sweep_old_pictures(&folder.join("missing"), Duration::ZERO), 0, "a missing folder is fine");
         let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn a_wait_runs_its_full_length_when_nobody_cancels() {
+        let cancel = AtomicBool::new(false);
+        let started = Instant::now();
+        assert!(wait_or_cancel(Duration::from_millis(300), &cancel));
+        assert!(started.elapsed() >= Duration::from_millis(290), "it waited the whole time");
+        assert!(wait_or_cancel(Duration::ZERO, &cancel), "no wait at all is fine");
+    }
+
+    #[test]
+    fn cancel_ends_a_long_wait_at_once() {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let flag = cancel.clone();
+        let presser = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(100));
+            flag.store(true, Ordering::SeqCst);
+        });
+        let started = Instant::now();
+        assert!(!wait_or_cancel(Duration::from_secs(30), &cancel), "cancelled, not finished");
+        presser.join().unwrap();
+        assert!(started.elapsed() < Duration::from_secs(2), "it did not wait out the 30 seconds");
+        assert!(!wait_or_cancel(Duration::from_secs(30), &cancel), "a Cancel already pressed stops the next wait at once");
+    }
+
+    #[test]
+    fn the_wait_is_only_for_captures_that_hide_the_app_and_never_longer_than_a_minute() {
+        assert_eq!(wait_asked_for(Some(5000), true), Duration::from_secs(5));
+        assert_eq!(wait_asked_for(Some(5000), false), Duration::ZERO, "a list needs no wait");
+        assert_eq!(wait_asked_for(None, true), Duration::ZERO);
+        assert_eq!(wait_asked_for(Some(999_999_999), true), Duration::from_secs(60), "the app caps it whatever the page asks for");
     }
 
     #[test]

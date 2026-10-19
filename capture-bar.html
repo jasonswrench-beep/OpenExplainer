@@ -15,10 +15,10 @@
   </head>
   <body>
     <main>
-      <h1>Capturing</h1>
+      <h1 id="heading">Capturing</h1>
       <p id="what" role="status">OpenExplainer is hidden while it takes the picture. It stops by itself after <span id="limit">20</span> seconds.</p>
       <!-- The count-down is for people who can see it. A screen reader is not told every second. -->
-      <p aria-hidden="true">Time left: <strong id="left">20</strong> seconds</p>
+      <p aria-hidden="true"><span id="label">Time left:</span> <strong id="left">20</strong> seconds</p>
       <p><button type="button" id="cancel">Cancel (Esc)</button></p>
     </main>
     <script type="module" src="/src/capture-bar.ts"></script>

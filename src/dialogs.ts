@@ -2,6 +2,7 @@ import { cleanVariableName, CORE_VARIABLES, type Project } from "./project/model
 import type { Done, ScreenInfo, WindowInfo } from "./capture/outcome.ts";
 import { checkRegionInput, screenLabel, screenName, wholeScreen, type Region, type RegionInput } from "./capture/region.ts";
 import type { Rect } from "./capture/selection.ts";
+import { checkWait } from "./capture/wait.ts";
 
 // Small accessible dialogs built on the browser's own <dialog>, which traps focus
 // while open and closes with Escape. Focus goes back to where it was when they close.
@@ -104,10 +105,10 @@ export function windowLabel(w: WindowInfo): string {
 
 /** What the author chose in the Capture dialog. */
 export type CaptureChoice =
-  | { kind: "window"; window: WindowInfo; bringToFront: boolean }
-  | { kind: "region"; screen: ScreenInfo; region: Region; left: number; top: number }
+  | { kind: "window"; window: WindowInfo; bringToFront: boolean; waitSeconds: number }
+  | { kind: "region"; screen: ScreenInfo; region: Region; left: number; top: number; waitSeconds: number }
   /** The author wants to drag out a rectangle on a snapshot of the screen. `initial` is where the rectangle starts, counted from the screen's corner. */
-  | { kind: "select"; screen: ScreenInfo; initial: Rect };
+  | { kind: "select"; screen: ScreenInfo; initial: Rect; waitSeconds: number };
 
 export interface CaptureDialogOptions {
   windows: WindowInfo[];
@@ -116,6 +117,9 @@ export interface CaptureDialogOptions {
   /** Asks for the list of windows again, for the Refresh button. */
   refresh: () => Promise<Done<WindowInfo[]>>;
 }
+
+/** The wait the author used last, offered again the next time the dialog opens in this session. */
+let lastWait = "0";
 
 const REGION_BOXES: { id: string; field: keyof RegionInput; label: string }[] = [
   { id: "cr-left", field: "left", label: "Distance from the left edge, in pixels" },
@@ -163,6 +167,11 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
           <span id="cr-select-help" class="help">Takes a snapshot of the screen you chose and shows it full screen. Drag out the rectangle with the mouse,
             or use the arrow keys or the four number boxes there. The picture is cut from that snapshot.</span></p>
       </div>
+      <p><label for="cap-wait">Wait before capturing, in seconds</label><br>
+        <input id="cap-wait" type="text" inputmode="numeric" size="4" autocomplete="off" aria-describedby="cap-wait-help"><br>
+        <span id="cap-wait-help" class="help">0 captures straight away. A wait lets you get another program ready, for example to open a menu:
+          OpenExplainer hides, a small Cancel window counts down, and the capture happens when it reaches 0. A menu is a window of its own,
+          so capture it as a rectangle, or with Select on the screen. A capture of a window leaves a menu out.</span></p>
       <p id="cap-status" class="visually-hidden" role="status"></p>
       <p id="cap-error" class="error" role="alert"></p>
       <p><button value="capture" id="cw-capture">Capture</button> <button value="cancel" formnovalidate>Cancel</button></p>
@@ -175,6 +184,8 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
   const screenSelect = $<HTMLSelectElement>("#cr-screen");
   const boxes = REGION_BOXES.map((b) => ({ ...b, input: $<HTMLInputElement>(`#${b.id}`) }));
   let chosen: CaptureChoice | null = null;
+  const waitBox = $<HTMLInputElement>("#cap-wait");
+  waitBox.value = lastWait;
   const errorEl = $<HTMLElement>("#cap-error");
   const statusEl = $<HTMLElement>("#cap-status");
 
@@ -182,6 +193,7 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
   const clearError = () => {
     errorEl.textContent = "";
     boxes.forEach((b) => b.input.removeAttribute("aria-invalid"));
+    waitBox.removeAttribute("aria-invalid");
   };
   const problem = (message: string, focus: HTMLElement) => {
     errorEl.textContent = `Problem: ${message}`;
@@ -238,15 +250,31 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
     say(`The whole of ${screenName(s)} is filled in: ${s.width} by ${s.height} pixels.`);
   });
   boxes.forEach((b) => b.input.addEventListener("input", clearError));
+  waitBox.addEventListener("input", clearError);
+
+  /** The wait, or `null` (after explaining what is wrong and moving to the box) if what was typed is not a good wait. */
+  function readWait(): number | null {
+    const checked = checkWait(waitBox.value);
+    if (checked.ok) {
+      lastWait = String(checked.seconds);
+      return checked.seconds;
+    }
+    waitBox.setAttribute("aria-invalid", "true");
+    problem(checked.message, waitBox);
+    return null;
+  }
 
   // Choosing on a snapshot starts from the numbers in the boxes if they make a good rectangle, and from a sensible one if not.
   $<HTMLButtonElement>("#cr-select").addEventListener("click", () => {
+    clearError();
+    const waitSeconds = readWait();
+    if (waitSeconds === null) return;
     const screen = chosenScreen();
     const typed = checkRegionInput(screen, Object.fromEntries(boxes.map((b) => [b.field, b.input.value])) as unknown as RegionInput);
     const initial: Rect = typed.ok
       ? { left: typed.region.x - screen.x, top: typed.region.y - screen.y, width: typed.region.width, height: typed.region.height }
       : { left: Math.round(screen.width * 0.3), top: Math.round(screen.height * 0.3), width: Math.round(screen.width * 0.4), height: Math.round(screen.height * 0.4) }; // a smaller one in the middle, so a new one is easy to drag outside it
-    chosen = { kind: "select", screen, initial };
+    chosen = { kind: "select", screen, initial, waitSeconds };
     dialog.close("select");
   });
 
@@ -273,7 +301,9 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
     if (radioWindow.checked) {
       const window = windows[list.selectedIndex];
       if (!window) return problem("Choose a window from the list first.", list.disabled ? refresh : list);
-      chosen = { kind: "window", window, bringToFront: front.checked };
+      const waitSeconds = readWait();
+      if (waitSeconds === null) return;
+      chosen = { kind: "window", window, bringToFront: front.checked, waitSeconds };
       return dialog.close("capture");
     }
     const screen = chosenScreen();
@@ -283,9 +313,11 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
       box.input.setAttribute("aria-invalid", "true");
       return problem(checked.message, box.input);
     }
+    const waitSeconds = readWait();
+    if (waitSeconds === null) return;
     chosen = {
       kind: "region", screen, region: checked.region,
-      left: checked.region.x - screen.x, top: checked.region.y - screen.y,
+      left: checked.region.x - screen.x, top: checked.region.y - screen.y, waitSeconds,
     };
     dialog.close("capture");
   });

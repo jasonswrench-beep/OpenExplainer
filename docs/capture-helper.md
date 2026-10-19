@@ -11,8 +11,8 @@ Status: window list, window capture, screen list and region capture are built an
 while it captures, and plain-words failures) is built too, and part 6 gave the app one **Capture** dialog for a window or
 a rectangle of a chosen screen, with a "bring the window to the front first" choice. **Select on the screen** (part 6,
 continued) takes a snapshot of a screen, shows it full screen, lets the author drag out a rectangle (or use the keys or four
-number boxes), and cuts the picture from that snapshot. A delay before capturing and click-by-click capture are not built.
-See `docs/HANDOFF.md`.
+number boxes), and cuts the picture from that snapshot. **Wait before capturing** (part 6, continued) gives the author a few
+seconds to get another program ready, for example to open a menu. Click-by-click capture is not built. See `docs/HANDOFF.md`.
 
 ## How to try it (double-click these)
 
@@ -171,7 +171,7 @@ It is how Select on the screen gets the author's rectangle out of the snapshot.
 The helper does not enforce the 20-second timeout, the Cancel button or hiding the app. The app does.
 
 **The shell (`src-tauri/src/capture.rs`)** has three commands. It uses no extra Tauri plugin and no extra permission.
-- `capture(request, timeoutMs, hideApp)` starts the helper (with no console window), sends it one request line and waits
+- `capture(request, timeoutMs, hideApp, delayMs)` starts the helper (with no console window), sends it one request line and waits
   for one answer line on a background thread, so the app's window is never held up. It stops the helper if no answer
   comes within `timeoutMs`, or when Cancel is pressed, and always cleans the helper up before returning. It adds the
   request's `id`, and for `capture-` requests it chooses `out`, a new file in `%TEMP%\openexplainer-capture\`. It returns
@@ -189,6 +189,11 @@ capture ends, even on an error. The Cancel window is set to be kept out of scree
 the helper knows to look through it. It has focus on its Cancel button; **Cancel, the Enter or Space key on it, Escape,
 and its close button** all cancel. It shows a count-down for people who can see it, and tells a screen reader once, not
 every second, that it stops by itself after 20 seconds.
+
+**Waiting first.** `capture` and `select_region` both take an optional `delayMs` (the shell caps it at 60 seconds, and only
+waits when it is hiding the app). After the Cancel window is up and the main window hidden, the shell waits in 25 millisecond
+steps and checks the Cancel flag each time, so Cancel ends even a 60-second wait at once. Only then does the helper start, so
+the 20-second limit starts after the wait and a long wait never counts against it. See "Wait before capturing" below.
 
 **The wording and the rules are in TypeScript (`src/capture/`).** `outcome.ts` turns every way a capture can fail into
 plain words ending "Your project was not changed."; `client.ts` asks the helper through a `Shell` (so it can be tested
@@ -216,6 +221,24 @@ rule apply), the description is asked for exactly as Import does (never filled i
 `source.kind` `window` or `region`. `originalName` holds the window's title, or for a rectangle words such as "Screen 1, 800
 by 600 pixels, 100 from the left and 50 from the top". No format change. A screen copy of a frozen program, or a window that
 could not be brought to the front when asked, is announced with the helper's `note`.
+
+**Wait before capturing.** The dialog has a box, *Wait before capturing, in seconds*, under both choices. It takes a whole
+number from 0 to 60 (0 captures straight away, which is how it starts; the app remembers the last number used until it is
+closed). It applies to a window, to a typed rectangle and to Select on the screen. `src/capture/wait.ts` checks it before
+anything starts, and a mistake is explained next to the box in the same way as the rectangle boxes ("Type the wait as a whole
+number of seconds from 0 to 60, such as 5. "ten" is not one." or "The longest wait is 60 seconds. Type a number from 0 to
+60."). The box has a label and help text that a screen reader reads.
+- **What the author sees.** OpenExplainer hides, and the small Cancel window shows "Waiting to capture", a count-down ("Capturing
+  in: N seconds") and a Cancel button. When the count reaches 0 it changes to "Capturing" and the usual 20-second time left.
+- **The Cancel window does not take the keyboard during a wait.** The author is using another program, perhaps with a menu
+  open, and a window that grabbed the keyboard would close the menu. So with a wait the Cancel window opens without focus (with
+  no wait it takes focus as before). The Cancel button works with the mouse. With the keyboard, use Alt+Tab (the window stays in
+  the taskbar and Alt+Tab) to come back to it and press Esc, which its text says. A screen reader is told the wait once, not every
+  second.
+- **A rectangle or Select on the screen sees the screen as it is after the wait.** For Select on the screen the snapshot is
+  taken after the wait, so it holds an open menu; then the Cancel window closes and the selection window opens as before.
+- **A menu is a window of its own.** A capture of a *window* leaves a pop-up menu out (the same reason a program's own modal
+  dialog is left out). To get a menu, use a rectangle or Select on the screen. The help text under the box says so.
 
 **Select on the screen.** In the rectangle part of the dialog, the button *Select on the screen* takes a snapshot of the
 chosen screen and shows it, full size, in a window of its own, so the author can choose the rectangle on a frozen picture.
@@ -320,11 +343,31 @@ plain message, deleted the snapshot and left only the main window. The page was 
 show only the made-up window. The part 6 dialog checks (including every control having a name) were run again with the new
 button present and passed. `crop-picture` has 7 helper tests and was also tried on a real snapshot (colours exact, 7 ms).
 
+The wait was tried in the real window with made-up windows, one whose red block turns purple 4 seconds after it starts and one
+that opens a pop-up menu on a timer. A rectangle with a 5-second wait: OpenExplainer's main window was hidden, the Cancel window
+said "Waiting to capture" and counted down (4 left after 1.5 seconds), the made-up program still had the keyboard (the Cancel
+window did not take it), the picture came 5.6 seconds after Capture was pressed and showed the block purple, not red. Select on
+the screen with a 5-second wait: the snapshot came 5.8 seconds after, a 40 by 40 picture of the purple block was cut from it, and
+the snapshot was deleted. Cancel in the middle of a 30-second wait, by the button and by the Escape key: it stopped after about 2
+seconds, said "You cancelled the capture. Your project was not changed.", added nothing, left no helper running and brought the
+main window back. Mistakes in the wait box ("ten", 61, -1, 2.5, "soon") were each explained next to the box, with the dialog
+still open and the box focused and marked, in the window and rectangle modes and by Select on the screen. A 3-second wait followed
+by a program that never answers (limit shortened to 2 seconds) took 5.4 seconds in all, so the limit really starts after the wait.
+A pop-up menu that appeared during a 5-second wait: the rectangle picture shows the menu and the window picture of the same
+program leaves it out (both pictures were looked at, not only sampled). A first version of that check passed for the wrong reason,
+because the menu had already closed (tapping Alt to bring the test window forward closes a menu); looking at the picture showed
+it, and the test now makes the menu appear during the wait. The earlier checks (normal, frozen, cancels, time limit, closed
+window, rectangles, whole screen, mistakes, labels, bring to front, drag, keyboard, numbers, close, fail-safe, handles) were run
+again and passed. The shell has 16 tests (3 new for the wait: it runs its full length, Cancel ends it at once, it only happens
+when the app is hidden and is capped at 60 seconds), and `src/capture/wait.ts` has 5.
+
 Not tried: Select on the screen at a display scaling above 100 percent (the page is written to divide by `devicePixelRatio`),
 a screen reader on the selection page, and keyboard-only use start to finish by a person; a screen reader on the Capture dialog, the description prompt and the Cancel window; a release build of the
 app (the production build of the web part was checked and contains `capture-bar.html`, but the release `.exe` was not
 run); keyboard-only use start to finish was not walked through by a person; the helper inside an installer; "bring to the
-front" with a program that refuses to be activated.
+front" with a program that refuses to be activated; a wait of the full 60 seconds; Alt+Tab to the Cancel window and Esc by a person
+(the window is in the taskbar, but the keys were not pressed); a screen reader on the wait box and the Cancel window's count-down;
+a tooltip that appears only after the mouse rests on something (the wait would allow it, but it was not tried).
 
 Not tried: display scaling above 100 percent, Windows on ARM (the helper has not been built for it), a window
 that blocks screen capture on purpose, windows run as administrator, and the other programs on the author's PC

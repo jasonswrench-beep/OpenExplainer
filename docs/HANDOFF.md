@@ -103,6 +103,12 @@ messages, the error codes, and what was and was not tried.
    Control x10, Enter, Escape) and the four number boxes work together, with a live region and a written size. Fail-safes: Escape, Cancel, window close,
    a 5-second start limit, a vanished window counts as Cancel; snapshots are deleted on every path and old ones swept at start. Tried in the real window
    on screen 2 (see `docs/capture-helper.md`). Counts: helper 47, app shell 13, TypeScript 67 (65 pass; the 2 old `python3` ones fail on this PC).
+   **Wait before capturing** (2026-10-19, Jason asked for it): a box in the Capture dialog, 0 to 60 seconds, for a window, a typed rectangle and
+   Select on the screen. The shell hides the app, shows the Cancel window as a count-down, waits (cancellable at once), and only then starts the helper
+   or takes the snapshot, so the 20-second limit starts after the wait. During a wait the Cancel window does NOT take the keyboard (so a menu the author
+   opened stays open); Alt+Tab then Esc cancels from the keyboard. A menu is a window of its own, so a *window* capture leaves it out: use a rectangle or
+   Select on the screen (the dialog says so). The last wait used is kept until the app closes. No format change. Tried in the real window (see
+   `docs/capture-helper.md`). Counts: helper 47, app shell 16, TypeScript 72 (70 pass; the 2 old `python3` ones fail on this PC).
 
 Still to build, in this order, testing each on this PC (6 left two things for Jason to decide, see "Still open"):
 7. Then click-by-click capture: low-level mouse hook, a still picture per click, and Windows UI Automation details of the clicked item
@@ -168,6 +174,16 @@ Lessons from part 6:
   (hang after 4 seconds, wait about 4.8 seconds, then click), or the helper takes its quick route and the Cancel window is gone before a test can find it.
 - A test that starts its own helper to look at windows will itself be counted as a "capture helper still running": check for leftover processes by who
   started them (parent process id), not by name alone.
+Lessons from the wait:
+- The Capture dialog remembers the last wait for the rest of the app session. A test that does not set the box itself inherits the old number: after
+  my wait tests the frozen-program and time-limit checks "failed" (a 5-second wait lets a frozen window become a stand-in "Ghost" window, which
+  captures fine). Set the wait box in every test, or restart the app between groups of tests.
+- A pop-up menu closes when the program that owns it is deactivated, and even a tap on Alt (the trick used to bring a test window forward) closes it.
+  Make the menu appear during the wait, after any activation. A pixel check of "not the window colour" passed once for the wrong reason (black text
+  under where the menu should be): look at the pictures of anything visual.
+- A test cannot move the keyboard to a window just by calling `SetForegroundWindow` from a background script; a tap on Alt first lets it. The checks
+  print only the program name of the window that has the keyboard, never a window title, so nothing of Jason's own windows is shown.
+- PowerShell on this PC refuses to run scratch `.ps1` files unless started with `-ExecutionPolicy Bypass`.
 - Never put a backslash-n inside a string in a script written through a shell here (it turns into a real new line): use `String.fromCharCode(10)` or
   write the file with a file-writing tool.
 
@@ -180,9 +196,8 @@ Lessons from part 6:
 - Capture helper: should the window list also show a program's dialogs (marked as belonging to it) so a native dialog can be captured by itself?
   Region capture can also take one.
 - Capture helper: Windows 11's rounded corners leave a few black or background pixels in the picture's corners. Save with transparent corners, or leave?
-- Capture: a delay ("wait 5 seconds, then capture") so an author can open a menu first. The snapshot of Select on the screen does NOT capture a menu by
-  itself: pressing OpenExplainer's button closes the menu before the snapshot is taken. A delay before the snapshot would. Small, but not on the to-do
-  list, so ask.
+- Capture: should the wait be remembered between runs of the app (now it is only remembered while the app stays open)? Should there be a way to cancel
+  a wait from the keyboard without Alt+Tab, for example a global hot key (it would need a new permission and a plain-words explanation)?
 - Capture: whether "Bring the window to the front first" should be on by default (it is off, because the keyboard is then with the other window and
   Escape does not reach the Cancel window, and it changes which window is on top).
 - Steps 1 and 2 leftovers: more double-click scripts (build, tests), keyboard and screen reader pass, ARM check.

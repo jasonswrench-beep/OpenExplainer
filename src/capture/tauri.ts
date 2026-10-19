@@ -4,9 +4,9 @@ import { CAPTURE_TIMEOUT_MS, type ShellOutcome } from "./outcome.ts";
 import type { Shell } from "./client.ts";
 
 export const tauriShell: Shell = {
-  run: (request, { timeoutMs, hideApp }) => invoke<ShellOutcome>("capture", { request, timeoutMs, hideApp }),
+  run: (request, { timeoutMs, hideApp, delayMs }) => invoke<ShellOutcome>("capture", { request, timeoutMs, hideApp, delayMs }),
   takePicture: async (path) => new Uint8Array(await invoke<ArrayBuffer>("take_capture_picture", { path })),
-  select: ({ screen, initial }, { timeoutMs }) => invoke<ShellOutcome>("select_region", { screen, initial, timeoutMs }),
+  select: ({ screen, initial }, { timeoutMs, delayMs }) => invoke<ShellOutcome>("select_region", { screen, initial, timeoutMs, delayMs }),
   discard: async (path) => { await invoke("discard_capture_picture", { path }); },
 };
 
