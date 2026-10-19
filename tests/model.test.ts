@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addNode, createProject, findNode, indent, moveDown, moveUp, numbering, outdent, outline, removeNode, renameNode, setStatus, visibleNodes } from "../src/project/model.ts";
+import { addNode, createProject, CURRENT_VERSION, findNode, indent, moveDown, moveUp, numbering, outdent, outline, removeNode, renameNode, setStatus, visibleNodes } from "../src/project/model.ts";
 import { fromFiles, toFiles } from "../src/project/files.ts";
 import { migrate } from "../src/project/migrate.ts";
 
@@ -66,7 +66,7 @@ test("newer and broken projects are refused with a clear message", () => {
   assert.throws(() => migrate({}), /no version/);
   assert.throws(() => migrate(null), /not an OpenExplainer/);
   const files = toFiles(createProject("X"));
-  files["structure.json"] = files["structure.json"].replace('"version": 2', '"version": 3');
+  files["structure.json"] = files["structure.json"].replace(`"version": ${CURRENT_VERSION}`, `"version": ${CURRENT_VERSION + 1}`);
   assert.throws(() => fromFiles(files), /do not match/);
 });
 

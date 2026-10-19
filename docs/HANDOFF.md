@@ -113,7 +113,18 @@ messages, the error codes, and what was and was not tried.
 Still to build, in this order, testing each on this PC (6 left two things for Jason to decide, see "Still open"):
 7. Then click-by-click capture: low-level mouse hook, a still picture per click, and Windows UI Automation details of the clicked item
    (name, role, accelerator/hot key, description, position). NEVER store password fields. Store the click position so the highlight can be
-   added or removed later. This needs a format version 3 and a migration, plus a `docs/format-spec.md` update.
+   added or removed later. Plan agreed in words with Jason on 2026-10-19 ("Change and continue"), in four parts:
+   a. **Format version 3 (DONE 2026-10-19)**: a picture can hold a click note (`click`: position in picture pixels, button, double, and a `target`
+      with name, role, accelerator key, access key, description, outline). A password box is reduced to `{password: true}` and anything off the list
+      (such as text typed in a box) is dropped, both when a project is opened and when it is saved (`src/project/clicks.ts`). Migration 2 to 3 adds
+      nothing. `describeClick` says a click in plain words. Tests in `tests/clicks.test.ts`; `docs/format-spec.md` updated. Counts: helper 47, app
+      shell 16, TypeScript 83 (81 pass; the 2 old `python3` ones fail on this PC).
+   b. The helper watches clicks (only while asked, never keystrokes) and describes the item under the pointer. NOT built.
+   c. The app side: a third choice in the Capture dialog, "Click by click", with an always-visible Stop window. NOT built.
+   d. Showing click notes in the picture list, then the highlight. NOT built.
+   Ask Jason before b: is each picture the whole screen or just the window clicked in; when is the picture taken relative to the click (before the
+   program reacts is best, but the copy takes about 60 to 140 ms); does a session stop by itself after some idle minutes; what is shown for a
+   private item other than a password box (a list item's name can be an email subject). All of these are open.
 
 Reference (read only, for ideas, not for copying wholesale): OpenStage's Rust capture crates under `D:\Documents\OpenStage\capture\crates\` on this
 PC (the first version of this note said `C:\Users\Jason\OpenStage`, which does not exist here) (`openstage-capture-windows`, `-protocol`, `-project`,

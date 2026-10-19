@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addNode, addPicture, createProject, pictureFiles, removePicture, setAltText, type Picture } from "../src/project/model.ts";
+import { addNode, addPicture, createProject, CURRENT_VERSION, pictureFiles, removePicture, setAltText, type Picture } from "../src/project/model.ts";
 import { packProject, unpackProject } from "../src/project/package.ts";
 import { migrate } from "../src/project/migrate.ts";
 import { readImageInfo } from "../src/project/image.ts";
@@ -58,10 +58,10 @@ test("removed pictures are not saved, and a missing file is reported", async () 
   assert.deepEqual(lost.missing, ["images/gone.png"]);
 });
 
-test("a version 1 project upgrades to version 2 with empty picture lists", () => {
+test("a version 1 project upgrades with empty picture lists", () => {
   const v1 = { version: 1, name: "Old", template: "empty", variables: {}, tree: [{ id: "a", title: "A", status: "drafted", children: [{ id: "b", title: "B", status: "not-started", children: [] }] }] };
   const up = migrate(JSON.parse(JSON.stringify(v1)));
-  assert.equal(up.version, 2);
+  assert.equal(up.version, CURRENT_VERSION);
   assert.deepEqual(up.tree[0].pictures, []);
   assert.deepEqual(up.tree[0].children[0].pictures, []);
   assert.equal(up.tree[0].status, "drafted");

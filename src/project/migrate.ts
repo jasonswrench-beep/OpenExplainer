@@ -1,6 +1,7 @@
 // Turns a project of any older version into the current version.
 // Every change to the saved format bumps CURRENT_VERSION and adds a step here.
-import { CURRENT_VERSION, type Project } from "./model.ts";
+import { CURRENT_VERSION, type Project, type TreeNode } from "./model.ts";
+import { cleanClicks } from "./clicks.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -19,6 +20,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
     addPictures(raw.tree as RawNode[] | undefined);
     return { ...raw, version: 2 };
   },
+  // Version 2 to 3: a picture can carry a click note. Nothing needs adding to an older project.
+  2: (raw) => ({ ...raw, version: 3 }),
 };
 
 export function migrate(input: unknown): Project {
@@ -33,5 +36,8 @@ export function migrate(input: unknown): Project {
     if (!step) throw new Error(`There is no way to upgrade project format ${raw.version}.`);
     raw = step(raw);
   }
-  return raw as unknown as Project;
+  // A click note is checked every time a project is opened, whatever version it was saved as.
+  const project = raw as unknown as Project;
+  if (Array.isArray(project.tree)) project.tree = cleanClicks(project.tree as TreeNode[]);
+  return project;
 }

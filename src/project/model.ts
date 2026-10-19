@@ -1,7 +1,7 @@
 // The project model: what a project is, and the plain functions that change its chapter tree.
 // Nothing here touches the screen or the disk, so it can be tested on its own.
 
-export const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 3;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -14,6 +14,40 @@ export const STATUSES: { id: Status; word: string; symbol: string; color: string
   { id: "needs-recheck", word: "Needs recheck", symbol: "⚠", color: "#a31515" },
 ];
 
+/** Which mouse button was used for a click. */
+export type ClickButton = "left" | "right" | "middle";
+
+/**
+ * What Windows said was under the pointer (from Windows UI Automation). Every part is optional because Windows often cannot say.
+ * For a password box only `password: true` is kept. What was typed in a box is never kept.
+ */
+export interface ClickTarget {
+  /** The item's name, such as "Save". */
+  name?: string;
+  /** The kind of item, such as "button" or "menu item". */
+  role?: string;
+  /** A shortcut that does the same thing, such as "Ctrl+S". */
+  acceleratorKey?: string;
+  /** The key that reaches the item from a menu, such as "Alt+F". */
+  accessKey?: string;
+  /** Help text Windows gives for the item. */
+  description?: string;
+  /** The item's outline, in picture pixels from the picture's top left corner. */
+  bounds?: { x: number; y: number; width: number; height: number };
+  /** True when the item is a password box. Nothing else about it is kept. */
+  password?: boolean;
+}
+
+/** A click, stored beside its picture and never drawn into it, so a highlight can be added, changed or removed later. */
+export interface ClickInfo {
+  /** Where the pointer was, in picture pixels from the picture's top left corner. */
+  x: number;
+  y: number;
+  button: ClickButton;
+  double?: boolean;
+  target?: ClickTarget;
+}
+
 /** A picture held by a topic. The picture itself is a file inside the project package. */
 export interface Picture {
   id: string;
@@ -24,6 +58,8 @@ export interface Picture {
   /** What the picture shows, for screen readers and the printed alt text. Empty means it still needs one. */
   altText: string;
   source: { kind: "import" | "window" | "region" | "click"; capturedAt: string; originalName?: string };
+  /** Only for a picture made by a click-by-click capture (format version 3). */
+  click?: ClickInfo;
 }
 
 export interface TreeNode {
