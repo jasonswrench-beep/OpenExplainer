@@ -2,12 +2,14 @@ import "./style.css";
 import {
   STATUSES, addNode, createProject, findNode, indent, locate, moveDown, moveUp, numbering,
   outdent, removeNode, renameNode, setStatus, visibleNodes, findNodes, replaceInTitles,
-  addPicture, removePicture, setAltText, newId, type Picture, type Project, type Status, type TreeNode,
+  addPicture, removePicture, setAltText, setPictureHighlight, newId, type Picture, type Project, type Status, type TreeNode,
 } from "./project/model.ts";
 import { chooseImages, chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
-import { captureDialog, confirmDialog, messageDialog, newProjectDialog, promptText, reviewClicksDialog, variablesDialog } from "./dialogs.ts";
+import { captureDialog, confirmDialog, highlightDialog, messageDialog, moveCircleDialog, newProjectDialog, promptText, reviewClicksDialog, variablesDialog } from "./dialogs.ts";
+import { circleFor, HIGHLIGHT_KINDS, highlightWords, type Circle, type HighlightKind } from "./project/highlight.ts";
+import { describeClick, describeClickDetails } from "./project/clicks.ts";
 import { createCaptureClient, type CapturedPicture } from "./capture/client.ts";
 import { captureTimeoutMs, tauriShell } from "./capture/tauri.ts";
 import { regionName, screenName } from "./capture/region.ts";
@@ -73,6 +75,10 @@ app.innerHTML = `
       <div class="toolbar">
         <button type="button" id="b-import">Import pictures into the selected item</button>
         <button type="button" id="b-capture">Capture into the selected item</button>
+        <button type="button" id="b-highlight">Click circle settings</button>
+        <label>Show the click circle as in the
+          <select id="preview-kind"></select>
+        </label>
       </div>
       <p id="pictures-empty" class="help"></p>
       <ul id="pictures" class="pictures" aria-label="Pictures in the selected item"></ul>
@@ -157,6 +163,81 @@ function render(focusSelected = false) {
 
 // ---- Pictures ----------------------------------------------------------------------------
 let blobUrls: string[] = [];
+/** Which place the pictures are previewed for: the click circle shows or not as that place's setting (and each picture's own choice) says. */
+let previewKind: HighlightKind = "book";
+
+const previewSelect = $<HTMLSelectElement>("preview-kind");
+HIGHLIGHT_KINDS.forEach((kind) => {
+  const option = document.createElement("option");
+  option.value = kind.id;
+  option.textContent = kind.name;
+  previewSelect.append(option);
+});
+previewSelect.addEventListener("change", () => {
+  previewKind = previewSelect.value as HighlightKind;
+  renderPictures();
+  announce(`Showing the pictures as in the ${HIGHLIGHT_KINDS.find((k) => k.id === previewKind)!.name.toLowerCase()}.`);
+});
+
+/** The circle drawn over a thumbnail. It is in the picture's own pixels, so it lines up at any thumbnail size. */
+function circleOverlay(picture: Picture, circle: Circle): SVGSVGElement {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${picture.width} ${picture.height}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  svg.setAttribute("class", "circle-overlay");
+  const shape = document.createElementNS(NS, "circle");
+  shape.setAttribute("cx", String(circle.cx));
+  shape.setAttribute("cy", String(circle.cy));
+  shape.setAttribute("r", String(circle.r));
+  shape.setAttribute("fill", circle.color);
+  shape.setAttribute("fill-opacity", String(circle.opacity));
+  svg.append(shape);
+  return svg;
+}
+
+const CIRCLE_MODES = [
+  { value: "follow", label: "Follow the project setting" },
+  { value: "on", label: "Always show" },
+  { value: "off", label: "Never show" },
+];
+
+/** Changes one picture's own choice of whether its circle shows. The place is kept if the circle was moved. */
+function setCircleMode(nodeId: string, picture: Picture, mode: string) {
+  const next = { ...(picture.highlight ?? {}) };
+  if (mode === "follow") delete next.show; else next.show = mode === "on";
+  setPictureHighlight(project.tree, nodeId, picture.id, next);
+  markDirty();
+  renderPictures();
+  document.querySelector<HTMLElement>(`[data-circle-mode="${picture.id}"]`)?.focus();
+  announce(mode === "follow" ? "The click circle now follows the project setting." : mode === "on" ? "The click circle will always show." : "The click circle will never show.");
+}
+
+async function moveCircle(nodeId: string, picture: Picture, name: string) {
+  const at = picture.highlight && picture.highlight.x !== undefined && picture.highlight.y !== undefined
+    ? { x: picture.highlight.x, y: picture.highlight.y, moved: true }
+    : { x: picture.click?.x ?? 0, y: picture.click?.y ?? 0, moved: false };
+  const choice = await moveCircleDialog({ ...at, width: picture.width, height: picture.height, clickWords: picture.click ? describeClick(picture.click) : "" });
+  if (!choice) return;
+  const next = { ...(picture.highlight ?? {}) };
+  if (choice.kind === "reset") { delete next.x; delete next.y; } else { next.x = choice.x; next.y = choice.y; }
+  setPictureHighlight(project.tree, nodeId, picture.id, next);
+  markDirty();
+  renderPictures();
+  document.querySelector<HTMLElement>(`[data-circle-move="${picture.id}"]`)?.focus();
+  announce(choice.kind === "reset" ? `The click circle of ${name} is back on the click.` : `The click circle of ${name} was moved to ${choice.x} across and ${choice.y} down.`);
+}
+
+$("b-highlight").addEventListener("click", async () => {
+  const next = await highlightDialog(project.highlight);
+  if (!next) return;
+  project.highlight = next;
+  markDirty();
+  renderPictures();
+  announce("Click circle settings saved.");
+});
 
 function renderPictures() {
   blobUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -181,7 +262,12 @@ function renderPictures() {
       img.src = url;
       img.alt = picture.altText || "Picture with no description yet";
       img.className = "thumb";
-      li.append(img);
+      const box = document.createElement("span");
+      box.className = "thumbbox";
+      box.append(img);
+      const circle = circleFor(picture, project.highlight, previewKind);
+      if (circle) box.append(circleOverlay(picture, circle));
+      li.append(box);
     } else {
       const missing = document.createElement("p");
       missing.textContent = "⚠ This picture file is missing from the project.";
@@ -204,7 +290,46 @@ function renderPictures() {
     remove.textContent = "Remove picture";
     remove.setAttribute("aria-label", `Remove ${name}`);
     remove.addEventListener("click", () => void removeOnePicture(node.id, picture, name));
-    info.append(description, size, edit, " ", remove);
+    info.append(description, size);
+    // A click picture says where the click was, what Windows said about the item, and what its circle is doing, and has its own circle choices.
+    if (picture.click) {
+      for (const line of describeClickDetails(picture.click)) {
+        const detail = document.createElement("p");
+        detail.className = "help";
+        detail.textContent = line;
+        info.append(detail);
+      }
+    }
+    const circleWords = highlightWords(picture, project.highlight, previewKind);
+    if (circleWords) {
+      const state = document.createElement("p");
+      state.className = "help";
+      state.textContent = circleWords;
+      info.append(state);
+    }
+    if (picture.click) {
+      const mode = document.createElement("select");
+      mode.dataset.circleMode = picture.id;
+      mode.setAttribute("aria-label", `Click circle for ${name}`);
+      for (const m of CIRCLE_MODES) {
+        const option = document.createElement("option");
+        option.value = m.value;
+        option.textContent = m.label;
+        mode.append(option);
+      }
+      mode.value = picture.highlight?.show === true ? "on" : picture.highlight?.show === false ? "off" : "follow";
+      mode.addEventListener("change", () => setCircleMode(node.id, picture, mode.value));
+      const move = document.createElement("button");
+      move.type = "button";
+      move.textContent = "Move the circle";
+      move.dataset.circleMove = picture.id;
+      move.setAttribute("aria-label", `Move the click circle of ${name}`);
+      move.addEventListener("click", () => void moveCircle(node.id, picture, name));
+      const row = document.createElement("p");
+      row.append("Click circle: ", mode, " ", move);
+      info.append(row);
+    }
+    info.append(edit, " ", remove);
     li.append(info);
     list.append(li);
   }

@@ -144,7 +144,12 @@ Still to build, in this order, testing each on this PC (6 left two things for Ja
       project keeps `highlight: { book, guide }` with `show`, `size` (percent of the picture's width), `color`, `seeThrough` (starting look: yellow,
       40 percent see-through, 3 percent, off for the book and on for a quick guide), kept IN THE PROJECT; and each picture may have its own
       `highlight { show?, x?, y? }`: follow the project, always, never, and a moved circle). Rules in `src/project/highlight.ts` (12 tests), migration
-      3 to 4, `docs/format-spec.md` updated. The drawing in the editor, the settings dialog and the per-picture controls are NOT built yet.
+      3 to 4, `docs/format-spec.md` updated.
+      **The editor side DONE 2026-10-19**: the circle drawn over thumbnails (SVG in picture pixels), click details in the picture list, *Click circle
+      settings* (`highlightDialog`, with a live sample and ready-made colours), the Book / Quick guide preview choice, and per picture *Follow the
+      project setting / Always show / Never show* and *Move the circle* (`moveCircleDialog`). Tried in the real window. Counts: helper 60, app
+      shell 25, TypeScript 121 (119 pass; the 2 old `python3` ones fail on this PC). NOT done: drawing the circle in an export (the book, a quick
+      guide) with the same rules (`circleFor`), and saving then opening a project with these settings through the app's own Save and Open.
       Original wording: showing click notes in the picture list (the kind of item, the shortcut keys), then the yellow click highlight drawn from the stored position
       (per capture type, adjustable size, colour and see-through level, from Jason's design). NOT built. Also not done for click pictures: the picture
       list shows only the name and the description, and Save and Open of a project with click pictures were not driven through the real app (the
@@ -212,6 +217,15 @@ Lessons from part 6:
   (hang after 4 seconds, wait about 4.8 seconds, then click), or the helper takes its quick route and the Cancel window is gone before a test can find it.
 - A test that starts its own helper to look at windows will itself be counted as a "capture helper still running": check for leftover processes by who
   started them (parent process id), not by name alone.
+Lessons from the click circle:
+- `circleFor` (`src/project/highlight.ts`) is the one place that decides whether and where a circle goes and how big and see-through it is. The
+  editor and the settings sample use it; an export must too, so the book and the editor can never disagree.
+- A percent see-through must be rounded to two decimals as a fraction (75 gives 0.25). One decimal drew 0.3.
+- A text box that edits a number should say the allowed range in its label, and the check function should explain a mistake with the typed text in
+  quotes ("big" is not one) and say which box it is in, as for the rectangle boxes.
+- A test scenario that changes settings leaves them changed for the next run in the same app session: restart the app between runs.
+- `Page.captureScreenshot` clip coordinates are page coordinates, so add the scroll offsets to a bounding box taken after scrolling.
+
 Lessons from the click dialog and review list:
 - Injected test clicks are real mouse movements, so a person using the PC at the same time can move the pointer between `SetCursorPos` and the
   click and land it on their own program. A run that finds the wrong row is not an app bug: repeat it, and never look at pictures unless every click

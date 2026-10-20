@@ -1,7 +1,7 @@
 // The project model: what a project is, and the plain functions that change its chapter tree.
 // Nothing here touches the screen or the disk, so it can be tested on its own.
 
-import { defaultHighlight, type HighlightSettings, type PictureHighlight } from "./highlight.ts";
+import { cleanPictureHighlight, defaultHighlight, type HighlightSettings, type PictureHighlight } from "./highlight.ts";
 
 export const CURRENT_VERSION = 4;
 
@@ -291,6 +291,15 @@ export function removePicture(tree: TreeNode[], nodeId: string, pictureId: strin
 export function setAltText(tree: TreeNode[], nodeId: string, pictureId: string, altText: string): void {
   const picture = findNode(tree, nodeId)?.pictures.find((p) => p.id === pictureId);
   if (picture) picture.altText = altText;
+}
+
+/** Sets a picture's own click circle choices, or removes them (so it follows the project) when `highlight` is `null` or has nothing in it. */
+export function setPictureHighlight(tree: TreeNode[], nodeId: string, pictureId: string, highlight: PictureHighlight | null): void {
+  const picture = findNode(tree, nodeId)?.pictures.find((p) => p.id === pictureId);
+  if (!picture) return;
+  const clean = highlight === null ? null : cleanPictureHighlight(highlight);
+  if (clean) picture.highlight = clean;
+  else delete picture.highlight;
 }
 
 /** Every picture file the project uses, so unused files are left out when saving. */

@@ -115,6 +115,11 @@ export interface Circle {
   opacity: number;
 }
 
+/** The size of the circle on a picture `width` pixels wide, for a look. The editor's sample uses this too, so it matches the real one. */
+export function circleSize(style: HighlightStyle, width: number): { r: number } {
+  return { r: Math.round(((style.size / 100) * width / 2) * 10) / 10 };
+}
+
 type CircleSubject = Pick<Picture, "width" | "height" | "click" | "highlight">;
 
 /** Does this picture get a circle where it is used, and where? `null` when it is off, or has no position to draw it at. */
@@ -124,13 +129,12 @@ export function circleFor(picture: CircleSubject, settings: HighlightSettings, k
   const own = picture.highlight;
   const at = own && own.x !== undefined && own.y !== undefined ? { x: own.x, y: own.y } : picture.click ? { x: picture.click.x, y: picture.click.y } : null;
   if (!at) return null;
-  const round = (n: number) => Math.round(n * 10) / 10;
   return {
     cx: clamp(at.x, 0, picture.width),
     cy: clamp(at.y, 0, picture.height),
-    r: round((style.size / 100) * picture.width / 2),
+    r: circleSize(style, picture.width).r,
     color: style.color,
-    opacity: round(1 - style.seeThrough / 100),
+    opacity: Math.round((1 - style.seeThrough / 100) * 100) / 100, // two decimals: 75 percent see-through is 0.25, not 0.3
   };
 }
 
@@ -142,4 +146,68 @@ export function highlightWords(picture: CircleSubject, settings: HighlightSettin
   if (!picture.click && !moved) return own?.show === undefined ? null : `Click circle: ${own.show ? "always shown" : "never shown"}, but there is no position to draw it at.`;
   const rule = own?.show === true ? "always shown" : own?.show === false ? "never shown" : `follows the project (${settings[kind].show ? "shown" : "not shown"} in the ${place})`;
   return `Click circle: ${rule}${moved ? `, moved to ${own!.x} across and ${own!.y} down` : ""}.`;
+}
+
+// ---- Checking what the author types in the settings and the move dialogs ---------------------------
+
+/** Ready-made colours the settings dialog offers, beside typing a code. */
+export const COLOR_PRESETS: { name: string; code: string }[] = [
+  { name: "Yellow", code: "#FFD600" },
+  { name: "Orange", code: "#FF9800" },
+  { name: "Green", code: "#4CAF50" },
+  { name: "Blue", code: "#2196F3" },
+  { name: "Pink", code: "#E91E63" },
+  { name: "Red", code: "#F44336" },
+  { name: "White", code: "#FFFFFF" },
+];
+
+/** What is in the boxes of the settings dialog for one place a picture is used. */
+export interface StyleInput {
+  show: boolean;
+  size: string;
+  color: string;
+  seeThrough: string;
+}
+
+export type StyleCheck =
+  | { ok: true; style: HighlightStyle }
+  | { ok: false; field: "size" | "color" | "seeThrough"; message: string };
+
+const decimal = /^\d+(\.\d+)?$/;
+
+/** Checks the boxes of the settings dialog. A mistake is explained in plain words and says which box it is in. */
+export function checkStyleInput(input: StyleInput): StyleCheck {
+  const size = input.size.trim();
+  if (!decimal.test(size)) return { ok: false, field: "size", message: `Type the size as a number from ${SIZE_LIMITS.min} to ${SIZE_LIMITS.max}, such as 3.${size ? ` "${size}" is not one.` : ""}` };
+  const sizeNumber = Number(size);
+  if (sizeNumber < SIZE_LIMITS.min || sizeNumber > SIZE_LIMITS.max) {
+    return { ok: false, field: "size", message: `The size must be from ${SIZE_LIMITS.min} to ${SIZE_LIMITS.max} percent of the picture's width. Type a number in that range.` };
+  }
+  const color = normalizeColor(input.color);
+  if (!color) return { ok: false, field: "color", message: `Type the colour as six hex digits, such as FFD600.${input.color.trim() ? ` "${input.color.trim()}" is not one.` : ""}` };
+  const see = input.seeThrough.trim();
+  if (!decimal.test(see)) return { ok: false, field: "seeThrough", message: `Type the see-through level as a number from ${SEE_THROUGH_LIMITS.min} to ${SEE_THROUGH_LIMITS.max}, such as 40.${see ? ` "${see}" is not one.` : ""}` };
+  const seeNumber = Number(see);
+  if (seeNumber < SEE_THROUGH_LIMITS.min || seeNumber > SEE_THROUGH_LIMITS.max) {
+    return { ok: false, field: "seeThrough", message: `The see-through level must be from ${SEE_THROUGH_LIMITS.min} to ${SEE_THROUGH_LIMITS.max} percent. Type a number in that range.` };
+  }
+  return { ok: true, style: { show: input.show, size: Math.round(sizeNumber * 10) / 10, color, seeThrough: Math.round(seeNumber * 10) / 10 } };
+}
+
+export type PositionCheck = { ok: true; x: number; y: number } | { ok: false; field: "x" | "y"; message: string };
+
+/** Checks where the author wants the circle: whole numbers counted in picture pixels from the top left corner, inside the picture. */
+export function checkPosition(input: { x: string; y: string }, width: number, height: number): PositionCheck {
+  const one = (text: string, field: "x" | "y", most: number, words: string): { ok: true; value: number } | { ok: false; field: "x" | "y"; message: string } => {
+    const trimmed = text.trim();
+    if (!/^\d+$/.test(trimmed)) return { ok: false, field, message: `Type how far ${words} as a whole number from 0 to ${most}, such as ${Math.round(most / 2)}.${trimmed ? ` "${trimmed}" is not one.` : ""}` };
+    const value = Number(trimmed);
+    if (value > most) return { ok: false, field, message: `The picture is ${most} pixels ${field === "x" ? "wide" : "high"}. Type how far ${words} as a number from 0 to ${most}.` };
+    return { ok: true, value };
+  };
+  const x = one(input.x, "x", width, "across");
+  if (!x.ok) return x;
+  const y = one(input.y, "y", height, "down");
+  if (!y.ok) return y;
+  return { ok: true, x: x.value, y: y.value };
 }

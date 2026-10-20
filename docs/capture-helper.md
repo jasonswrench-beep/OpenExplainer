@@ -377,6 +377,22 @@ before the snapshot, which is not built.
   clicks?" first, with focus on Cancel, because the clicks only exist in memory; Cancel there goes back to the review with everything typed kept.
   A session with no clicks says "No clicks were captured ... Nothing was added. Your project was not changed." and nothing else.
 
+**The click circle and click details in the picture list (part 7d).** The format side is in `docs/format-spec.md` ("The click highlight").
+- **Click details.** A click picture shows, under its name and size: where the click was ("Click at 196 across and 453 down in the picture."),
+  what Windows said about the item ("Windows describes it as ..."), and the item's outline; a password box says only where the click was.
+  What its circle is doing is said too ("Click circle: follows the project (not shown in the book).").
+- **The circle on the thumbnail.** An SVG drawn over the picture in the picture's own pixels, so it lines up at any size, and never burned into
+  the file. Next to *Capture into the selected item* are *Click circle settings* and *Show the click circle as in the* **Book** or **Quick guide**
+  (a preview choice for this session; the book is the starting one, where the circle is off until a picture says "always show").
+- **Click circle settings** (`highlightDialog`): for the book and for a quick guide, whether the circle shows, its size (percent of the picture's
+  width, 1 to 20), its colour (six hex digits, or a ready-made colour: yellow, orange, green, blue, pink, red, white) and its see-through level
+  (0 to 100). A sample drawing follows what is typed, with the same rules as the real circle. A mistake is explained next to the box ("Problem in
+  the quick guide settings: Type the size as a number from 1 to 20, such as 3. "big" is not one."), the box is marked and focused, and the dialog
+  stays open. The settings are kept in the project.
+- **One picture's own choice** (click pictures): *Click circle:* **Follow the project setting**, **Always show** or **Never show**, and *Move the
+  circle*, which takes two whole numbers (across and down, in picture pixels) or puts the circle back on the click. The click itself is never
+  changed. Focus returns to the control that was used.
+
 **Where the helper is found:** the file named by the `OPENEXPLAINER_CAPTURE_HELPER` environment variable (for tests),
 else `openexplainer-capture.exe` beside the app, else (while developing) `capture-helper/target/release/` found by walking
 up from the app. `Run OpenExplainer.bat` builds the helper before it starts the app. Putting the helper inside an installer
@@ -505,6 +521,17 @@ back with the typed words kept, Escape asked again, and yes added nothing and sa
 list was looked at as a picture (the small pictures show the red block red before the Save click and purple before the next). A few runs found
 a click that had landed on the author's own program: the made-up test clicks are real mouse clicks, and the person using the PC moved the mouse
 between the pointer being placed and the click, so that run was repeated. The review rules have 6 TypeScript tests.
+
+The click circle (part 7d) was tried in the real window with three real click pictures: the details lines; the book preview showing no circle and
+saying why; the quick guide preview showing the circle exactly on the click with the starting look (yellow, 3 percent of the width, 40 percent
+see-through); "Never show" taking one picture's circle off with focus staying on its choice; "Always show" showing one in the book; moving a circle
+(a typed mistake explained with the dialog open, then the new place drawn, the click still recorded where it was, focus back on the Move button)
+and putting it back; the settings dialog opening with the starting look, a mistake explained next to the box, the sample following a typed size, a
+ready-made colour and a see-through level, a typed code showing "Other", Save changing every circle (red, 10 percent, 75 percent see-through), and
+Cancel changing nothing; every control in both dialogs has a name. A zoomed picture of a thumbnail showed the circle on the check box that was
+clicked. The first run found a rounding mistake (75 percent see-through was drawn as 0.3, not 0.25) and it was fixed. The rules have 20 TypeScript
+tests (`highlight.test.ts`, `highlight-input.test.ts`). The circle is drawn in the editor only: export will use the same rules and is not built.
+Saving a project with these settings and opening it again was tried by unit tests, not through the app's own Save and Open.
 
 Not tried (the app side of click by click): a session of many minutes, many clicks in the review list (it scrolls, but a list of 200 was not
 tried), a screen reader on the Stop window or the review list, Alt+Tab to the Stop window and Esc by a person, keyboard-only use of the review

@@ -90,3 +90,14 @@ export function describeClick(click: ClickInfo): string {
   if (!target) return `${how} at ${click.x} across and ${click.y} down.`;
   return `${how} on the ${kind}${named}${extra}.`;
 }
+
+/** The details of a click for the picture list, one plain sentence each: where it was, what Windows said about the item, and its outline. */
+export function describeClickDetails(click: ClickInfo): string[] {
+  const how = click.double ? "Double-click" : click.button === "left" ? "Click" : click.button === "right" ? "Right-click" : "Middle-click";
+  const lines = [`${how} at ${click.x} across and ${click.y} down in the picture.`];
+  const target = click.target;
+  if (target?.password) return lines;
+  if (target?.description) lines.push(`Windows describes it as "${target.description}".`);
+  if (target?.bounds) lines.push(`Its outline is ${target.bounds.width} by ${target.bounds.height} pixels, ${target.bounds.x} across and ${target.bounds.y} down.`);
+  return lines;
+}

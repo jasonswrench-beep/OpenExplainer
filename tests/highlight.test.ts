@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   circleFor, cleanHighlight, cleanPictureHighlight, cleanTreeHighlights, defaultHighlight, highlightWords, normalizeColor,
 } from "../src/project/highlight.ts";
-import { addNode, addPicture, createProject, CURRENT_VERSION, type Picture } from "../src/project/model.ts";
+import { addNode, addPicture, createProject, CURRENT_VERSION, setPictureHighlight, type Picture } from "../src/project/model.ts";
 import { fromFiles, toFiles } from "../src/project/files.ts";
 import { migrate } from "../src/project/migrate.ts";
 
@@ -70,7 +70,7 @@ test("the circle scales with the picture and takes the look from the settings", 
   const wide = circleFor(clickPicture({ width: 2000 }), settings, "guide")!;
   const narrow = circleFor(clickPicture({ width: 1000, click: { x: 100, y: 100, button: "left" } }), settings, "guide")!;
   assert.deepEqual([wide.r, narrow.r], [100, 50]);
-  assert.deepEqual([wide.color, wide.opacity], ["#FF0000", 0.3]);
+  assert.deepEqual([wide.color, wide.opacity], ["#FF0000", 0.25]);
 });
 
 test("a moved circle is drawn where the author put it, and the click stays as it was", () => {
@@ -126,4 +126,22 @@ test("cleaning a tree leaves everything else about its pictures alone and does n
   assert.deepEqual((cleaned[0] as typeof tree[0]).pictures[0].highlight, { show: true, x: 1, y: 2 });
   assert.equal((cleaned[0] as typeof tree[0]).pictures[0].click?.x, 960);
   assert.equal(tree[0].pictures[0].highlight?.x, 1.4, "the project in memory is not changed by saving it");
+});
+
+test("a picture's circle choices are set, changed and removed through the model, and only valid ones are kept", () => {
+  const p = createProject("Book");
+  const chapter = addNode(p.tree, null, "Chapter");
+  addPicture(p.tree, chapter.id, clickPicture());
+  const picture = () => p.tree[0].pictures[0];
+  setPictureHighlight(p.tree, chapter.id, "p1", { show: true });
+  assert.deepEqual(picture().highlight, { show: true });
+  setPictureHighlight(p.tree, chapter.id, "p1", { show: true, x: 10.2, y: 20 });
+  assert.deepEqual(picture().highlight, { show: true, x: 10, y: 20 });
+  setPictureHighlight(p.tree, chapter.id, "p1", { x: 7 });
+  assert.equal("highlight" in picture(), false, "half a position is nothing, so the picture follows the project");
+  setPictureHighlight(p.tree, chapter.id, "p1", { show: false });
+  setPictureHighlight(p.tree, chapter.id, "p1", null);
+  assert.equal("highlight" in picture(), false, "null removes the choices");
+  setPictureHighlight(p.tree, chapter.id, "no-such-picture", { show: true });
+  assert.equal("highlight" in picture(), false, "a picture that is not there is left alone");
 });

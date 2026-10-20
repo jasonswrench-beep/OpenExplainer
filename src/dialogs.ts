@@ -5,6 +5,9 @@ import type { Rect } from "./capture/selection.ts";
 import { checkWait } from "./capture/wait.ts";
 import { describeShot, type ClickShot } from "./capture/clicks.ts";
 import { discardQuestion, type ReviewAnswer } from "./capture/review.ts";
+import {
+  checkPosition, checkStyleInput, circleSize, COLOR_PRESETS, HIGHLIGHT_KINDS, normalizeColor, type HighlightSettings, type HighlightKind,
+} from "./project/highlight.ts";
 
 // Small accessible dialogs built on the browser's own <dialog>, which traps focus
 // while open and closes with Escape. Focus goes back to where it was when they close.
@@ -452,6 +455,173 @@ export async function reviewClicksDialog(shots: ClickShot[], notices: string[]):
   } finally {
     urls.forEach((u) => URL.revokeObjectURL(u));
   }
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+
+/**
+ * The settings for the click circle: for each place a picture is used (the book, a quick guide), whether the circle is drawn, how big,
+ * what colour and how see-through. A mistake is explained in plain words next to the boxes and the dialog stays open. Returns the new
+ * settings, or `null` if the author cancelled.
+ */
+export async function highlightDialog(settings: HighlightSettings): Promise<HighlightSettings | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">Click circle settings</h2>
+      <p class="help">A transparent circle can be drawn on the spot of every click, so the reader sees where to click. It is drawn from the
+        click's position, never into the picture, so it can be turned on, off or moved later. These settings are kept in the project, one set
+        for each place a picture is used. One picture can also be set to always or never show its circle.</p>
+      <div id="hl-groups"></div>
+      <p id="hl-status" class="visually-hidden" role="status"></p>
+      <p id="hl-error" class="error" role="alert"></p>
+      <p><button value="ok">Save the settings</button> <button value="cancel" formnovalidate>Cancel</button></p>
+    </form>`;
+  const errorEl = dialog.querySelector<HTMLElement>("#hl-error")!;
+  const statusEl = dialog.querySelector<HTMLElement>("#hl-status")!;
+  const say = (text: string) => { statusEl.textContent = ""; setTimeout(() => (statusEl.textContent = text), 30); };
+  const OTHER = "other";
+  const groups = HIGHLIGHT_KINDS.map(({ id, name }) => {
+    const style = settings[id];
+    const fieldset = document.createElement("fieldset");
+    fieldset.innerHTML = `
+      <legend>${name}</legend>
+      <p><label><input type="checkbox" id="hl-${id}-show"> Show the click circle in the ${name.toLowerCase()}</label></p>
+      <p><label for="hl-${id}-size">Size, as a percent of the picture's width (1 to 20)</label><br>
+        <input type="text" id="hl-${id}-size" size="6" inputmode="decimal" autocomplete="off" aria-describedby="hl-error"></p>
+      <p><label for="hl-${id}-color">Colour, as six hex digits such as FFD600</label><br>
+        <input type="text" id="hl-${id}-color" size="10" autocomplete="off" aria-describedby="hl-error">
+        <label for="hl-${id}-preset">or choose a ready-made colour</label>
+        <select id="hl-${id}-preset"></select></p>
+      <p><label for="hl-${id}-see">See-through level, in percent (0 is solid, 100 cannot be seen)</label><br>
+        <input type="text" id="hl-${id}-see" size="6" inputmode="decimal" autocomplete="off" aria-describedby="hl-error"></p>
+      <p class="help">A sample (the picture here is only a drawing):<br>
+        <svg id="hl-${id}-sample" viewBox="0 0 240 135" width="240" height="135" role="img" aria-label="A sample of the circle on a picture" focusable="false"></svg></p>`;
+    const q = <T extends HTMLElement>(suffix: string) => fieldset.querySelector<T>(`#hl-${id}-${suffix}`)!;
+    const show = q<HTMLInputElement>("show");
+    const size = q<HTMLInputElement>("size");
+    const color = q<HTMLInputElement>("color");
+    const preset = q<HTMLSelectElement>("preset");
+    const see = q<HTMLInputElement>("see");
+    const sample = q<HTMLElement>("sample");
+    show.checked = style.show;
+    size.value = String(style.size);
+    color.value = style.color.slice(1);
+    see.value = String(style.seeThrough);
+    for (const p of COLOR_PRESETS) {
+      const option = document.createElement("option");
+      option.value = p.code;
+      option.textContent = p.name;
+      preset.append(option);
+    }
+    const other = document.createElement("option");
+    other.value = OTHER;
+    other.textContent = "Other (type the code)";
+    preset.append(other);
+    const syncPreset = () => { const code = normalizeColor(color.value); preset.value = code && COLOR_PRESETS.some((p) => p.code === code) ? code : OTHER; };
+    syncPreset();
+    // The sample draws the circle as it is typed, using the same rules as the real one: a size in percent of the width, a level of see-through.
+    const drawSample = () => {
+      sample.replaceChildren();
+      const picture = document.createElementNS(SVG, "rect");
+      for (const [k, v] of Object.entries({ x: "0", y: "0", width: "240", height: "135", fill: "#dde5ee" })) picture.setAttribute(k, v);
+      sample.append(picture);
+      for (const [y, w] of [[30, 150], [50, 110], [95, 130]]) {
+        const line = document.createElementNS(SVG, "rect");
+        for (const [k, v] of Object.entries({ x: "30", y: String(y), width: String(w), height: "10", fill: "#9fb0c4" })) line.setAttribute(k, v);
+        sample.append(line);
+      }
+      const checked = checkStyleInput({ show: show.checked, size: size.value, color: color.value, seeThrough: see.value });
+      const look = checked.ok ? checked.style : settings[id];
+      const circle = document.createElementNS(SVG, "circle");
+      const { r } = circleSize(look, 240);
+      for (const [k, v] of Object.entries({ cx: "105", cy: "55", r: String(r), fill: look.color, "fill-opacity": String(1 - look.seeThrough / 100) })) circle.setAttribute(k, v);
+      sample.append(circle);
+    };
+    drawSample();
+    preset.addEventListener("change", () => { if (preset.value !== OTHER) color.value = preset.value.slice(1); drawSample(); });
+    for (const input of [show, size, color, see]) {
+      input.addEventListener("input", () => {
+        errorEl.textContent = "";
+        [size, color, see].forEach((el) => el.removeAttribute("aria-invalid"));
+        if (input === color) syncPreset();
+        drawSample();
+      });
+    }
+    dialog.querySelector("#hl-groups")!.append(fieldset);
+    return { id, name, show, size, color, see };
+  });
+
+  let result: HighlightSettings | null = null;
+  dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return dialog.close("cancel");
+    const next: Partial<Record<HighlightKind, HighlightSettings[HighlightKind]>> = {};
+    for (const g of groups) {
+      const checked = checkStyleInput({ show: g.show.checked, size: g.size.value, color: g.color.value, seeThrough: g.see.value });
+      if (!checked.ok) {
+        const box = checked.field === "size" ? g.size : checked.field === "color" ? g.color : g.see;
+        box.setAttribute("aria-invalid", "true");
+        errorEl.textContent = `Problem in the ${g.name.toLowerCase()} settings: ${checked.message}`;
+        box.focus();
+        return;
+      }
+      next[g.id] = checked.style;
+    }
+    result = { book: next.book!, guide: next.guide! };
+    say("The settings were saved.");
+    dialog.close("ok");
+  });
+  await open(dialog, dialog.querySelector<HTMLElement>("#hl-book-show")!);
+  return dialog.returnValue === "ok" ? result : null;
+}
+
+/** What the author chose in the dialog for moving one picture's circle. */
+export type MoveCircleChoice = { kind: "move"; x: number; y: number } | { kind: "reset" };
+
+/**
+ * Moves the click circle of one picture: two numbers, counted in pixels from the picture's top left corner. The click itself stays recorded
+ * where it was. The author can also put the circle back on the click. Returns `null` if they cancelled.
+ */
+export async function moveCircleDialog(options: { width: number; height: number; x: number; y: number; moved: boolean; clickWords: string }): Promise<MoveCircleChoice | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">Move the click circle</h2>
+      <p class="help" id="mc-help"></p>
+      <p><label for="mc-x">How far across, in pixels</label><br><input type="text" id="mc-x" size="8" inputmode="numeric" autocomplete="off" aria-describedby="mc-error"></p>
+      <p><label for="mc-y">How far down, in pixels</label><br><input type="text" id="mc-y" size="8" inputmode="numeric" autocomplete="off" aria-describedby="mc-error"></p>
+      <p id="mc-error" class="error" role="alert"></p>
+      <p><button value="ok">Move the circle</button> <button value="reset" formnovalidate>Put it back on the click</button> <button value="cancel" formnovalidate>Cancel</button></p>
+    </form>`;
+  dialog.querySelector("#mc-help")!.textContent =
+    `${options.clickWords} The click stays recorded where it was; only the circle moves. Numbers count from the top left corner of the picture, which is ${options.width} by ${options.height} pixels.`;
+  const x = dialog.querySelector<HTMLInputElement>("#mc-x")!;
+  const y = dialog.querySelector<HTMLInputElement>("#mc-y")!;
+  const errorEl = dialog.querySelector<HTMLElement>("#mc-error")!;
+  x.value = String(options.x);
+  y.value = String(options.y);
+  for (const box of [x, y]) box.addEventListener("input", () => { errorEl.textContent = ""; x.removeAttribute("aria-invalid"); y.removeAttribute("aria-invalid"); });
+  let choice: MoveCircleChoice | null = null;
+  dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const pressed = (event.submitter as HTMLButtonElement | null)?.value;
+    if (pressed === "cancel") return dialog.close("cancel");
+    if (pressed === "reset") { choice = { kind: "reset" }; return dialog.close("reset"); }
+    const checked = checkPosition({ x: x.value, y: y.value }, options.width, options.height);
+    if (!checked.ok) {
+      const box = checked.field === "x" ? x : y;
+      box.setAttribute("aria-invalid", "true");
+      errorEl.textContent = `Problem: ${checked.message}`;
+      return box.focus();
+    }
+    choice = { kind: "move", x: checked.x, y: checked.y };
+    dialog.close("ok");
+  });
+  await open(dialog, x);
+  return dialog.returnValue === "ok" || dialog.returnValue === "reset" ? choice : null;
 }
 
 export async function variablesDialog(variables: Record<string, string>): Promise<Record<string, string> | null> {
