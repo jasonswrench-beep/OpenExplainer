@@ -6,13 +6,14 @@ Read this before touching anything that reads or writes a project. Change it in 
 
 A saved project is ONE file named after the project, such as `Test1.openexplainer`. It is a standard zip package
 (stored without compression, so pictures are not compressed twice), written and read by `src/project/zip.ts` and
-`src/project/package.ts`. Any zip program can open it for inspection. Inside it, format version 4 holds two files and a picture folder:
+`src/project/package.ts`. Any zip program can open it for inspection. Inside it, format version 5 holds two files, a page file for each topic that has a page, and a picture folder:
 
 - `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others) and `highlight` (the look of the click circle, see "The click highlight").
 - `structure.json`: `version` and `tree`, the chapters and topics.
+- `topics/<topic id>.json`: the page of a topic, only for a topic that has something on its page (see "The page").
 - `images/`: one file per picture, named `images/<picture id>.png` or `.jpg`. Only pictures a topic still uses are saved.
 
-Both files carry the same `version`. If they differ, the project is refused, because they come from different saves.
+All of these carry the same `version`. If they differ, the project is refused, because they come from different saves.
 
 ## The tree
 
@@ -56,6 +57,38 @@ Rules that are enforced in code (`src/project/clicks.ts`), both when a project i
 
 The note is stored so that a click highlight can be drawn, moved, restyled or removed later without touching the picture.
 
+## The page
+
+A topic's page is what the reader sees under the topic's title: a list of **blocks**, in order. The title itself is not a block. A page is saved in
+`topics/<topic id>.json` as `{ version, blocks }`, and only when it has at least one block, so a topic with nothing on its page has no file. The
+page lives on the topic in memory (`TreeNode.page`), so it moves, indents and is deleted with the topic; `structure.json` holds no page text.
+
+Every block has an `id` (permanent, like a node's) and a `type`:
+
+- `heading`: `{ text }`, a sub-heading in plain text.
+- `paragraph`: `{ text }`, text with marks (below).
+- `picture`: `{ pictureId }`, one of the topic's own pictures, shown here. A picture is only on the page where it is placed.
+- `procedure`: `{ steps }`, numbered steps. Each step is `{ id, text, pictureId?, result? }`: what to do (start with a verb and name the control exactly as
+  it appears on screen), an optional picture of the topic, and an optional result line ("The Format pane opens."). **Step numbers are never stored**;
+  they are worked out from the order.
+- `callout`: `{ kind, text }`, a box. `kind` is `design-tip`, `caution`, `bright-idea`, `power-tip`, `time-saver` or `new-feature` ("New in this
+  version"). Each has an icon, a label word and a coloured band in print and on the help site.
+
+**Text with marks** is a list of runs, `{ text, mark? }`, where `mark` is `bold`, `italic` or `control` (a control name: the label of a button, menu
+or box exactly as it appears on screen, shown in bold in print). A run has at most one mark and neighbours with the same mark are joined. Variables
+such as `{{PRODUCT}}` are ordinary text and are filled in on export. In an edit box the same text is typed as `**bold**`, `*italic*` and
+`[[Control name]]`; a backslash makes the next `*`, `[`, `]` or `\` an ordinary letter, and a marker with no partner, or with a space against it,
+stays ordinary text (`src/project/text.ts`).
+
+Rules enforced in code (`src/project/page.ts`), when a project is opened and when it is saved:
+- Only blocks of the kinds above are kept; anything else is dropped. A callout of an unknown kind becomes `design-tip`. Two blocks with one id get
+  their own ids.
+- A picture block, or a step's picture, whose picture is not in the topic is dropped (a step only loses the picture). A picture block with no picture
+  chosen yet is kept. Removing a picture from a topic takes it off the page too.
+- A page file whose `version` differs from the project's is refused ("do not match"), and so is a damaged one, in plain words that name the topic,
+  rather than being lost. A page file for a topic that is not in the project is ignored. A topic whose id is not a safe file name (letters, digits,
+  `_` and `-`) has its page left out.
+
 ## The click highlight
 
 A transparent circle can be drawn on the spot of a click, so the reader sees where to click. It is never burned into a picture: it is drawn from the
@@ -92,10 +125,11 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 5: a topic can have a page, saved in its own file under `topics/`. A version 4 project upgrades with no pages. A copy of OpenExplainer that only knows version 4 refuses a version 5 project, so it can never open one and save it without the pages.
 - Version 4: the project keeps the look of the click circle (`highlight`), and a picture can have its own choices about it. A version 3 project upgrades with the starting look. A copy of OpenExplainer that only knows version 3 refuses a version 4 project, so it can never open one and save it without the circle settings.
 - Version 3: a picture can hold a click note. A version 2 project upgrades with nothing added. A copy of OpenExplainer that only knows version 2 refuses a version 3 project, so it can never open one and save it without the click notes.
 
 ## Coming in later steps
 
-Topic content in `topics/<id>.json` inside the package, annotation shapes stored beside each picture
-(never burned in), callout boxes, styles, and export settings.
+Lettered callouts on pictures and picture views (full window, a cropped region, zoomed on the click), comments, annotation shapes stored beside
+each picture (never burned in), styles, and export settings.

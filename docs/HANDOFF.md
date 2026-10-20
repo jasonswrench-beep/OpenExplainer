@@ -283,6 +283,25 @@ Lessons from the wait:
 - Never put a backslash-n inside a string in a script written through a shell here (it turns into a real new line): use `String.fromCharCode(10)` or
   write the file with a file-writing tool.
 
+## Step 4, Editor and callouts (started 2026-10-20)
+
+Jason's answers (2026-10-20): the page is edited as a **block editor** (each paragraph, step and callout box is its own labelled text box with Add, Move up,
+Move down and Delete; not a free-flowing word-processor, which is harder to make accessible and to export); text has **plain text plus a few marks** (bold,
+italic and a "control name" mark, typed as `**bold**`, `*italic*`, `[[Control name]]`); build **the page text and the three panes first**, then lettered
+callouts and picture views. The design (Claude Docs "OpenExplainer Design Spec", section 6) says: three panes (tree left, page middle, properties right) with a
+preview tab for print and one for the help site; procedures are numbered steps with an optional picture and callout and a result line; callout boxes are
+Design Tip, Caution, Bright Idea, Power Tip, Time Saver and a new-feature marker; callouts on pictures are lettered markers with a leader line placed
+automatically from the captured items, movable and deletable, each with an entry under the picture; picture views are full window, cropped region and zoomed
+focus on the clicked area; the editor also has find and replace across the book, a check tool, and comments on any paragraph.
+
+Parts, in order:
+1. **Format version 5, the page model and the text marks (DONE 2026-10-20)**: `src/project/page.ts` (blocks, cleaning, moving), `src/project/text.ts` (marks),
+   `src/project/ids.ts`, pages saved as `topics/<id>.json` (`src/project/files.ts`), migration 4 to 5, `docs/format-spec.md` ("The page"). Counts: helper 60,
+   app shell 25, TypeScript 149 (147 pass; the 2 old `python3` ones fail on this PC).
+2. The three panes and the block editor for headings, paragraphs and pictures, with a properties pane. NOT built.
+3. Procedures and callout boxes in the editor. NOT built.
+4. Then lettered callouts on pictures and picture views, comments, the check tool, previews.
+
 ## Still open (ask Jason, do not guess)
 
 - Qwen 3.5: which size, and what its weights licence allows (audit before downloading or bundling).

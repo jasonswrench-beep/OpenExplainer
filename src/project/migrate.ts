@@ -25,6 +25,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   2: (raw) => ({ ...raw, version: 3 }),
   // Version 3 to 4: the project keeps the look of the click circle. An older project gets the starting look (off for the book, on for a quick guide).
   3: (raw) => ({ ...raw, version: 4, highlight: defaultHighlight() }),
+  // Version 4 to 5: a topic can have a page, saved in its own file. An older project simply has no pages yet.
+  4: (raw) => ({ ...raw, version: 5 }),
 };
 
 export function migrate(input: unknown): Project {

@@ -2,8 +2,12 @@
 // Nothing here touches the screen or the disk, so it can be tested on its own.
 
 import { cleanPictureHighlight, defaultHighlight, type HighlightSettings, type PictureHighlight } from "./highlight.ts";
+import { newId } from "./ids.ts";
+import { emptyPage, forgetPicture, type Page } from "./page.ts";
 
-export const CURRENT_VERSION = 4;
+export { newId };
+
+export const CURRENT_VERSION = 5;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -71,6 +75,8 @@ export interface TreeNode {
   title: string;
   status: Status;
   pictures: Picture[];
+  /** What the reader sees under the topic's title (format version 5). Left out until something is written. */
+  page?: Page;
   children: TreeNode[];
 }
 
@@ -82,10 +88,6 @@ export interface Project {
   /** The look of the click circle where pictures are used, and whether it is drawn (format version 4). */
   highlight: HighlightSettings;
   tree: TreeNode[];
-}
-
-export function newId(): string {
-  return "n" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
 export function makeNode(title: string): TreeNode {
@@ -285,7 +287,16 @@ export function addPicture(tree: TreeNode[], nodeId: string, picture: Picture): 
 export function removePicture(tree: TreeNode[], nodeId: string, pictureId: string): Picture | null {
   const node = findNode(tree, nodeId);
   const at = node ? node.pictures.findIndex((p) => p.id === pictureId) : -1;
-  return node && at >= 0 ? node.pictures.splice(at, 1)[0] : null;
+  if (!node || at < 0) return null;
+  // The picture is gone from the page too: its block goes, and a step that had it just loses it.
+  if (node.page) forgetPicture(node.page, pictureId);
+  return node.pictures.splice(at, 1)[0];
+}
+
+/** The page of a topic, made (empty) if it has none yet. */
+export function ensurePage(node: TreeNode): Page {
+  if (!node.page) node.page = emptyPage();
+  return node.page;
 }
 
 export function setAltText(tree: TreeNode[], nodeId: string, pictureId: string, altText: string): void {

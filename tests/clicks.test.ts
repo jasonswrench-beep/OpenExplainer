@@ -23,9 +23,9 @@ const save: ClickInfo = {
   target: { name: "Save", role: "button", acceleratorKey: "Ctrl+S", accessKey: "Alt+S", description: "Saves the file", bounds: { x: 100, y: 30, width: 60, height: 30 } },
 };
 
-test("the format is version 4", () => {
-  assert.equal(CURRENT_VERSION, 4);
-  assert.equal(createProject("Book").version, 4);
+test("a new project is the current format version", () => {
+  assert.ok(CURRENT_VERSION >= 5);
+  assert.equal(createProject("Book").version, CURRENT_VERSION);
 });
 
 test("a version 2 project opens as the current version with its pictures and descriptions untouched", () => {
