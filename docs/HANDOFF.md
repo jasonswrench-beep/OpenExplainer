@@ -308,11 +308,15 @@ Parts, in order:
    `src/style.css`, written up in `docs/editor.md`. Heading, paragraph, picture, numbered procedure and callout box blocks, each with Move up, Move down and
    Delete, marks buttons, a preview of the marks, announcements. Tried in the real window (see `docs/editor.md`).
 3. **Procedures and callout boxes (DONE 2026-10-20, in the same piece)**: steps with an optional picture and result line, and the six kinds of box.
-4. **Lettered callouts on pictures (started 2026-10-20; Jason chose: made automatically from a click picture's clicked item, and moved with typed numbers first,
-   mouse dragging later)**. a. **Format version 6 and the rules (DONE)**: `Picture.callouts`, `src/project/callouts.ts` (letters, marker placement, entries, leader
-   line geometry, the dialog's checks, cleaning), 18 tests, `docs/format-spec.md` ("Lettered callouts"). b. Drawing them over pictures and listing the entries under
-   them, in the picture list and on the page. NOT built. c. The Callouts dialog (add, name, describe, move, re-order, delete, make from the click) and making the first
-   callout automatically when a click picture is added. NOT built.
+4. **Lettered callouts on pictures (DONE 2026-10-20; Jason chose: made automatically from a click picture's clicked item, and moved with typed numbers first,
+   mouse dragging later)**. a. **Format version 6 and the rules**: `Picture.callouts`, `src/project/callouts.ts` (letters, marker placement, entries, leader
+   line geometry, the dialog's checks, cleaning, `newCalloutFromClick`, `setCallouts`), 19 tests, `docs/format-spec.md` ("Lettered callouts"). b. **Drawing and
+   entries**: `src/picture-marks.ts` draws the click circle and the callouts over a picture (an SVG laid over it, hidden from a screen reader) and lists the
+   entries under it; used by the Pictures list thumbnails and by `src/page-editor.ts` (picture blocks and step pictures). c. **The Callouts dialog**
+   (`calloutsDialog` in `src/dialogs.ts`, the Callouts button on each picture in `src/main.ts`) and the first callout made automatically when click
+   pictures are added (`captureClicks` in `src/main.ts`). Written up in `docs/editor.md` ("Lettered callouts"); tried in the real window (scenarios `callouts`,
+   and `circles`, `roundtrip` updated, in the scratch `ui_test.mjs`). Not built: moving a marker or outline with the mouse; drawing callouts and the click
+   circle into exported pages (when export is built, reuse `shapesFor` and `circleFor` so the editor and the book always agree); a screen reader pass.
 5. Then picture views (full window, cropped region, zoomed on the click), comments, the check tool, previews.
 
 ## Still open (ask Jason, do not guess)

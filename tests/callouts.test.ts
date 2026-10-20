@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   addCallout, addCalloutFromClick, calloutFromClick, checkCalloutInput, cleanCallouts, cleanTreeCallouts, clipToPicture, entries, entryWords, letterFor, markerRadius,
-  moveCallout, placeMarker, removeCallout, shapesFor, type Callout, type CalloutInput,
+  moveCallout, newCalloutFromClick, placeMarker, removeCallout, setCallouts, shapesFor, type Callout, type CalloutInput,
 } from "../src/project/callouts.ts";
 import { addNode, addPicture, createProject, CURRENT_VERSION, type Picture } from "../src/project/model.ts";
 import { fromFiles, toFiles } from "../src/project/files.ts";
@@ -84,6 +84,20 @@ test("making a callout from the click twice does not add the same one again", ()
   const a = p.callouts![0];
   const other = picture({ click: { x: 1, y: 1, button: "left", target: { role: "button", name: "Open", bounds: { x: 121, y: 431, width: 150, height: 44 } } }, callouts: [a] });
   assert.equal(addCalloutFromClick(other), null, "the same outline is the same item");
+});
+
+test("newCalloutFromClick makes nothing when the item already has a callout, and setCallouts keeps or drops the list", () => {
+  const p = picture();
+  assert.ok(newCalloutFromClick(p), "nothing there yet");
+  assert.equal(p.callouts, undefined, "asking does not add anything");
+  addCalloutFromClick(p);
+  assert.equal(newCalloutFromClick(p), null);
+  const kept = p.callouts!.map((c) => ({ ...c }));
+  setCallouts(p, []);
+  assert.equal(p.callouts, undefined, "an empty list removes the list");
+  setCallouts(p, kept);
+  assert.equal(p.callouts!.length, 1);
+  assert.ok(newCalloutFromClick({ ...picture(), callouts: [{ ...kept[0], target: { ...kept[0].target, x: kept[0].target.x + 1 } }] }), "a nearby but different outline is another item");
 });
 
 test("a second callout's marker keeps clear of the first", () => {

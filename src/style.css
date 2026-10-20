@@ -64,3 +64,9 @@ legend { font-weight: 600; padding: 0 0.25rem; }
 .step > h5 { margin: 0.2rem 0 0.3rem; font-size: 0.95rem; }
 #pane-tree, #pane-props { position: sticky; top: 0.5rem; max-height: calc(100vh - 1rem); overflow: auto; }
 @media (max-width: 60rem) { #pane-tree, #pane-props { position: static; max-height: none; } }
+.thumb.page-picture { max-width: min(100%, 36rem); max-height: 24rem; }
+.callout-entries { margin: 0.4rem 0; padding-left: 1.2rem; list-style: none; padding: 0; }
+.callout-entries li { margin: 0.15rem 0; }
+.callout-preview { max-width: min(100%, 40rem); max-height: 22rem; }
+.co-numbers { display: flex; flex-wrap: wrap; gap: 0 1.2rem; }
+.co-number { margin: 0.3rem 0; }

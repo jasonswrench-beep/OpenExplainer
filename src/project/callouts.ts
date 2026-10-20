@@ -93,18 +93,30 @@ export function calloutFromClick(picture: Pick<Picture, "width" | "height" | "cl
   return { id: newId(), name: target.name ?? "", description: "", target: rect, marker: placeMarker(rect, picture, others) };
 }
 
-/** Gives a click picture its callout, if it has an outline and has no callout for that item yet. Returns it, or `null` if nothing was added. */
-export function addCalloutFromClick(picture: Picture): Callout | null {
+/** The callout for the clicked item, unless the picture already has a callout with that same outline. `null` when there is nothing new to make. */
+export function newCalloutFromClick(picture: Pick<Picture, "width" | "height" | "click" | "callouts">): Callout | null {
   const made = calloutFromClick(picture);
   if (!made) return null;
   const same = (picture.callouts ?? []).some((c) => c.target.x === made.target.x && c.target.y === made.target.y && c.target.width === made.target.width && c.target.height === made.target.height);
-  if (same) return null;
+  return same ? null : made;
+}
+
+/** Gives a click picture its callout, if it has an outline and has no callout for that item yet. Returns it, or `null` if nothing was added. */
+export function addCalloutFromClick(picture: Picture): Callout | null {
+  const made = newCalloutFromClick(picture);
+  if (!made) return null;
   (picture.callouts ??= []).push(made);
   return made;
 }
 
 export function addCallout(picture: Picture, callout: Callout): void {
   (picture.callouts ??= []).push(callout);
+}
+
+/** Replaces a picture's callouts with a new list (an empty list leaves it with none). */
+export function setCallouts(picture: Picture, list: Callout[]): void {
+  if (list.length > 0) picture.callouts = list;
+  else delete picture.callouts;
 }
 
 export function removeCallout(picture: Picture, id: string): boolean {

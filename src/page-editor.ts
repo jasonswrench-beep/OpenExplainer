@@ -2,6 +2,7 @@
 // to add a block, move it up or down, and delete it. Nothing here is free-flowing, so every part is reachable by keyboard and has a name a screen reader can say.
 // The rules about what a page is live in src/project/page.ts and src/project/text.ts; this file only draws them and changes them.
 import { confirmDialog } from "./dialogs.ts";
+import { entryList } from "./picture-marks.ts";
 import type { Picture, TreeNode } from "./project/model.ts";
 import { ensurePage } from "./project/model.ts";
 import {
@@ -17,6 +18,10 @@ export interface PageEditorDeps {
   node(): TreeNode | null;
   /** The bytes of a picture file, for a thumbnail. */
   bytes(file: string): Uint8Array | undefined;
+  /** What is drawn over a picture (the click circle and the callouts), or null for nothing. */
+  marks(picture: Picture): SVGSVGElement | null;
+  /** Changes whenever what `marks` draws changes for a reason outside the pictures themselves (the circle settings, the preview). */
+  marksKey(): string;
   /** The page was changed: the project now has unsaved changes. */
   changed(): void;
   announce(text: string): void;
@@ -71,7 +76,7 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
   const node = () => deps.node();
 
   function keyFor(n: TreeNode | null): string {
-    return n ? `${n.id}|${n.title}|${n.pictures.map((p) => `${p.id}:${p.altText}:${p.file}`).join(",")}` : "";
+    return n ? `${n.id}|${n.title}|${deps.marksKey()}|${n.pictures.map((p) => `${p.id}:${p.altText}:${p.file}:${JSON.stringify(p.callouts ?? [])}:${JSON.stringify(p.highlight ?? null)}`).join(",")}` : "";
   }
 
   function setCurrent(id: string | null) {
@@ -176,8 +181,13 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
         const img = document.createElement("img");
         img.src = url;
         img.alt = picture.altText || "Picture with no description yet";
-        img.className = "thumb";
-        shown.append(img);
+        img.className = "thumb page-picture";
+        const box = document.createElement("span");
+        box.className = "thumbbox";
+        box.append(img);
+        const marks = deps.marks(picture);
+        if (marks) box.append(marks);
+        shown.append(box);
       } else {
         shown.append("This picture file is missing from the project.");
       }
@@ -185,6 +195,8 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
       words.className = "help";
       words.textContent = picture.altText ? `Description: ${picture.altText}` : "This picture still needs a description. Add one in the Pictures list below.";
       shown.append(words);
+      const callouts = entryList(picture);
+      if (callouts) shown.append(callouts);
     };
     select.addEventListener("change", () => {
       options.onChange(select.value);

@@ -5,6 +5,12 @@ import type { Rect } from "./capture/selection.ts";
 import { checkWait } from "./capture/wait.ts";
 import { describeShot, type ClickShot } from "./capture/clicks.ts";
 import { discardQuestion, type ReviewAnswer } from "./capture/review.ts";
+import { marksOverlay } from "./picture-marks.ts";
+import {
+  calloutFromClick, checkCalloutInput, clipToPicture, letterFor, newCalloutFromClick, placeMarker, type Callout, type CalloutField, type CalloutInput,
+} from "./project/callouts.ts";
+import { newId } from "./project/ids.ts";
+import type { Picture } from "./project/model.ts";
 import {
   checkPosition, checkStyleInput, circleSize, COLOR_PRESETS, HIGHLIGHT_KINDS, normalizeColor, type HighlightSettings, type HighlightKind,
 } from "./project/highlight.ts";
@@ -662,6 +668,229 @@ export async function moveCircleDialog(options: { width: number; height: number;
   });
   await open(dialog, x);
   return dialog.returnValue === "ok" || dialog.returnValue === "reset" ? choice : null;
+}
+
+const CALLOUT_BOXES: { field: CalloutField; label: string; size: number }[] = [
+  { field: "left", label: "Item: how far across it starts", size: 6 },
+  { field: "top", label: "Item: how far down it starts", size: 6 },
+  { field: "width", label: "Item: width", size: 6 },
+  { field: "height", label: "Item: height", size: 6 },
+  { field: "markerX", label: "Marker: how far across", size: 6 },
+  { field: "markerY", label: "Marker: how far down", size: 6 },
+];
+
+/**
+ * The lettered callouts of one picture. Each is a marker with a leader line to the part of the picture it names, and an entry under the picture
+ * (its letter, its name and a sentence). Everything is typed, in pixels from the picture's top left corner, and a sample of the picture with the
+ * callouts on it follows what is typed. A mistake is explained next to the box in plain words and the dialog stays open. Nothing changes until
+ * the author presses Save; Cancel leaves the callouts as they were. Returns the new list, or `null` if cancelled.
+ */
+export async function calloutsDialog(picture: Picture, imageUrl: string | null): Promise<Callout[] | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">Callouts</h2>
+      <p class="help" id="co-help"></p>
+      <div id="co-preview"></div>
+      <p id="co-status" class="visually-hidden" role="status"></p>
+      <div id="co-rows"></div>
+      <p><button type="button" id="co-add">Add a callout</button> <button type="button" id="co-click">Make a callout from the click</button></p>
+      <p id="co-error" class="error" role="alert"></p>
+      <p><button value="ok">Save the callouts</button> <button value="cancel" formnovalidate>Cancel</button></p>
+    </form>`;
+  const size = { width: picture.width, height: picture.height };
+  dialog.querySelector("#co-help")!.textContent =
+    "A callout is a lettered marker with a line to the part of the picture it names. Under the picture it gets an entry: its letter, its name and a sentence. " +
+    `Numbers count in pixels from the top left corner of the picture, which is ${picture.width} by ${picture.height} pixels. Moving or deleting a callout re-letters the others.`;
+  const working: Callout[] = (picture.callouts ?? []).map((c) => ({ ...c, target: { ...c.target }, marker: { ...c.marker } }));
+  const errorEl = dialog.querySelector<HTMLElement>("#co-error")!;
+  const statusEl = dialog.querySelector<HTMLElement>("#co-status")!;
+  const say = (text: string) => { statusEl.textContent = ""; setTimeout(() => (statusEl.textContent = text), 30); };
+  const rowsEl = dialog.querySelector<HTMLElement>("#co-rows")!;
+  const previewEl = dialog.querySelector<HTMLElement>("#co-preview")!;
+  const clearErrors = () => { errorEl.textContent = ""; rowsEl.querySelectorAll("[aria-invalid]").forEach((e) => e.removeAttribute("aria-invalid")); };
+
+  function drawPreview() {
+    previewEl.replaceChildren();
+    if (!imageUrl) return;
+    const box = document.createElement("span");
+    box.className = "thumbbox";
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.alt = picture.altText || "The picture the callouts are on";
+    img.className = "thumb callout-preview";
+    box.append(img);
+    const marks = marksOverlay({ ...size, callouts: working }, null);
+    if (marks) box.append(marks);
+    previewEl.append(box);
+  }
+
+  const inputOf = (index: number): CalloutInput => {
+    const get = (field: string) => rowsEl.querySelector<HTMLInputElement>(`#co-${index}-${field}`)?.value ?? "";
+    return { name: get("name"), description: get("description"), left: get("left"), top: get("top"), width: get("width"), height: get("height"), markerX: get("markerX"), markerY: get("markerY") };
+  };
+
+  /** Takes what is typed in one row into the working list, as far as it is good; the rest keeps its last good value. */
+  function takeRow(index: number) {
+    const input = inputOf(index);
+    working[index].name = input.name.trim().slice(0, 300);
+    working[index].description = input.description.trim().slice(0, 300);
+    const checked = checkCalloutInput(input, size);
+    if (checked.ok) {
+      working[index].target = checked.callout.target;
+      working[index].marker = checked.callout.marker;
+    }
+    drawPreview();
+  }
+
+  function drawRows(focus?: { index: number; part: string }) {
+    rowsEl.replaceChildren();
+    working.forEach((callout, i) => {
+      const fieldset = document.createElement("fieldset");
+      const letter = letterFor(i);
+      fieldset.innerHTML = `<legend></legend>
+        <p><label for="co-${i}-name">Name</label><br><input type="text" id="co-${i}-name" size="30" autocomplete="off" aria-describedby="co-error"></p>
+        <p><label for="co-${i}-description">Sentence about it</label><br><input type="text" id="co-${i}-description" size="60" autocomplete="off" aria-describedby="co-error"></p>
+        <div class="co-numbers"></div>
+        <p></p>`;
+      fieldset.querySelector("legend")!.textContent = `Callout ${letter}`;
+      (fieldset.querySelector<HTMLInputElement>(`#co-${i}-name`)!).value = callout.name;
+      (fieldset.querySelector<HTMLInputElement>(`#co-${i}-description`)!).value = callout.description;
+      const values: Record<string, string> = {
+        left: String(callout.target.x), top: String(callout.target.y), width: String(callout.target.width), height: String(callout.target.height),
+        markerX: String(callout.marker.x), markerY: String(callout.marker.y),
+      };
+      const numbers = fieldset.querySelector<HTMLElement>(".co-numbers")!;
+      for (const box of CALLOUT_BOXES) {
+        const label = document.createElement("label");
+        label.htmlFor = `co-${i}-${box.field}`;
+        label.textContent = `${box.label}, callout ${letter}`;
+        const input = document.createElement("input");
+        input.type = "text";
+        input.id = `co-${i}-${box.field}`;
+        input.size = box.size;
+        input.inputMode = "numeric";
+        input.autocomplete = "off";
+        input.value = values[box.field];
+        input.setAttribute("aria-describedby", "co-error");
+        const p = document.createElement("p");
+        p.className = "co-number";
+        p.append(label, document.createElement("br"), input);
+        numbers.append(p);
+      }
+      const actions = fieldset.querySelector("p:last-child")!;
+      const button = (part: string, text: string, run: () => void, disabled = false) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.id = `co-${i}-${part}`;
+        b.textContent = text;
+        b.disabled = disabled;
+        b.setAttribute("aria-label", `${text}, callout ${letter}`);
+        b.addEventListener("click", run);
+        actions.append(b, " ");
+      };
+      button("place", "Place the marker for me", () => {
+        clearErrors();
+        takeRow(i);
+        const others = working.filter((_, j) => j !== i).map((c) => c.marker);
+        working[i].marker = placeMarker(working[i].target, size, others);
+        drawRows({ index: i, part: "place" });
+        say(`The marker of callout ${letter} was placed next to its item.`);
+      });
+      button("up", "Move up", () => {
+        clearErrors();
+        working.forEach((_, j) => takeRow(j));
+        if (i === 0) return;
+        [working[i - 1], working[i]] = [working[i], working[i - 1]];
+        drawRows({ index: i - 1, part: i - 1 === 0 ? "down" : "up" });
+        say(`Callout ${letter} moved up and is now callout ${letterFor(i - 1)}.`);
+      }, i === 0);
+      button("down", "Move down", () => {
+        clearErrors();
+        working.forEach((_, j) => takeRow(j));
+        if (i === working.length - 1) return;
+        [working[i + 1], working[i]] = [working[i], working[i + 1]];
+        drawRows({ index: i + 1, part: i + 1 === working.length - 1 ? "up" : "down" });
+        say(`Callout ${letter} moved down and is now callout ${letterFor(i + 1)}.`);
+      }, i === working.length - 1);
+      button("delete", "Delete", () => {
+        clearErrors();
+        working.forEach((_, j) => takeRow(j));
+        working.splice(i, 1);
+        drawRows(working.length ? { index: Math.min(i, working.length - 1), part: "name" } : undefined);
+        if (!working.length) dialog.querySelector<HTMLElement>("#co-add")!.focus();
+        say(`Callout ${letter} deleted. ${working.length} ${working.length === 1 ? "callout" : "callouts"} left.`);
+      });
+      fieldset.addEventListener("input", () => { clearErrors(); takeRow(i); });
+      rowsEl.append(fieldset);
+    });
+    if (focus) rowsEl.querySelector<HTMLElement>(`#co-${focus.index}-${focus.part}`)?.focus();
+    drawPreview();
+    updateClickButton();
+  }
+
+  const clickButton = dialog.querySelector<HTMLButtonElement>("#co-click")!;
+  function updateClickButton() {
+    const state = { ...size, click: picture.click, callouts: working };
+    const possible = newCalloutFromClick(state) !== null;
+    const done = !possible && calloutFromClick(state) !== null;
+    clickButton.disabled = !possible;
+    clickButton.setAttribute("aria-describedby", "co-click-help");
+    dialog.querySelector("#co-click-help")?.remove();
+    const note = document.createElement("span");
+    note.id = "co-click-help";
+    note.className = "help";
+    note.textContent = possible ? " Uses the outline of the item that was clicked."
+      : picture.click ? (done ? " The clicked item already has a callout." : " The click has no outline to make a callout from.") : " Only a picture from Click by click has a click.";
+    clickButton.after(note);
+  }
+
+  dialog.querySelector<HTMLButtonElement>("#co-add")!.addEventListener("click", () => {
+    clearErrors();
+    working.forEach((_, j) => takeRow(j));
+    const click = picture.click;
+    const around = click
+      ? clipToPicture({ x: click.x - 40, y: click.y - 20, width: 80, height: 40 }, size)
+      : null;
+    const target = around ?? clipToPicture({ x: Math.round(size.width * 0.4), y: Math.round(size.height * 0.45), width: Math.round(size.width * 0.15), height: Math.round(size.height * 0.06) }, size)!;
+    working.push({ id: newId(), name: "", description: "", target, marker: placeMarker(target, size, working.map((c) => c.marker)) });
+    drawRows({ index: working.length - 1, part: "name" });
+    say(`Callout ${letterFor(working.length - 1)} added. Give it a name and a sentence, and check where it is.`);
+  });
+  clickButton.addEventListener("click", () => {
+    clearErrors();
+    working.forEach((_, j) => takeRow(j));
+    const made = newCalloutFromClick({ ...size, click: picture.click, callouts: working });
+    if (!made) return;
+    working.push(made);
+    drawRows({ index: working.length - 1, part: "name" });
+    say(`Callout ${letterFor(working.length - 1)} made from the clicked item.`);
+  });
+
+  let result: Callout[] | null = null;
+  dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return dialog.close("cancel");
+    clearErrors();
+    const next: Callout[] = [];
+    for (let i = 0; i < working.length; i++) {
+      const checked = checkCalloutInput(inputOf(i), size);
+      if (!checked.ok) {
+        const box = rowsEl.querySelector<HTMLInputElement>(`#co-${i}-${checked.field}`)!;
+        box.setAttribute("aria-invalid", "true");
+        errorEl.textContent = `Problem in callout ${letterFor(i)}: ${checked.message}`;
+        box.focus();
+        return;
+      }
+      next.push({ id: working[i].id, ...checked.callout });
+    }
+    result = next;
+    dialog.close("ok");
+  });
+  drawRows();
+  await open(dialog, working.length ? rowsEl.querySelector<HTMLElement>("#co-0-name")! : dialog.querySelector<HTMLElement>("#co-add")!);
+  return dialog.returnValue === "ok" ? result : null;
 }
 
 export async function variablesDialog(variables: Record<string, string>): Promise<Record<string, string> | null> {

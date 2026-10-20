@@ -7,8 +7,8 @@ import {
 import { chooseImages, chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
-import { captureDialog, confirmDialog, highlightDialog, messageDialog, moveCircleDialog, newProjectDialog, promptText, reviewClicksDialog, variablesDialog } from "./dialogs.ts";
-import { circleFor, HIGHLIGHT_KINDS, highlightWords, type Circle, type HighlightKind } from "./project/highlight.ts";
+import { calloutsDialog, captureDialog, confirmDialog, highlightDialog, messageDialog, moveCircleDialog, newProjectDialog, promptText, reviewClicksDialog, variablesDialog } from "./dialogs.ts";
+import { circleFor, HIGHLIGHT_KINDS, highlightWords, type HighlightKind } from "./project/highlight.ts";
 import { describeClick, describeClickDetails } from "./project/clicks.ts";
 import { createCaptureClient, type CapturedPicture } from "./capture/client.ts";
 import { captureTimeoutMs, tauriShell } from "./capture/tauri.ts";
@@ -16,6 +16,8 @@ import { regionName, screenName } from "./capture/region.ts";
 import { describeWait } from "./capture/wait.ts";
 import { describeEnded, describeLost } from "./capture/clicks.ts";
 import { createPageEditor } from "./page-editor.ts";
+import { entryList, marksOverlay } from "./picture-marks.ts";
+import { addCalloutFromClick, setCallouts } from "./project/callouts.ts";
 import { blockLabel, calloutLabel } from "./project/page.ts";
 import { plainText } from "./project/text.ts";
 import { addedWords, picturesFromReview } from "./capture/review.ts";
@@ -134,6 +136,8 @@ const pageEditor = createPageEditor({
   host: $("page-editor"),
   node: () => selected(),
   bytes: (file) => assets.get(file),
+  marks: (picture) => marksOverlay(picture, circleFor(picture, project.highlight, previewKind)),
+  marksKey: () => `${previewKind}|${JSON.stringify(project.highlight)}`,
   changed: () => { markDirty(); renderProperties(); },
   announce: (text) => announce(text),
   selectionChanged: () => renderProperties(),
@@ -248,25 +252,6 @@ previewSelect.addEventListener("change", () => {
   announce(`Showing the pictures as in the ${HIGHLIGHT_KINDS.find((k) => k.id === previewKind)!.name.toLowerCase()}.`);
 });
 
-/** The circle drawn over a thumbnail. It is in the picture's own pixels, so it lines up at any thumbnail size. */
-function circleOverlay(picture: Picture, circle: Circle): SVGSVGElement {
-  const NS = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(NS, "svg");
-  svg.setAttribute("viewBox", `0 0 ${picture.width} ${picture.height}`);
-  svg.setAttribute("preserveAspectRatio", "none");
-  svg.setAttribute("aria-hidden", "true");
-  svg.setAttribute("focusable", "false");
-  svg.setAttribute("class", "circle-overlay");
-  const shape = document.createElementNS(NS, "circle");
-  shape.setAttribute("cx", String(circle.cx));
-  shape.setAttribute("cy", String(circle.cy));
-  shape.setAttribute("r", String(circle.r));
-  shape.setAttribute("fill", circle.color);
-  shape.setAttribute("fill-opacity", String(circle.opacity));
-  svg.append(shape);
-  return svg;
-}
-
 const CIRCLE_MODES = [
   { value: "follow", label: "Follow the project setting" },
   { value: "on", label: "Always show" },
@@ -282,6 +267,24 @@ function setCircleMode(nodeId: string, picture: Picture, mode: string) {
   renderPictures();
   document.querySelector<HTMLElement>(`[data-circle-mode="${picture.id}"]`)?.focus();
   announce(mode === "follow" ? "The click circle now follows the project setting." : mode === "on" ? "The click circle will always show." : "The click circle will never show.");
+}
+
+/** The Callouts dialog for one picture. Nothing changes unless the author presses Save. */
+async function editCallouts(picture: Picture, name: string) {
+  const bytes = assets.get(picture.file);
+  const url = bytes ? URL.createObjectURL(new Blob([bytes as BlobPart], { type: picture.file.endsWith(".png") ? "image/png" : "image/jpeg" })) : null;
+  let list;
+  try {
+    list = await calloutsDialog(picture, url);
+  } finally {
+    if (url) URL.revokeObjectURL(url);
+  }
+  if (!list) return;
+  setCallouts(picture, list);
+  markDirty();
+  renderPictures();
+  document.querySelector<HTMLElement>(`[data-callouts="${picture.id}"]`)?.focus();
+  announce(list.length ? `${list.length} ${list.length === 1 ? "callout" : "callouts"} saved on ${name}.` : `Callouts removed from ${name}.`);
 }
 
 async function moveCircle(nodeId: string, picture: Picture, name: string) {
@@ -337,8 +340,8 @@ function renderPictures() {
       const box = document.createElement("span");
       box.className = "thumbbox";
       box.append(img);
-      const circle = circleFor(picture, project.highlight, previewKind);
-      if (circle) box.append(circleOverlay(picture, circle));
+      const marks = marksOverlay(picture, circleFor(picture, project.highlight, previewKind));
+      if (marks) box.append(marks);
       li.append(box);
     } else {
       const missing = document.createElement("p");
@@ -372,6 +375,8 @@ function renderPictures() {
         info.append(detail);
       }
     }
+    const callouts = entryList(picture);
+    if (callouts) info.append(callouts);
     const circleWords = highlightWords(picture, project.highlight, previewKind);
     if (circleWords) {
       const state = document.createElement("p");
@@ -401,7 +406,13 @@ function renderPictures() {
       row.append("Click circle: ", mode, " ", move);
       info.append(row);
     }
-    info.append(edit, " ", remove);
+    const calloutsButton = document.createElement("button");
+    calloutsButton.type = "button";
+    calloutsButton.textContent = "Callouts";
+    calloutsButton.dataset.callouts = picture.id;
+    calloutsButton.setAttribute("aria-label", `Callouts of ${name}`);
+    calloutsButton.addEventListener("click", () => void editCallouts(picture, name));
+    info.append(edit, " ", calloutsButton, " ", remove);
     li.append(info);
     list.append(li);
   }
@@ -485,15 +496,19 @@ async function captureClicks(node: TreeNode) {
     return void announce(`${count} thrown away. Your project was not changed.`);
   }
   const { pictures, files } = picturesFromReview(shots, answers, newId, new Date().toISOString());
+  let calloutsMade = 0;
   for (const picture of pictures) {
     assets.set(picture.file, files.get(picture.file)!);
     addPicture(project.tree, node.id, picture);
+    // The clicked item's outline and name become the picture's first callout, with a sentence still to write.
+    if (addCalloutFromClick(picture)) calloutsMade++;
   }
   if (pictures.length) {
     markDirty();
     renderPictures();
   }
-  announce(addedWords(pictures.length, shots.length));
+  const made = calloutsMade > 0 ? ` ${calloutsMade} ${calloutsMade === 1 ? "callout was" : "callouts were"} made from the clicked items; each needs a sentence.` : "";
+  announce(`${addedWords(pictures.length, shots.length)}${made}`);
 }
 
 async function captureIntoTopic() {
