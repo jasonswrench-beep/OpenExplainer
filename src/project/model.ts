@@ -1,7 +1,9 @@
 // The project model: what a project is, and the plain functions that change its chapter tree.
 // Nothing here touches the screen or the disk, so it can be tested on its own.
 
-export const CURRENT_VERSION = 3;
+import { defaultHighlight, type HighlightSettings, type PictureHighlight } from "./highlight.ts";
+
+export const CURRENT_VERSION = 4;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -60,6 +62,8 @@ export interface Picture {
   source: { kind: "import" | "window" | "region" | "click"; capturedAt: string; originalName?: string };
   /** Only for a picture made by a click-by-click capture (format version 3). */
   click?: ClickInfo;
+  /** This picture's own choices about its click circle (format version 4). Without it the picture follows the project's setting. */
+  highlight?: PictureHighlight;
 }
 
 export interface TreeNode {
@@ -75,6 +79,8 @@ export interface Project {
   name: string;
   template: "openstage-how-to-book" | "software-user-guide" | "empty";
   variables: Record<string, string>;
+  /** The look of the click circle where pictures are used, and whether it is drawn (format version 4). */
+  highlight: HighlightSettings;
   tree: TreeNode[];
 }
 
@@ -92,6 +98,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     name,
     template,
     variables: { PRODUCT: "", VERSION: "", COMPANY: "" },
+    highlight: defaultHighlight(),
     tree: [],
   };
   if (template === "openstage-how-to-book") {

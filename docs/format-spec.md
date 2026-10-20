@@ -6,9 +6,9 @@ Read this before touching anything that reads or writes a project. Change it in 
 
 A saved project is ONE file named after the project, such as `Test1.openexplainer`. It is a standard zip package
 (stored without compression, so pictures are not compressed twice), written and read by `src/project/zip.ts` and
-`src/project/package.ts`. Any zip program can open it for inspection. Inside it, format version 3 holds two files and a picture folder:
+`src/project/package.ts`. Any zip program can open it for inspection. Inside it, format version 4 holds two files and a picture folder:
 
-- `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others).
+- `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others) and `highlight` (the look of the click circle, see "The click highlight").
 - `structure.json`: `version` and `tree`, the chapters and topics.
 - `images/`: one file per picture, named `images/<picture id>.png` or `.jpg`. Only pictures a topic still uses are saved.
 
@@ -24,7 +24,7 @@ Both files carry the same `version`. If they differ, the project is refused, bec
 
 ## Pictures
 
-Each node holds a list of pictures: `{ id, file, width, height, altText, source }`, and a picture made by a click-by-click capture also has `click` (see "Click notes").
+Each node holds a list of pictures: `{ id, file, width, height, altText, source }`, and a picture may also have `click` (a click-by-click capture, see "Click notes") and `highlight` (its own choices about the click circle, see "The click highlight").
 
 - `file` is the path inside the package. `width` and `height` are in pixels.
 - `altText` says what the picture shows. It is always asked for and never filled in silently. Empty means it still needs one, and the app shows it as "Needs a description".
@@ -56,6 +56,27 @@ Rules that are enforced in code (`src/project/clicks.ts`), both when a project i
 
 The note is stored so that a click highlight can be drawn, moved, restyled or removed later without touching the picture.
 
+## The click highlight
+
+A transparent circle can be drawn on the spot of a click, so the reader sees where to click. It is never burned into a picture: it is drawn from the
+stored click position, so it can be turned on, off or moved later without capturing again. (Drawing in the editor is in `src/project/highlight.ts`;
+export will use the same rules.)
+
+**The look, for each place a picture is used.** `project.json` has `highlight: { book, guide }`. Each is `{ show, size, color, seeThrough }`:
+
+- `show`: whether the circle is drawn on pictures there. The starting look is off for `book` and on for `guide` (a quick guide).
+- `size`: the circle's width across, as a percent of the picture's width (1 to 20, starting at 3), so it scales with the picture.
+- `color`: six hex digits with a leading #, such as `#FFD600` (the starting yellow).
+- `seeThrough`: how much shows through, in percent: 0 is a solid circle and 100 cannot be seen (0 to 100, starting at 40).
+
+**One picture's own choices.** A picture may have `highlight: { show?, x?, y? }`. `show` `true` always draws the circle, `false` never does, and without
+it the picture follows the project's setting for where it is used. `x` and `y` (both or neither, in picture pixels from the top left) put the circle
+somewhere other than on the click. A picture with no `highlight` follows the project, and a picture with neither a click nor an `x` and `y` has no
+circle to draw. The recorded `click` is never changed by moving the circle.
+
+Both are cleaned every time a project is opened and saved: a missing or wrong part gets the starting look, numbers are kept in their range, and a
+picture's `highlight` with nothing valid in it is dropped.
+
 ## Variables
 
 `variables` in `project.json` maps a name to a value. Names are capital letters, digits and underscores. PRODUCT, VERSION and
@@ -71,6 +92,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 4: the project keeps the look of the click circle (`highlight`), and a picture can have its own choices about it. A version 3 project upgrades with the starting look. A copy of OpenExplainer that only knows version 3 refuses a version 4 project, so it can never open one and save it without the circle settings.
 - Version 3: a picture can hold a click note. A version 2 project upgrades with nothing added. A copy of OpenExplainer that only knows version 2 refuses a version 3 project, so it can never open one and save it without the click notes.
 
 ## Coming in later steps

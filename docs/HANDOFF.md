@@ -140,7 +140,12 @@ Still to build, in this order, testing each on this PC (6 left two things for Ja
       click's words; Enter moves to the next box; OK adds the kept pictures to the selected topic in click order as `source.kind` `click` with the
       `click` note; throwing away asks first. Tried in the real window. Counts: helper 60, app shell 25, TypeScript 102 (100 pass; the 2 old
       `python3` ones fail on this PC).
-   d. Showing click notes in the picture list (the kind of item, the shortcut keys), then the yellow click highlight drawn from the stored position
+   d. **Format version 4 DONE 2026-10-19** (Jason's answers to my four questions: capture type means where a picture is used, Book or Quick guide, so the
+      project keeps `highlight: { book, guide }` with `show`, `size` (percent of the picture's width), `color`, `seeThrough` (starting look: yellow,
+      40 percent see-through, 3 percent, off for the book and on for a quick guide), kept IN THE PROJECT; and each picture may have its own
+      `highlight { show?, x?, y? }`: follow the project, always, never, and a moved circle). Rules in `src/project/highlight.ts` (12 tests), migration
+      3 to 4, `docs/format-spec.md` updated. The drawing in the editor, the settings dialog and the per-picture controls are NOT built yet.
+      Original wording: showing click notes in the picture list (the kind of item, the shortcut keys), then the yellow click highlight drawn from the stored position
       (per capture type, adjustable size, colour and see-through level, from Jason's design). NOT built. Also not done for click pictures: the picture
       list shows only the name and the description, and Save and Open of a project with click pictures were not driven through the real app (the
       format and its unit tests cover them).

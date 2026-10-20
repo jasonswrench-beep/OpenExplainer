@@ -2,6 +2,7 @@
 // Every change to the saved format bumps CURRENT_VERSION and adds a step here.
 import { CURRENT_VERSION, type Project, type TreeNode } from "./model.ts";
 import { cleanClicks } from "./clicks.ts";
+import { cleanHighlight, cleanTreeHighlights, defaultHighlight } from "./highlight.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -22,6 +23,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   },
   // Version 2 to 3: a picture can carry a click note. Nothing needs adding to an older project.
   2: (raw) => ({ ...raw, version: 3 }),
+  // Version 3 to 4: the project keeps the look of the click circle. An older project gets the starting look (off for the book, on for a quick guide).
+  3: (raw) => ({ ...raw, version: 4, highlight: defaultHighlight() }),
 };
 
 export function migrate(input: unknown): Project {
@@ -36,8 +39,9 @@ export function migrate(input: unknown): Project {
     if (!step) throw new Error(`There is no way to upgrade project format ${raw.version}.`);
     raw = step(raw);
   }
-  // A click note is checked every time a project is opened, whatever version it was saved as.
+  // A click note and the circle's settings are checked every time a project is opened, whatever version it was saved as.
   const project = raw as unknown as Project;
-  if (Array.isArray(project.tree)) project.tree = cleanClicks(project.tree as TreeNode[]);
+  if (Array.isArray(project.tree)) project.tree = cleanTreeHighlights(cleanClicks(project.tree as TreeNode[]));
+  project.highlight = cleanHighlight(project.highlight);
   return project;
 }

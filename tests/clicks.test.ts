@@ -23,12 +23,12 @@ const save: ClickInfo = {
   target: { name: "Save", role: "button", acceleratorKey: "Ctrl+S", accessKey: "Alt+S", description: "Saves the file", bounds: { x: 100, y: 30, width: 60, height: 30 } },
 };
 
-test("the format is version 3", () => {
-  assert.equal(CURRENT_VERSION, 3);
-  assert.equal(createProject("Book").version, 3);
+test("the format is version 4", () => {
+  assert.equal(CURRENT_VERSION, 4);
+  assert.equal(createProject("Book").version, 4);
 });
 
-test("a version 2 project opens as version 3 with its pictures and descriptions untouched", () => {
+test("a version 2 project opens as the current version with its pictures and descriptions untouched", () => {
   const v2 = {
     version: 2,
     name: "Old",
@@ -37,7 +37,7 @@ test("a version 2 project opens as version 3 with its pictures and descriptions 
     tree: [{ id: "a", title: "A", status: "captured", children: [], pictures: [{ id: "p", file: "images/p.png", width: 5, height: 6, altText: "A window", source: { kind: "window", capturedAt: "2026-01-01T00:00:00Z", originalName: "Notepad" } }] }],
   };
   const up = migrate(JSON.parse(JSON.stringify(v2)));
-  assert.equal(up.version, 3);
+  assert.equal(up.version, CURRENT_VERSION);
   assert.deepEqual(up.tree[0].pictures, v2.tree[0].pictures);
 });
 
@@ -119,5 +119,5 @@ test("a click is said in plain words", () => {
 });
 
 test("a project saved by a newer version is still refused", () => {
-  assert.throws(() => migrate({ version: 4, name: "x", template: "empty", variables: {}, tree: [] }), /newer OpenExplainer/);
+  assert.throws(() => migrate({ version: CURRENT_VERSION + 1, name: "x", template: "empty", variables: {}, tree: [] }), /newer OpenExplainer/);
 });
