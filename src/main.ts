@@ -15,6 +15,9 @@ import { captureTimeoutMs, tauriShell } from "./capture/tauri.ts";
 import { regionName, screenName } from "./capture/region.ts";
 import { describeWait } from "./capture/wait.ts";
 import { describeEnded, describeLost } from "./capture/clicks.ts";
+import { createPageEditor } from "./page-editor.ts";
+import { blockLabel, calloutLabel } from "./project/page.ts";
+import { plainText } from "./project/text.ts";
 import { addedWords, picturesFromReview } from "./capture/review.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -41,48 +44,64 @@ app.innerHTML = `
       <button type="button" id="b-saveas">Save as</button>
       <button type="button" id="b-vars">Project variables</button>
     </div>
-    <div class="toolbar" role="toolbar" aria-label="Chapters and topics">
-      <button type="button" id="b-chapter">Add chapter</button>
-      <button type="button" id="b-topic">Add topic under selected</button>
-      <button type="button" id="b-rename">Rename (F2)</button>
-      <button type="button" id="b-up">Move up</button>
-      <button type="button" id="b-down">Move down</button>
-      <button type="button" id="b-indent">Indent</button>
-      <button type="button" id="b-outdent">Outdent</button>
-      <button type="button" id="b-delete">Delete</button>
-      <label>Status of selected item
-        <select id="status-select"></select>
-      </label>
+    <p id="panes-help" class="help">Three panes: the chapters and topics, the page, and the properties. F6 moves to the next pane and Shift+F6 to the one before.</p>
+    <div class="panes">
+      <section id="pane-tree" class="pane" aria-labelledby="tree-heading" tabindex="-1">
+        <h3 id="tree-heading">Chapters and topics</h3>
+        <div class="toolbar" role="toolbar" aria-label="Chapters and topics">
+          <button type="button" id="b-chapter">Add chapter</button>
+          <button type="button" id="b-topic">Add topic under selected</button>
+          <button type="button" id="b-rename">Rename (F2)</button>
+          <button type="button" id="b-up">Move up</button>
+          <button type="button" id="b-down">Move down</button>
+          <button type="button" id="b-indent">Indent</button>
+          <button type="button" id="b-outdent">Outdent</button>
+          <button type="button" id="b-delete">Delete</button>
+        </div>
+        <details id="find-panel">
+          <summary>Find and replace in chapter and topic titles</summary>
+          <div class="toolbar">
+            <label>Find <input id="find-input" type="text"></label>
+            <label>Replace with <input id="replace-input" type="text"></label>
+            <label><input id="find-case" type="checkbox"> Match case</label>
+            <button type="button" id="b-find-next">Find next</button>
+            <button type="button" id="b-replace-all">Replace all</button>
+          </div>
+        </details>
+        <p id="tree-help" class="help">
+          In the list: Up and Down arrows move, Right opens, Left closes, F2 renames, Delete removes.
+          Alt with Up or Down reorders. Alt with Right or Left indents or outdents.
+        </p>
+        <ul id="tree" role="tree" aria-label="Chapters and topics" aria-describedby="tree-help"></ul>
+        <p id="empty" class="help" hidden>This project has no chapters yet. Choose Add chapter to start.</p>
+      </section>
+      <section id="pane-page" class="pane" aria-labelledby="page-heading" tabindex="-1">
+        <h3 id="page-heading">Page</h3>
+        <div id="page-editor"></div>
+        <section id="pictures-section" aria-labelledby="pictures-heading">
+          <h3 id="pictures-heading">Pictures</h3>
+          <div class="toolbar">
+            <button type="button" id="b-import">Import pictures into the selected item</button>
+            <button type="button" id="b-capture">Capture into the selected item</button>
+            <button type="button" id="b-highlight">Click circle settings</button>
+            <label>Show the click circle as in the
+              <select id="preview-kind"></select>
+            </label>
+          </div>
+          <p id="pictures-empty" class="help"></p>
+          <ul id="pictures" class="pictures" aria-label="Pictures in the selected item"></ul>
+        </section>
+      </section>
+      <section id="pane-props" class="pane" aria-labelledby="props-heading" tabindex="-1">
+        <h3 id="props-heading">Properties</h3>
+        <div id="props-topic">
+          <h4 id="props-topic-heading">Topic</h4>
+          <p id="props-topic-line"></p>
+          <p><label>Status of this item <select id="status-select"></select></label></p>
+        </div>
+        <div id="props-block" aria-live="off"></div>
+      </section>
     </div>
-    <details id="find-panel">
-      <summary>Find and replace in chapter and topic titles</summary>
-      <div class="toolbar">
-        <label>Find <input id="find-input" type="text"></label>
-        <label>Replace with <input id="replace-input" type="text"></label>
-        <label><input id="find-case" type="checkbox"> Match case</label>
-        <button type="button" id="b-find-next">Find next</button>
-        <button type="button" id="b-replace-all">Replace all</button>
-      </div>
-    </details>
-    <p id="tree-help" class="help">
-      In the list: Up and Down arrows move, Right opens, Left closes, F2 renames, Delete removes.
-      Alt with Up or Down reorders. Alt with Right or Left indents or outdents.
-    </p>
-    <ul id="tree" role="tree" aria-label="Chapters and topics" aria-describedby="tree-help"></ul>
-    <p id="empty" class="help" hidden>This project has no chapters yet. Choose Add chapter to start.</p>
-    <section id="pictures-section" aria-labelledby="pictures-heading">
-      <h3 id="pictures-heading">Pictures</h3>
-      <div class="toolbar">
-        <button type="button" id="b-import">Import pictures into the selected item</button>
-        <button type="button" id="b-capture">Capture into the selected item</button>
-        <button type="button" id="b-highlight">Click circle settings</button>
-        <label>Show the click circle as in the
-          <select id="preview-kind"></select>
-        </label>
-      </div>
-      <p id="pictures-empty" class="help"></p>
-      <ul id="pictures" class="pictures" aria-label="Pictures in the selected item"></ul>
-    </section>
     <div id="announce" class="visually-hidden" role="status" aria-live="polite"></div>
   </main>
 `;
@@ -108,6 +127,56 @@ function announce(text: string) {
 function markDirty() {
   dirty = true;
   renderHeading();
+}
+
+// ---- The page, in the middle pane, and the properties on the right -----------------------------
+const pageEditor = createPageEditor({
+  host: $("page-editor"),
+  node: () => selected(),
+  bytes: (file) => assets.get(file),
+  changed: () => { markDirty(); renderProperties(); },
+  announce: (text) => announce(text),
+  selectionChanged: () => renderProperties(),
+});
+
+/** The properties of the topic and of the block that has the keyboard. */
+function renderProperties() {
+  const node = selected();
+  const numbers = numbering(project.tree);
+  $("props-topic-line").textContent = node
+    ? `${numbers.get(node.id)} ${node.title}. ${node.pictures.length} ${node.pictures.length === 1 ? "picture" : "pictures"}, ${node.page?.blocks.length ?? 0} ${(node.page?.blocks.length ?? 0) === 1 ? "block" : "blocks"} on the page.`
+    : "Nothing is selected.";
+  const host = $("props-block");
+  host.replaceChildren();
+  const chosen = pageEditor.selected();
+  const heading = document.createElement("h4");
+  heading.textContent = "Selected block";
+  host.append(heading);
+  if (!chosen) {
+    const none = document.createElement("p");
+    none.className = "help";
+    none.textContent = "No block is selected. Move into a block on the page to see its properties.";
+    host.append(none);
+    return;
+  }
+  const { block, position, total } = chosen;
+  const lines = [`Kind: ${blockLabel(block.type)}.`, `Position: block ${position} of ${total}.`];
+  if (block.type === "paragraph") {
+    const words = plainText(block.text).trim().split(/\s+/).filter(Boolean).length;
+    lines.push(`${words} ${words === 1 ? "word" : "words"}.`);
+  } else if (block.type === "heading") {
+    lines.push(block.text.trim() ? `Heading: ${block.text.trim()}.` : "The heading is empty.");
+  } else if (block.type === "picture") {
+    const picture = node?.pictures.find((p) => p.id === block.pictureId);
+    lines.push(picture ? `Picture: ${picture.altText.trim() || picture.source.originalName || picture.file}, ${picture.width} by ${picture.height} pixels.` : "No picture is chosen yet.");
+  } else if (block.type === "callout") {
+    lines.push(`Box: ${calloutLabel(block.kind)}.`);
+  }
+  for (const line of lines) {
+    const p = document.createElement("p");
+    p.textContent = line;
+    host.append(p);
+  }
 }
 
 function renderHeading() {
@@ -240,6 +309,8 @@ $("b-highlight").addEventListener("click", async () => {
 });
 
 function renderPictures() {
+  pageEditor.refresh();
+  renderProperties();
   blobUrls.forEach((url) => URL.revokeObjectURL(url));
   blobUrls = [];
   const list = $<HTMLUListElement>("pictures");
@@ -247,6 +318,7 @@ function renderPictures() {
   const node = selected();
   $<HTMLButtonElement>("b-import").disabled = !node;
   $<HTMLButtonElement>("b-capture").disabled = !node;
+  $("page-heading").textContent = node ? `Page of ${node.title}` : "Page";
   $("pictures-empty").textContent = !node
     ? "Select a chapter or topic to see or add its pictures."
     : node.pictures.length ? "" : `"${node.title}" has no pictures yet.`;
@@ -627,6 +699,29 @@ async function save(asNew = false) {
 }
 
 // ---- Keyboard ----------------------------------------------------------------------------
+/** F6 and Shift+F6 move between the three panes, as in most desktop programs. */
+const PANES = [
+  { id: "pane-tree", name: "Chapters and topics" },
+  { id: "pane-page", name: "Page" },
+  { id: "pane-props", name: "Properties" },
+];
+function focusPane(id: string) {
+  const pane = $(id);
+  if (id === "pane-tree") (treeEl.querySelector<HTMLElement>('[tabindex="0"]') ?? pane).focus();
+  else if (id === "pane-page") pageEditor.focus();
+  else (pane.querySelector<HTMLElement>("select:not([disabled]), button:not([disabled]), input:not([disabled])") ?? pane).focus();
+  // Some panes have nothing to focus: the pane itself takes it.
+  if (!pane.contains(document.activeElement)) pane.focus();
+  announce(`${PANES.find((p) => p.id === id)!.name} pane`);
+}
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "F6" || document.querySelector("dialog[open]")) return;
+  event.preventDefault();
+  const here = PANES.findIndex((p) => $(p.id).contains(document.activeElement));
+  const step = event.shiftKey ? PANES.length - 1 : 1;
+  focusPane(PANES[here < 0 ? (event.shiftKey ? PANES.length - 1 : 0) : (here + step) % PANES.length].id);
+});
+
 treeEl.addEventListener("keydown", (event) => {
   const rows = visibleNodes(project.tree, collapsed);
   const at = rows.findIndex((r) => r.node.id === selectedId);

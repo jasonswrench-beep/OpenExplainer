@@ -217,6 +217,12 @@ Lessons from part 6:
   (hang after 4 seconds, wait about 4.8 seconds, then click), or the helper takes its quick route and the Cancel window is gone before a test can find it.
 - A test that starts its own helper to look at windows will itself be counted as a "capture helper still running": check for leftover processes by who
   started them (parent process id), not by name alone.
+Lessons from the editor:
+- The page is drawn again only when the topic, its title or its pictures (or their descriptions) change, never while typing: a redraw on every key would take the keyboard from the box. `renderPictures()` in `src/main.ts` asks the editor to refresh, and the editor compares a key.
+- A button that becomes disabled after it is pressed (Move up on the first block) must hand the keyboard to the other one, or the keyboard falls to the page.
+- The properties pane is redrawn on every edit (`changed` also calls `renderProperties`), so its word count follows typing.
+- Node-side regular expressions in the scratch tests must not double their backslashes; only the ones inside page.eval template strings do.
+
 Lessons from the loose ends (2026-10-19):
 - **Windows' own Save and Open dialogs cannot be driven reliably from a test.** What was learned: they are children of the app's main window in the
   accessibility tree (not top-level), their File name box is a ComboBoxEx32 > ComboBox > Edit (control id 1148), the buttons are classic controls (Save or
@@ -297,9 +303,11 @@ focus on the clicked area; the editor also has find and replace across the book,
 Parts, in order:
 1. **Format version 5, the page model and the text marks (DONE 2026-10-20)**: `src/project/page.ts` (blocks, cleaning, moving), `src/project/text.ts` (marks),
    `src/project/ids.ts`, pages saved as `topics/<id>.json` (`src/project/files.ts`), migration 4 to 5, `docs/format-spec.md` ("The page"). Counts: helper 60,
-   app shell 25, TypeScript 149 (147 pass; the 2 old `python3` ones fail on this PC).
-2. The three panes and the block editor for headings, paragraphs and pictures, with a properties pane. NOT built.
-3. Procedures and callout boxes in the editor. NOT built.
+   app shell 25, TypeScript 149 (147 pass; the 2 old `python3` ones fail on this PC). The panes and editor have no Node tests (they are drawn on a screen) and were tried in the real window.
+2. **The three panes and the block editor (DONE 2026-10-20)**: `src/page-editor.ts` (the middle pane), the properties pane and F6 in `src/main.ts`, styles in
+   `src/style.css`, written up in `docs/editor.md`. Heading, paragraph, picture, numbered procedure and callout box blocks, each with Move up, Move down and
+   Delete, marks buttons, a preview of the marks, announcements. Tried in the real window (see `docs/editor.md`).
+3. **Procedures and callout boxes (DONE 2026-10-20, in the same piece)**: steps with an optional picture and result line, and the six kinds of box.
 4. Then lettered callouts on pictures and picture views, comments, the check tool, previews.
 
 ## Still open (ask Jason, do not guess)
