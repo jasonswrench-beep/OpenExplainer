@@ -12,9 +12,49 @@ import {
 // Small accessible dialogs built on the browser's own <dialog>, which traps focus
 // while open and closes with Escape. Focus goes back to where it was when they close.
 
+/**
+ * The controls a person can reach with Tab inside a dialog, in order. A group of radio buttons is one stop (the chosen one), as the browser
+ * does it. Hidden and disabled controls are left out.
+ */
+function tabStops(dialog: HTMLDialogElement): HTMLElement[] {
+  const stops = [...dialog.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [tabindex]")].filter((el) => {
+    if ((el as HTMLButtonElement).disabled || el.getAttribute("tabindex") === "-1" || (el as HTMLInputElement).type === "hidden") return false;
+    return !el.closest("[hidden]") && el.getClientRects().length > 0;
+  });
+  return stops.filter((el) => {
+    const radio = el as HTMLInputElement;
+    if (radio.type !== "radio") return true;
+    const group = stops.filter((other) => (other as HTMLInputElement).type === "radio" && (other as HTMLInputElement).name === radio.name) as HTMLInputElement[];
+    const chosen = group.find((r) => r.checked);
+    return chosen ? chosen === radio : group[0] === radio;
+  });
+}
+
+/**
+ * Tab from the last control goes to the first, and Shift+Tab from the first goes to the last. Without this, a dialog in the app's window has
+ * one stop on nothing at all between the end and the start, where a screen reader has no control to read.
+ */
+function wrapTab(dialog: HTMLDialogElement) {
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab" || event.ctrlKey || event.altKey || event.metaKey) return;
+    const stops = tabStops(dialog);
+    if (stops.length === 0) return;
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  });
+}
+
 function open(dialog: HTMLDialogElement, focusTarget: HTMLElement): Promise<void> {
   const returnTo = document.activeElement as HTMLElement | null;
   document.body.append(dialog);
+  wrapTab(dialog);
   dialog.showModal();
   focusTarget.focus();
   return new Promise((resolve) => {

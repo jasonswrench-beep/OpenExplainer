@@ -533,7 +533,24 @@ clicked. The first run found a rounding mistake (75 percent see-through was draw
 tests (`highlight.test.ts`, `highlight-input.test.ts`). The circle is drawn in the editor only: export will use the same rules and is not built.
 Saving a project with these settings and opening it again was tried by unit tests, not through the app's own Save and Open.
 
-Not tried (the app side of click by click): a session of many minutes, many clicks in the review list (it scrolls, but a list of 200 was not
+A real project with real click pictures was also packed and unpacked by the app's own code inside the real window (the helper's pictures,
+the circle settings, two pictures' own circle choices, one description): unpacking gave exactly the project that was packed, every picture's bytes
+came back exactly (3 whole-screen pictures, 1418 KB, packed in 4 ms), and the .NET zip reader opened the file and found version 4, the settings,
+the click notes, the choices, and the password box as only `{"password": true}`.
+
+A keyboard-only pass was driven with simulated key presses (Tab, Shift+Tab, arrow keys, Space, Enter and Escape sent to the page) over the
+Capture dialog in Click by click mode, the review list, the click circle settings and Move the click circle. Tab reaches every control in each
+(a radio group counts as one stop), focus never leaves the dialog, Shift+Tab goes back, Escape closes each (the review list asks first, and
+Escape on that question keeps the review open with what was typed), focus returns to the control that opened the dialog, Space on a Keep tick
+leaves a click out, Enter on *Use the click's words* fills the description, Enter in a description moves to the next one without adding
+anything, the arrow keys change the ready-made colour and a picture's circle choice and keep the focus, and Start was pressed with Enter. The
+pass found one thing: Tab from the last control landed on nothing for one press before coming back to the first, where a screen reader has no
+control to read. Every dialog now wraps Tab from the last control to the first and Shift+Tab from the first to the last (`wrapTab` in
+`src/dialogs.ts`), and the pass was run again with no stop on nothing.
+
+Not tried (the app side of click by click): saving and opening through Windows' own Save and Open dialogs (the dialog's File name box swallows
+automated typing, see `docs/HANDOFF.md`, and the app's file plugin only allows paths the dialog picked, so a test cannot write elsewhere); a
+screen reader on any of the new windows; a session of many minutes, many clicks in the review list (it scrolls, but a list of 200 was not
 tried), a screen reader on the Stop window or the review list, Alt+Tab to the Stop window and Esc by a person, keyboard-only use of the review
 list start to finish, saving a project with click pictures and opening it again in the app (the format is tested, the app's own Save was not
 driven), and a display scaling above 100 percent.

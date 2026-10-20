@@ -217,6 +217,20 @@ Lessons from part 6:
   (hang after 4 seconds, wait about 4.8 seconds, then click), or the helper takes its quick route and the Cancel window is gone before a test can find it.
 - A test that starts its own helper to look at windows will itself be counted as a "capture helper still running": check for leftover processes by who
   started them (parent process id), not by name alone.
+Lessons from the loose ends (2026-10-19):
+- **Windows' own Save and Open dialogs cannot be driven reliably from a test.** What was learned: they are children of the app's main window in the
+  accessibility tree (not top-level), their File name box is a ComboBoxEx32 > ComboBox > Edit (control id 1148), the buttons are classic controls (Save or
+  Open id 1, Cancel id 2) that do not support Invoke, and the box swallows letters that are posted or typed too fast while its auto-complete is open
+  ("Jason" arrived as "Jaon"), and ignores text set with WM_SETTEXT. Worse, the dialog then uses its default name and asks "Untitled project.openexplainer
+  already exists. Do you want to replace it?" in the folder it opens in, which is where Jason's real files are. NEVER answer Yes to that question from a
+  test; close the dialog by restarting the dev app. A test that needs a file path has no safe way in, so the file round trip is tested inside the window
+  with `packProject` and `unpackProject` on a project built from real captured pictures, and the dialogs remain a manual check for Jason: capture a few
+  clicks, Save as, make a new project, Open the saved one, and check the pictures, the circle settings and each picture's circle choice came back.
+- The fs plugin only allows paths the dialog picked (`forbidden path ... allow-write-file`), so a page cannot write a test file itself.
+- A plain `<dialog>` in the app's window had one Tab stop on nothing between the last control and the first. `wrapTab` in `src/dialogs.ts` closes it for
+  every dialog. The keyboard pass is a scenario that sends real key events (`rawKeyDown` then `keyUp`, so the browser does its default action).
+- A screen reader was not run. It cannot be run from here.
+
 Lessons from the click circle:
 - `circleFor` (`src/project/highlight.ts`) is the one place that decides whether and where a circle goes and how big and see-through it is. The
   editor and the settings sample use it; an export must too, so the book and the editor can never disagree.
@@ -278,6 +292,7 @@ Lessons from the wait:
 - Capture helper: should the window list also show a program's dialogs (marked as belonging to it) so a native dialog can be captured by itself?
   Region capture can also take one.
 - Capture helper: Windows 11's rounded corners leave a few black or background pixels in the picture's corners. Save with transparent corners, or leave?
+- Jason, please check by hand (the tests cannot): Save as, New project, Open the saved file, and see that the click pictures, the circle settings and each picture's circle choice are back; and a screen reader on the Capture dialog, the review list and the circle settings.
 - Capture: should the wait be remembered between runs of the app (now it is only remembered while the app stays open)? Should there be a way to cancel
   a wait from the keyboard without Alt+Tab, for example a global hot key (it would need a new permission and a plain-words explanation)?
 - Capture: whether "Bring the window to the front first" should be on by default (it is off, because the keyboard is then with the other window and
