@@ -11,10 +11,13 @@ use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+
+// Click by click: a session that hides the app, shows a Stop window and collects every click.
+pub mod clicks;
 
 /// The name of the helper program.
 pub const HELPER_FILE: &str = "openexplainer-capture.exe";
@@ -191,6 +194,10 @@ pub struct CaptureState {
     selection: Mutex<Option<mpsc::Sender<Option<Rect4>>>>,
     /// Set by the selection window once its page has started, so the app knows it is really there.
     selection_ready: AtomicBool,
+    /// Set when the author presses Stop in a click-by-click session: the clicks so far are kept.
+    click_stop: AtomicBool,
+    /// How many clicks the session has captured so far, for the Stop window.
+    click_count: AtomicU32,
 }
 
 /// Puts the main window back, and closes the Cancel window, however the capture ended.
@@ -204,11 +211,16 @@ impl Choreography {
     /// Shows the Cancel window first, so there is always a way to stop, and only then hides the main window.
     fn begin(app: &AppHandle, seconds: u64, wait_seconds: u64) -> Result<Self, String> {
         let bar = open_bar(app, seconds, wait_seconds)?;
+        Ok(Self::with_bar(app, bar))
+    }
+
+    /// The same, for a small window that is already showing (the Stop window of a click-by-click session).
+    fn with_bar(app: &AppHandle, bar: WebviewWindow) -> Self {
         let mut hid_main = false;
         if let Some(main) = app.get_webview_window("main") {
             hid_main = main.hide().is_ok();
         }
-        Ok(Choreography { app: app.clone(), bar: Some(bar), hid_main })
+        Choreography { app: app.clone(), bar: Some(bar), hid_main }
     }
 
     /// Closes the Cancel window but keeps the main window hidden: the snapshot is taken, and the selection window is next.

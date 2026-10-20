@@ -84,6 +84,7 @@ function pretend(outcome: ShellOutcome, picture: Uint8Array = pngBytes(40, 30)) 
     async takePicture(path) { taken.push(path); return picture; },
     async select() { throw new Error("these tests do not choose on a snapshot"); },
     async discard() { /* nothing to delete */ },
+    async watchClicks() { throw new Error("these tests do not watch clicks"); },
   };
   return { shell, asked, taken };
 }

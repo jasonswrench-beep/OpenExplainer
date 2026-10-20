@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenExplainer is capturing clicks</title>
+    <style>
+      :root { font-family: "Segoe UI", system-ui, sans-serif; color: #1a1a1a; background: #ffffff; }
+      body { margin: 0; padding: 0.75rem 1rem; }
+      h1 { font-size: 1.15rem; margin: 0 0 0.5rem; }
+      p { margin: 0.4rem 0; }
+      button { font: inherit; padding: 0.5rem 1.25rem; }
+      .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+      :focus-visible { outline: 3px solid #b35c00; outline-offset: 2px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Capturing clicks</h1>
+      <p id="what">OpenExplainer is hidden. Click through your steps in the other program. Each click is captured. To stop with the keyboard, press Alt+Tab to come back to this window, then Esc.</p>
+      <!-- The count is for people who can see it. A screen reader is told after each click, politely, in the hidden line below. -->
+      <p aria-hidden="true"><span>Clicks captured:</span> <strong id="count">0</strong></p>
+      <p id="announce" class="visually-hidden" role="status"></p>
+      <p><button type="button" id="stop">Stop and keep the clicks</button></p>
+    </main>
+    <script type="module" src="/src/click-bar.ts"></script>
+  </body>
+</html>

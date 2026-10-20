@@ -53,6 +53,7 @@ function pretend() {
     async takePicture() { return png(); },
     async select(_request, options) { selects.push(options); return { kind: "cancelled" }; },
     async discard() { /* nothing */ },
+    async watchClicks() { throw new Error("these tests do not watch clicks"); },
   };
   return { shell, asked, selects };
 }

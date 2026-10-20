@@ -39,6 +39,7 @@ function pretendShell(outcome: ShellOutcome | Error, picture: Uint8Array | Error
     async discard() {
       // nothing to delete
     },
+    async watchClicks() { throw new Error("these tests do not watch clicks"); },
   };
   return { shell, asked, taken };
 }
@@ -59,7 +60,7 @@ const everyKindOfFailure: ShellOutcome[] = [
 
 test("every way a capture can fail says so in plain words, and that the project was not changed", () => {
   for (const outcome of everyKindOfFailure) {
-    if (outcome.kind === "reply" || outcome.kind === "selected") continue;
+    if (outcome.kind === "reply" || outcome.kind === "selected" || outcome.kind === "clicks") continue;
     const failed = failureFor(outcome);
     assert.equal(failed.ok, false);
     assert.ok(failed.message.includes(UNCHANGED), `${outcome.kind}: ${failed.message}`);

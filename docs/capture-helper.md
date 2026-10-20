@@ -13,7 +13,8 @@ a rectangle of a chosen screen, with a "bring the window to the front first" cho
 continued) takes a snapshot of a screen, shows it full screen, lets the author drag out a rectangle (or use the keys or four
 number boxes), and cuts the picture from that snapshot. **Wait before capturing** (part 6, continued) gives the author a few
 seconds to get another program ready, for example to open a menu. **Click by click** (part 7) is built on the helper's side
-(`watch-clicks`: a picture of the whole screen and a note for every click); the app side of it is not built. See `docs/HANDOFF.md`.
+(`watch-clicks`: a picture of the whole screen and a note for every click). The app can run a whole session (Stop window, collecting the
+clicks, checking every note), but the **Click by click** choice in the Capture dialog and the review list are not built yet. See `docs/HANDOFF.md`.
 
 ## How to try it (double-click these)
 
@@ -339,6 +340,27 @@ A snapshot is a frozen picture, which is what makes the choice exact. It does no
 that another program closes: pressing OpenExplainer's button closes that menu before the snapshot is taken. That needs a delay
 before the snapshot, which is not built.
 
+**Click by click, the app side (part 7c, first half).** The shell runs a whole session; the dialog and the review list that use it come next.
+- **The shell** (`src-tauri/src/capture/clicks.rs`, a child module of `capture.rs`): `watch_clicks(idleSeconds?, maxClicks?)` shows the
+  Stop window, hides the main window, starts the helper with `watch-clicks` and the capture folder, and keeps reading its lines on a
+  background thread. It ends when the author presses Stop (it sends `stop-watching` and waits up to 5 seconds for the helper's `ended`, then
+  stops the helper anyway), when the helper says `ended` (idle time, click limit), or when the helper falls over (the clicks so far are
+  kept, `ended: "helper-stopped"`). It returns `{kind: "clicks", clicks, skipped, ended}`, or `reply` (the helper said no, with its own
+  words), `stopped`, `busy` or `unavailable`, like every other capture. Only one capture at a time. The windows and the helper are always
+  cleaned up. `stop_clicks` is what Stop calls, and `click_session_status` gives the count so far (the Stop window asks every 0.4 seconds,
+  which needs no capability permission).
+- **The Stop window** (`click-bar.html`, `src/click-bar.ts`): top right of the main screen, always on top, kept out of screen copies (so it is
+  never in a picture) and opened **without** taking the keyboard from the program the author is working in. It shows "Clicks captured:" and
+  the count, tells a screen reader "3 clicks captured." politely after each click (in a hidden live line, not by announcing the visible
+  number), and has a Stop button. Stop, the Escape key (once the window has the keyboard, after Alt+Tab) and the window's close button
+  all stop the session and **keep** every click so far. Clicks on it are ignored by the helper, so pressing Stop is never a step.
+- **TypeScript** (`src/capture/clicks.ts`, `client.watchClicks()`): `Shell.watchClicks` asks the shell; `collectSession` checks every click
+  note again with the project's own rules (`cleanClick`, so a password box and anything typed in a box are cleaned out whatever the helper
+  said), collects every picture at once so none is left in the temporary folder, and counts the clicks it could not use (a note that is not
+  valid, a picture that cannot be read), deleting their pictures. `describeEnded` says in plain words why a session ended by itself,
+  `describeLost` says how many clicks were lost, and `describeShot` says a click in words. Every failure is plain words ending "Your project
+  was not changed.", as for every other capture.
+
 **Where the helper is found:** the file named by the `OPENEXPLAINER_CAPTURE_HELPER` environment variable (for tests),
 else `openexplainer-capture.exe` beside the app, else (while developing) `capture-helper/target/release/` found by walking
 up from the app. `Run OpenExplainer.bat` builds the helper before it starts the app. Putting the helper inside an installer
@@ -443,6 +465,22 @@ The session ended by itself after the idle time (2.1 s for a 2 second setting), 
 (0.1 s). A second session was refused, a missing folder was refused in plain words, and quitting the helper closed everything. The
 helper has 60 tests, 13 of them new (the privacy rules, double-click rule, outline cutting, settings and event shape), and
 `Test Click Capture.bat` was tried with two real clicks.
+
+The app side of click by click (part 7c, first half) was tried in the real window (a development build driven through its debugging port),
+with real injected clicks on a made-up window and the real TypeScript client: the Stop window showed and the main window was hidden;
+Windows was told to keep the Stop window out of screen copies (display affinity 0x11); it did not take the keyboard (the same program had
+it before and after); three clicks showed as 3 and were announced as "3 clicks captured."; the Stop button was pressed with the real mouse
+and was not recorded as a step; the three clicks came back through the client with the button's name, the check box's name and the password
+box as only `{"password": true}`; the password appears nowhere in what the app was given; no picture file was left in the temporary folder;
+the main window came back and no helper was left. The Escape key and the window's close button also stopped the session and kept the click.
+The idle time (3 seconds asked, ended after 3.5), the click limit (2 clicks) and a second capture while one was running (refused in plain
+words, the first unharmed) all worked. The Stop window was looked at as a picture, and its height was corrected because a scroll bar showed.
+The shell has 25 tests (9 new, with a pretend helper that stops, ignores Stop, falls over, says no or never answers), and there are 13 new
+TypeScript tests. One first run recorded four clicks that the author made on the PC at the same time: the session records every click on the
+screen, by design, so the tests now look only for their own clicks and print nothing else.
+
+Not tried (the app side of click by click): the Click by click choice in the dialog and the review list (not built), a session of many
+minutes, a screen reader on the Stop window, Alt+Tab to the Stop window and Esc by a person, and a display scaling above 100 percent.
 
 Not tried (click by click): a program running as administrator, a display scaling above 100 percent, a screen bigger than 1920 by 1080
 (the hold-back grows with the size of the copy), a session of many minutes, a security program's reaction, Windows on ARM, a person

@@ -56,6 +56,8 @@ export type ShellOutcome =
   | { kind: "reply"; reply: HelperReply }
   /** The author chose a rectangle on a snapshot of a screen. `snapshot` is the temporary picture it is cut from. */
   | { kind: "selected"; snapshot: string; rect: { left: number; top: number; width: number; height: number } }
+  /** A click-by-click session is over. `clicks` are the helper's own lines, in order, not yet checked; see `clicks.ts`. */
+  | { kind: "clicks"; clicks: unknown[]; skipped: number; ended: string }
   | { kind: "timeout"; seconds: number }
   | { kind: "cancelled" }
   | { kind: "stopped" }
@@ -76,7 +78,7 @@ export function failure(code: string, message: string): Failure {
 }
 
 /** The plain words for everything that can go wrong before the helper gives an answer. */
-export function failureFor(outcome: Exclude<ShellOutcome, { kind: "reply" } | { kind: "selected" }>): Failure {
+export function failureFor(outcome: Exclude<ShellOutcome, { kind: "reply" } | { kind: "selected" } | { kind: "clicks" }>): Failure {
   switch (outcome.kind) {
     case "timeout":
       return failure(

@@ -5,6 +5,7 @@ import {
   CAPTURE_TIMEOUT_MS, UNCHANGED, failure, failureFor, failureFromHelper,
   type CaptureResult, type Done, type ScreenInfo, type ShellOutcome, type WindowInfo,
 } from "./outcome.ts";
+import { collectSession, type ClickSession } from "./clicks.ts";
 import type { Region } from "./region.ts";
 import type { Rect } from "./selection.ts";
 
@@ -21,6 +22,11 @@ export interface Shell {
   select(request: { screen: ScreenArea; initial: Rect }, options: { timeoutMs: number; delayMs?: number }): Promise<ShellOutcome>;
   /** Deletes a temporary picture (the snapshot). */
   discard(path: string): Promise<void>;
+  /**
+   * Runs a click-by-click session: OpenExplainer hides, a Stop window shows, and every click is captured until the author stops it (or the
+   * helper's idle time or click limit is reached). `idleSeconds` and `maxClicks` change the helper's own limits; leave them out for its defaults.
+   */
+  watchClicks(options: { idleSeconds?: number; maxClicks?: number }): Promise<ShellOutcome>;
 }
 
 /** Where a screen is on the whole desktop, with its size. */
@@ -55,6 +61,11 @@ export interface CaptureClient {
    * what was chosen even if the screen changed. `rect` is counted from the screen's top left corner.
    */
   selectOnScreen(screen: ScreenInfo, initial: Rect, options?: { waitSeconds?: number }): Promise<Done<{ picture: CapturedPicture; rect: Rect }>>;
+  /**
+   * Captures every click until the author stops it. Each picture is the whole screen the click was on, taken just before the program
+   * reacted, with a click note. A session with no clicks is fine and gives no shots. Whatever the session gave is kept even if it ended early.
+   */
+  watchClicks(options?: { idleSeconds?: number; maxClicks?: number }): Promise<Done<ClickSession>>;
 }
 
 /** The wait, as the shell wants it: only said when there is one. */
@@ -72,7 +83,7 @@ export function createCaptureClient(shell: Shell, timeoutMs: () => number = () =
       const why = error instanceof Error ? error.message : String(error);
       return failure("app-error", `OpenExplainer could not reach the capture helper (${why}). ${UNCHANGED}`);
     }
-    if (outcome.kind === "selected") return failure("app-error", `OpenExplainer got an answer it did not ask for. ${UNCHANGED}`);
+    if (outcome.kind === "selected" || outcome.kind === "clicks") return failure("app-error", `OpenExplainer got an answer it did not ask for. ${UNCHANGED}`);
     if (outcome.kind !== "reply") return failureFor(outcome);
     return outcome.reply.ok ? { ok: true, value: outcome.reply.result } : failureFromHelper(outcome.reply.error);
   }
@@ -135,6 +146,7 @@ export function createCaptureClient(shell: Shell, timeoutMs: () => number = () =
       if (outcome.kind === "reply") {
         return outcome.reply.ok ? failure("unreadable", `The snapshot could not be used. ${UNCHANGED}`) : failureFromHelper(outcome.reply.error);
       }
+      if (outcome.kind === "clicks") return failure("app-error", `OpenExplainer got an answer it did not ask for. ${UNCHANGED}`);
       if (outcome.kind !== "selected") return failureFor(outcome);
       const { snapshot, rect } = outcome;
       try {
@@ -146,6 +158,23 @@ export function createCaptureClient(shell: Shell, timeoutMs: () => number = () =
         // The snapshot shows the author's whole screen, so it never stays behind.
         try { await shell.discard(snapshot); } catch { /* already gone */ }
       }
+    },
+
+    async watchClicks(options = {}) {
+      let outcome: ShellOutcome;
+      try {
+        outcome = await shell.watchClicks(options);
+      } catch (error) {
+        const why = error instanceof Error ? error.message : String(error);
+        return failure("app-error", `OpenExplainer could not reach the capture helper (${why}). ${UNCHANGED}`);
+      }
+      // A plain reply means the helper said no (for example, Windows would not let it watch the mouse): its words are already plain.
+      if (outcome.kind === "reply") {
+        return outcome.reply.ok ? failure("unreadable", `The capture helper's answer could not be used. ${UNCHANGED}`) : failureFromHelper(outcome.reply.error);
+      }
+      if (outcome.kind === "selected") return failure("app-error", `OpenExplainer got an answer it did not ask for. ${UNCHANGED}`);
+      if (outcome.kind !== "clicks") return failureFor(outcome);
+      return { ok: true, value: await collectSession(shell, outcome) };
     },
   };
 }

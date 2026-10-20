@@ -20,7 +20,10 @@ fn main() {
             capture::discard_capture_picture,
             capture::select_region,
             capture::selection_ready,
-            capture::selection_finish
+            capture::selection_finish,
+            capture::clicks::watch_clicks,
+            capture::clicks::stop_clicks,
+            capture::clicks::click_session_status
         ])
         .run(tauri::generate_context!())
         .expect("OpenExplainer could not start.");

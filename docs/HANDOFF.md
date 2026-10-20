@@ -129,7 +129,15 @@ Still to build, in this order, testing each on this PC (6 left two things for Ja
       app shell 16, TypeScript 83 (81 pass).
    c. The app side: a third choice in the Capture dialog, "Click by click", with an always-visible Stop window (it must be kept out of screen
       copies, like the Cancel window, and the app must keep the helper's events coming while it hides itself). The shell needs a streaming version
-      of `run_helper` (the current one is one request, one reply). NOT built.
+      of `run_helper` (the current one is one request, one reply).
+      **First half DONE 2026-10-19**: the shell runs a whole session (`src-tauri/src/capture/clicks.rs`: `watch_clicks`, `stop_clicks`,
+      `click_session_status`, tested with a pretend helper), the Stop window (`click-bar.html`, `src/click-bar.ts`), and the TypeScript client
+      (`client.watchClicks()`, `src/capture/clicks.ts`, 13 tests). Tried in the real window with real clicks (see `docs/capture-helper.md`).
+      Counts: helper 60, app shell 25, TypeScript 96 (94 pass; the 2 old `python3` ones fail on this PC).
+      **Still to build for 7c** (waiting on Jason's answers to four questions): the *Click by click* choice in the Capture dialog (with the plain
+      explanation of what is recorded, and a Start button; my default is to hide the wait box for it), and the review list after Stop (every click in
+      order with its picture, the click in words, a "Keep" tick and a description box that starts empty, plus a button the author presses to use the
+      click's words; OK adds the kept pictures to the selected topic as `source.kind` `click` with the `click` note, Cancel adds nothing).
    d. Showing click notes in the picture list, then the highlight. NOT built.
    Jason answered the four questions for b on 2026-10-19 (see b). Still to ask before c: what the author sees for each click picture (a review
    list to describe each picture, or one at a time), whether the Stop window also shows the click count, and where the steps go (one topic, one
@@ -194,6 +202,16 @@ Lessons from part 6:
   (hang after 4 seconds, wait about 4.8 seconds, then click), or the helper takes its quick route and the Cancel window is gone before a test can find it.
 - A test that starts its own helper to look at windows will itself be counted as a "capture helper still running": check for leftover processes by who
   started them (parent process id), not by name alone.
+Lessons from click by click (part 7c, first half):
+- A session records EVERY click on the screen, including the person's own while a test runs. Tests must look only for their own clicks (by
+  name) and must never print the notes of clicks they did not make: one early run printed a button name from Jason's own browser. The pictures
+  are held in memory and deleted unseen.
+- A newly opened window may not be hidden-main yet when a test first sees it: the Stop window appears a few milliseconds before the main window is
+  hidden, so wait a moment before checking.
+- The Stop window is opened with `.focused(false)` like the Cancel window during a wait, and a child module of `capture.rs` can use its private items
+  (`HelperRun`, `CaptureState`, `Choreography`), which is why click code lives in `capture/clicks.rs` and not a sibling file.
+- A small window needs its height checked as a picture (a scroll bar showed at 200 pixels; 250 is right for the text).
+
 Lessons from click by click (part 7b):
 - A low-level mouse hook only works while its thread keeps taking messages, and Windows removes a hook that holds a click too long (about 300 ms),
   so the hook thread only copies the screen; Windows UI Automation runs on its own thread (it can hang on a stuck program) and PNG saving on a third.

@@ -12,11 +12,13 @@ export default defineConfig({
   build: {
     target: "es2022",
     outDir: "dist",
-    // Three pages: the app, the small Cancel window shown while a capture runs, and the full-screen page for choosing a rectangle.
+    // Four pages: the app, the small Cancel window shown while a capture runs, the small Stop window of a click-by-click capture,
+    // and the full-screen page for choosing a rectangle.
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
         "capture-bar": resolve(__dirname, "capture-bar.html"),
+        "click-bar": resolve(__dirname, "click-bar.html"),
         selection: resolve(__dirname, "selection.html"),
       },
     },

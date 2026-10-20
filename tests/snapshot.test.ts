@@ -40,6 +40,7 @@ function pretend(selection: ShellOutcome | Error, cut: ShellOutcome | Error, pic
     async discard(path) {
       log.discarded.push(path);
     },
+    async watchClicks() { throw new Error("these tests do not watch clicks"); },
   };
   return { shell, log };
 }
