@@ -2,16 +2,18 @@ import "./style.css";
 import {
   STATUSES, addNode, createProject, findNode, indent, locate, moveDown, moveUp, numbering,
   outdent, removeNode, renameNode, setStatus, visibleNodes, findNodes, replaceInTitles,
-  addPicture, removePicture, setAltText, newId, type Picture, type Project, type Status,
+  addPicture, removePicture, setAltText, newId, type Picture, type Project, type Status, type TreeNode,
 } from "./project/model.ts";
 import { chooseImages, chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
-import { captureDialog, confirmDialog, messageDialog, newProjectDialog, promptText, variablesDialog } from "./dialogs.ts";
+import { captureDialog, confirmDialog, messageDialog, newProjectDialog, promptText, reviewClicksDialog, variablesDialog } from "./dialogs.ts";
 import { createCaptureClient, type CapturedPicture } from "./capture/client.ts";
 import { captureTimeoutMs, tauriShell } from "./capture/tauri.ts";
 import { regionName, screenName } from "./capture/region.ts";
 import { describeWait } from "./capture/wait.ts";
+import { describeEnded, describeLost } from "./capture/clicks.ts";
+import { addedWords, picturesFromReview } from "./capture/review.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("The app container is missing from index.html.");
@@ -267,6 +269,36 @@ function waitWords(seconds: number): string {
   return seconds > 0 ? `, after waiting ${describeWait(seconds)}` : "";
 }
 
+/**
+ * Click by click: every click until the author presses Stop, then a review list. Nothing is added to the project unless the author
+ * presses OK in that list, and what they leave out or throw away is gone.
+ */
+async function captureClicks(node: TreeNode) {
+  announce("Capturing clicks. OpenExplainer is hidden until you press Stop in the small Stop window.");
+  const done = await captureClient.watchClicks();
+  if (!done.ok) return void (await messageDialog("The capture did not work", done.message));
+  const { shots, skipped, unusable, ended } = done.value;
+  const notices = [describeEnded(ended), describeLost(skipped, unusable)].filter((text): text is string => text !== null);
+  if (shots.length === 0) {
+    return void (await messageDialog("No clicks were captured", [...notices, "Nothing was added. Your project was not changed."].join(" ")));
+  }
+  const answers = await reviewClicksDialog(shots, notices);
+  if (!answers) {
+    const count = shots.length === 1 ? "The click you captured was" : `The ${shots.length} clicks you captured were`;
+    return void announce(`${count} thrown away. Your project was not changed.`);
+  }
+  const { pictures, files } = picturesFromReview(shots, answers, newId, new Date().toISOString());
+  for (const picture of pictures) {
+    assets.set(picture.file, files.get(picture.file)!);
+    addPicture(project.tree, node.id, picture);
+  }
+  if (pictures.length) {
+    markDirty();
+    renderPictures();
+  }
+  announce(addedWords(pictures.length, shots.length));
+}
+
 async function captureIntoTopic() {
   const node = selected();
   if (!node || capturing) return;
@@ -285,6 +317,7 @@ async function captureIntoTopic() {
       refresh: () => captureClient.listWindows(),
     });
     if (!choice) return;
+    if (choice.kind === "clicks") return void (await captureClicks(node));
 
     // What was captured, in words; the question asked about it; and the picture itself.
     let what: string;

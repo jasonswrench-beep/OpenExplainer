@@ -134,11 +134,16 @@ Still to build, in this order, testing each on this PC (6 left two things for Ja
       `click_session_status`, tested with a pretend helper), the Stop window (`click-bar.html`, `src/click-bar.ts`), and the TypeScript client
       (`client.watchClicks()`, `src/capture/clicks.ts`, 13 tests). Tried in the real window with real clicks (see `docs/capture-helper.md`).
       Counts: helper 60, app shell 25, TypeScript 96 (94 pass; the 2 old `python3` ones fail on this PC).
-      **Still to build for 7c** (waiting on Jason's answers to four questions): the *Click by click* choice in the Capture dialog (with the plain
-      explanation of what is recorded, and a Start button; my default is to hide the wait box for it), and the review list after Stop (every click in
-      order with its picture, the click in words, a "Keep" tick and a description box that starts empty, plus a button the author presses to use the
-      click's words; OK adds the kept pictures to the selected topic as `source.kind` `click` with the `click` note, Cancel adds nothing).
-   d. Showing click notes in the picture list, then the highlight. NOT built.
+      **Second half DONE 2026-10-19** (Jason said yes to my defaults): the *Click by click* choice in the Capture dialog (explanation, wait box hidden,
+      button *Start capturing clicks*) and the review list after Stop (`reviewClicksDialog`, rules in `src/capture/review.ts`, 6 tests): every click in
+      order with its picture, the click in words, a *Keep* tick, and a description box that starts EMPTY with a button the author presses to use the
+      click's words; Enter moves to the next box; OK adds the kept pictures to the selected topic in click order as `source.kind` `click` with the
+      `click` note; throwing away asks first. Tried in the real window. Counts: helper 60, app shell 25, TypeScript 102 (100 pass; the 2 old
+      `python3` ones fail on this PC).
+   d. Showing click notes in the picture list (the kind of item, the shortcut keys), then the yellow click highlight drawn from the stored position
+      (per capture type, adjustable size, colour and see-through level, from Jason's design). NOT built. Also not done for click pictures: the picture
+      list shows only the name and the description, and Save and Open of a project with click pictures were not driven through the real app (the
+      format and its unit tests cover them).
    Jason answered the four questions for b on 2026-10-19 (see b). Still to ask before c: what the author sees for each click picture (a review
    list to describe each picture, or one at a time), whether the Stop window also shows the click count, and where the steps go (one topic, one
    picture per step).
@@ -202,6 +207,15 @@ Lessons from part 6:
   (hang after 4 seconds, wait about 4.8 seconds, then click), or the helper takes its quick route and the Cancel window is gone before a test can find it.
 - A test that starts its own helper to look at windows will itself be counted as a "capture helper still running": check for leftover processes by who
   started them (parent process id), not by name alone.
+Lessons from the click dialog and review list:
+- Injected test clicks are real mouse movements, so a person using the PC at the same time can move the pointer between `SetCursorPos` and the
+  click and land it on their own program. A run that finds the wrong row is not an app bug: repeat it, and never look at pictures unless every click
+  in the list is the test's own (the review-list picture was only taken when the list had exactly the three test clicks).
+- `Enter` inside a text box in a `<form method="dialog">` presses the first submit button. In the review list that would add every click, so Enter
+  in a description moves focus instead.
+- A modal dialog's `cancel` event (Escape) can be turned into a question with `preventDefault()`; the browser still closes it on a second Escape
+  without a key press in between, so there is no keyboard trap.
+
 Lessons from click by click (part 7c, first half):
 - A session records EVERY click on the screen, including the person's own while a test runs. Tests must look only for their own clicks (by
   name) and must never print the notes of clicks they did not make: one early run printed a button name from Jason's own browser. The pictures

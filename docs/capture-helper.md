@@ -13,8 +13,8 @@ a rectangle of a chosen screen, with a "bring the window to the front first" cho
 continued) takes a snapshot of a screen, shows it full screen, lets the author drag out a rectangle (or use the keys or four
 number boxes), and cuts the picture from that snapshot. **Wait before capturing** (part 6, continued) gives the author a few
 seconds to get another program ready, for example to open a menu. **Click by click** (part 7) is built on the helper's side
-(`watch-clicks`: a picture of the whole screen and a note for every click). The app can run a whole session (Stop window, collecting the
-clicks, checking every note), but the **Click by click** choice in the Capture dialog and the review list are not built yet. See `docs/HANDOFF.md`.
+(`watch-clicks`: a picture of the whole screen and a note for every click). In the app, **Click by click** is a third choice in the Capture dialog: a Stop window, then a review list where the author keeps
+the clicks they want and describes each picture, and the kept ones go into the selected topic. See `docs/HANDOFF.md`.
 
 ## How to try it (double-click these)
 
@@ -340,7 +340,7 @@ A snapshot is a frozen picture, which is what makes the choice exact. It does no
 that another program closes: pressing OpenExplainer's button closes that menu before the snapshot is taken. That needs a delay
 before the snapshot, which is not built.
 
-**Click by click, the app side (part 7c, first half).** The shell runs a whole session; the dialog and the review list that use it come next.
+**Click by click, the app side (part 7c).**
 - **The shell** (`src-tauri/src/capture/clicks.rs`, a child module of `capture.rs`): `watch_clicks(idleSeconds?, maxClicks?)` shows the
   Stop window, hides the main window, starts the helper with `watch-clicks` and the capture folder, and keeps reading its lines on a
   background thread. It ends when the author presses Stop (it sends `stop-watching` and waits up to 5 seconds for the helper's `ended`, then
@@ -360,6 +360,22 @@ before the snapshot, which is not built.
   valid, a picture that cannot be read), deleting their pictures. `describeEnded` says in plain words why a session ended by itself,
   `describeLost` says how many clicks were lost, and `describeShot` says a click in words. Every failure is plain words ending "Your project
   was not changed.", as for every other capture.
+
+- **The choice in the Capture dialog** (`src/dialogs.ts`): a third radio button, *Click by click*. It shows a plain explanation of what is and is
+  not recorded (only mouse clicks, never the keyboard or what is typed; a password box noted only as that; names kept only for buttons, menus
+  and similar controls; the pictures show the whole screen and are kept only if the author keeps them; it stops by itself after 10 idle minutes
+  or 200 clicks), hides the *Wait before capturing* box (watching starts at once) and the other parts, and the button reads *Start capturing
+  clicks*. Switching back brings the wait box and the word *Capture* back.
+- **The review list** (`reviewClicksDialog` in `src/dialogs.ts`, rules in `src/capture/review.ts`), shown when the author presses Stop: every click
+  in order, each with a small picture of the screen just before the click, the click in words ("Click on the button "Save" (access key Alt+S)."),
+  a *Keep click N* tick (ticked), and a description box that starts **empty**. Beside each box is a button, *Use the click's words*, that fills
+  the box with the click's words **only when the author presses it**, so a description is never filled in silently. Notices come first: why the
+  session ended early (idle time, click limit, Windows or the helper stopped), and how many clicks were lost. Enter in a description moves to the
+  next one (and finally to the OK button), because it must not press OK and add everything. *Add the kept pictures* adds the kept clicks to the
+  selected topic **in click order**, each as a picture with `source.kind` `click`, the click in words as `originalName`, and the `click` note
+  beside it; a picture whose description was left empty shows as "Needs a description". *Throw them all away* (and Escape) asks "Throw away the
+  clicks?" first, with focus on Cancel, because the clicks only exist in memory; Cancel there goes back to the review with everything typed kept.
+  A session with no clicks says "No clicks were captured ... Nothing was added. Your project was not changed." and nothing else.
 
 **Where the helper is found:** the file named by the `OPENEXPLAINER_CAPTURE_HELPER` environment variable (for tests),
 else `openexplainer-capture.exe` beside the app, else (while developing) `capture-helper/target/release/` found by walking
@@ -479,8 +495,21 @@ The shell has 25 tests (9 new, with a pretend helper that stops, ignores Stop, f
 TypeScript tests. One first run recorded four clicks that the author made on the PC at the same time: the session records every click on the
 screen, by design, so the tests now look only for their own clicks and print nothing else.
 
-Not tried (the app side of click by click): the Click by click choice in the dialog and the review list (not built), a session of many
-minutes, a screen reader on the Stop window, Alt+Tab to the Stop window and Esc by a person, and a display scaling above 100 percent.
+The Click by click choice and the review list were tried in the real window the same way. The dialog's third choice, its five plain-words points,
+the hidden wait box, the button words and a name for every control were checked. The whole flow ran several times: choose, press Start, four real
+clicks on the made-up window, Stop, the review list with every row ticked, its picture showing and its description box empty; *Use the click's
+words* filled in exactly the click in words and told a screen reader; Enter moved to the next description and did not add everything; a click was
+left out and the author's own description typed; *Add the kept pictures* added exactly the kept clicks to the topic, named by the click in words,
+with the typed description on its picture and the others flagged "Needs a description". Throwing away asked first (focus on Cancel), Cancel went
+back with the typed words kept, Escape asked again, and yes added nothing and said so. Stopping before any click said so in plain words. The review
+list was looked at as a picture (the small pictures show the red block red before the Save click and purple before the next). A few runs found
+a click that had landed on the author's own program: the made-up test clicks are real mouse clicks, and the person using the PC moved the mouse
+between the pointer being placed and the click, so that run was repeated. The review rules have 6 TypeScript tests.
+
+Not tried (the app side of click by click): a session of many minutes, many clicks in the review list (it scrolls, but a list of 200 was not
+tried), a screen reader on the Stop window or the review list, Alt+Tab to the Stop window and Esc by a person, keyboard-only use of the review
+list start to finish, saving a project with click pictures and opening it again in the app (the format is tested, the app's own Save was not
+driven), and a display scaling above 100 percent.
 
 Not tried (click by click): a program running as administrator, a display scaling above 100 percent, a screen bigger than 1920 by 1080
 (the hold-back grows with the size of the copy), a session of many minutes, a security program's reaction, Windows on ARM, a person

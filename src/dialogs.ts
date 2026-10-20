@@ -3,6 +3,8 @@ import type { Done, ScreenInfo, WindowInfo } from "./capture/outcome.ts";
 import { checkRegionInput, screenLabel, screenName, wholeScreen, type Region, type RegionInput } from "./capture/region.ts";
 import type { Rect } from "./capture/selection.ts";
 import { checkWait } from "./capture/wait.ts";
+import { describeShot, type ClickShot } from "./capture/clicks.ts";
+import { discardQuestion, type ReviewAnswer } from "./capture/review.ts";
 
 // Small accessible dialogs built on the browser's own <dialog>, which traps focus
 // while open and closes with Escape. Focus goes back to where it was when they close.
@@ -108,7 +110,9 @@ export type CaptureChoice =
   | { kind: "window"; window: WindowInfo; bringToFront: boolean; waitSeconds: number }
   | { kind: "region"; screen: ScreenInfo; region: Region; left: number; top: number; waitSeconds: number }
   /** The author wants to drag out a rectangle on a snapshot of the screen. `initial` is where the rectangle starts, counted from the screen's corner. */
-  | { kind: "select"; screen: ScreenInfo; initial: Rect; waitSeconds: number };
+  | { kind: "select"; screen: ScreenInfo; initial: Rect; waitSeconds: number }
+  /** The author wants every click captured, with a picture of the whole screen for each, until they press Stop. */
+  | { kind: "clicks" };
 
 export interface CaptureDialogOptions {
   windows: WindowInfo[];
@@ -145,6 +149,7 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
         <legend>What do you want to capture?</legend>
         <p><label><input type="radio" name="cap-what" value="window" id="cap-what-window"> A window</label></p>
         <p><label><input type="radio" name="cap-what" value="region" id="cap-what-region"> A rectangle of the screen</label></p>
+        <p><label><input type="radio" name="cap-what" value="clicks" id="cap-what-clicks"> Click by click</label></p>
       </fieldset>
       <div id="cap-window">
         <p id="cw-help" class="help">Choose the window to capture. OpenExplainer hides while it captures, so it is never in the picture,
@@ -167,7 +172,20 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
           <span id="cr-select-help" class="help">Takes a snapshot of the screen you chose and shows it full screen. Drag out the rectangle with the mouse,
             or use the arrow keys or the four number boxes there. The picture is cut from that snapshot.</span></p>
       </div>
-      <p><label for="cap-wait">Wait before capturing, in seconds</label><br>
+      <div id="cap-clicks" hidden>
+        <p id="cc-help" class="help">OpenExplainer hides and a small Stop window shows. Then click through your steps in the other program.
+          Every click is captured as a picture of the whole screen, taken just before the program reacts, with a note of what was clicked.
+          Press Stop when you are finished. You then review the clicks, keep the ones you want and describe each picture.</p>
+        <ul class="help" aria-label="What is and is not recorded">
+          <li>Only mouse clicks are recorded. The keyboard is never watched, and what you type is never recorded.</li>
+          <li>A click on a password box is noted only as "a password box".</li>
+          <li>The name of what you clicked is kept for buttons, menus and similar controls, but not for list items, text boxes,
+            documents, tabs or links, because those names can be private.</li>
+          <li>The pictures show everything on your screen. They are only kept in the project if you keep them.</li>
+          <li>It stops by itself after 10 minutes with no click, or at 200 clicks. You keep the clicks it has captured.</li>
+        </ul>
+      </div>
+      <p id="cap-wait-box"><label for="cap-wait">Wait before capturing, in seconds</label><br>
         <input id="cap-wait" type="text" inputmode="numeric" size="4" autocomplete="off" aria-describedby="cap-wait-help"><br>
         <span id="cap-wait-help" class="help">0 captures straight away. A wait lets you get another program ready, for example to open a menu:
           OpenExplainer hides, a small Cancel window counts down, and the capture happens when it reaches 0. A menu is a window of its own,
@@ -179,6 +197,7 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
   const $ = <T extends HTMLElement>(selector: string) => dialog.querySelector<T>(selector)!;
   const radioWindow = $<HTMLInputElement>("#cap-what-window");
   const radioRegion = $<HTMLInputElement>("#cap-what-region");
+  const radioClicks = $<HTMLInputElement>("#cap-what-clicks");
   const list = $<HTMLSelectElement>("#cw-list");
   const front = $<HTMLInputElement>("#cw-front");
   const screenSelect = $<HTMLSelectElement>("#cr-screen");
@@ -232,8 +251,13 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
 
   function showMode() {
     const region = radioRegion.checked;
-    $<HTMLElement>("#cap-window").hidden = region;
+    const clicks = radioClicks.checked;
+    $<HTMLElement>("#cap-window").hidden = region || clicks;
     $<HTMLElement>("#cap-region").hidden = !region;
+    $<HTMLElement>("#cap-clicks").hidden = !clicks;
+    // Watching starts at once, so there is nothing to wait for.
+    $<HTMLElement>("#cap-wait-box").hidden = clicks;
+    $<HTMLButtonElement>("#cw-capture").textContent = clicks ? "Start capturing clicks" : "Capture";
     clearError();
   }
   const startWithWindow = windows.length > 0 || screens.length === 0;
@@ -241,6 +265,7 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
   showMode();
   radioWindow.addEventListener("change", showMode);
   radioRegion.addEventListener("change", showMode);
+  radioClicks.addEventListener("change", showMode);
 
   $<HTMLButtonElement>("#cr-whole").addEventListener("click", () => {
     const s = chosenScreen();
@@ -298,6 +323,10 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
     const pressed = (event.submitter as HTMLButtonElement | null)?.value;
     if (pressed === "cancel") return dialog.close("cancel");
     clearError();
+    if (radioClicks.checked) {
+      chosen = { kind: "clicks" };
+      return dialog.close("capture");
+    }
     if (radioWindow.checked) {
       const window = windows[list.selectedIndex];
       if (!window) return problem("Choose a window from the list first.", list.disabled ? refresh : list);
@@ -324,6 +353,105 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
 
   await open(dialog, startWithWindow ? radioWindow : radioRegion);
   return dialog.returnValue === "capture" || dialog.returnValue === "select" ? chosen : null;
+}
+
+/**
+ * The review list after a click-by-click capture: every click in order, with its picture, the click in words, a "Keep" tick (ticked) and a
+ * description box that starts EMPTY. The button beside the box fills it with the click's words, but only when the author presses it.
+ * Returns one answer per click, in the same order, or `null` if the author threw them all away (asked once more first, because the clicks
+ * only exist in memory). `notices` are plain-words facts to read first, such as why the session ended early.
+ */
+export async function reviewClicksDialog(shots: ClickShot[], notices: string[]): Promise<ReviewAnswer[] | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">Review your clicks</h2>
+      <p id="rv-intro" class="help"></p>
+      <p id="rv-notices" class="help" hidden></p>
+      <p id="rv-status" class="visually-hidden" role="status"></p>
+      <ol id="rv-list" class="click-review"></ol>
+      <p><button value="ok" id="rv-ok">Add the kept pictures</button> <button value="cancel" id="rv-cancel" formnovalidate>Throw them all away</button></p>
+    </form>`;
+  const total = shots.length;
+  dialog.querySelector("#rv-intro")!.textContent = `${total} click${total === 1 ? " was" : "s were"} captured. Keep the ones you want and describe each picture. ` +
+    "A description is read aloud by a screen reader. Leave it empty to add it later; it is never filled in for you.";
+  if (notices.length) {
+    const el = dialog.querySelector<HTMLElement>("#rv-notices")!;
+    el.hidden = false;
+    el.textContent = notices.join(" ");
+  }
+  const status = dialog.querySelector<HTMLElement>("#rv-status")!;
+  const say = (text: string) => { status.textContent = ""; setTimeout(() => (status.textContent = text), 30); };
+  const urls: string[] = [];
+  const rows = shots.map((shot, i) => {
+    const n = i + 1;
+    const words = describeShot(shot);
+    const url = URL.createObjectURL(new Blob([shot.bytes as BlobPart], { type: shot.extension === "png" ? "image/png" : "image/jpeg" }));
+    urls.push(url);
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <h3 id="rv-h-${n}"></h3>
+      <p><img id="rv-img-${n}" alt="" width="${Math.min(shot.width, 352)}"></p>
+      <p><label><input type="checkbox" id="rv-keep-${n}" checked> Keep click ${n}</label></p>
+      <p><label for="rv-desc-${n}">Description of the picture for click ${n}</label><br>
+        <input id="rv-desc-${n}" type="text" size="55" autocomplete="off" aria-describedby="rv-h-${n}">
+        <button type="button" id="rv-use-${n}" aria-label="Use the click's words as the description for click ${n}">Use the click's words</button></p>
+      <p id="rv-note-${n}" class="help" hidden></p>`;
+    li.querySelector(`#rv-h-${n}`)!.textContent = `Click ${n}: ${words}`;
+    const img = li.querySelector<HTMLImageElement>(`#rv-img-${n}`)!;
+    img.src = url;
+    img.alt = `The screen just before click ${n}`;
+    if (shot.note) {
+      const note = li.querySelector<HTMLElement>(`#rv-note-${n}`)!;
+      note.hidden = false;
+      note.textContent = `Note: ${shot.note}`;
+    }
+    const keep = li.querySelector<HTMLInputElement>(`#rv-keep-${n}`)!;
+    const description = li.querySelector<HTMLInputElement>(`#rv-desc-${n}`)!;
+    keep.addEventListener("change", () => {
+      li.classList.toggle("left-out", !keep.checked);
+      say(keep.checked ? `Click ${n} will be kept.` : `Click ${n} will be left out.`);
+    });
+    // Enter in a description moves on to the next one (and finally to the OK button). It must not press OK, which would add everything.
+    description.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      (dialog.querySelector<HTMLElement>(`#rv-desc-${n + 1}`) ?? dialog.querySelector<HTMLElement>("#rv-ok")!).focus();
+    });
+    li.querySelector<HTMLButtonElement>(`#rv-use-${n}`)!.addEventListener("click", () => {
+      description.value = words;
+      description.focus();
+      description.select();
+      say(`The description for click ${n} was filled in with the click's words. You can change it.`);
+    });
+    dialog.querySelector("#rv-list")!.append(li);
+    return { keep, description };
+  });
+
+  // The clicks only exist in memory, so throwing them away is asked about once more. Escape and the button both ask.
+  let asking = false;
+  async function askToDiscard() {
+    if (asking) return;
+    asking = true;
+    const yes = await confirmDialog("Throw away the clicks?", discardQuestion(total), "Throw them away");
+    asking = false;
+    if (yes) dialog.close("cancel");
+  }
+  dialog.addEventListener("cancel", (event) => { event.preventDefault(); void askToDiscard(); });
+  dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
+    if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") {
+      event.preventDefault();
+      void askToDiscard();
+    }
+  });
+
+  try {
+    await open(dialog, dialog.querySelector<HTMLElement>("#rv-desc-1") ?? dialog.querySelector<HTMLElement>("#rv-ok")!);
+    return dialog.returnValue === "ok" ? rows.map((r) => ({ keep: r.keep.checked, description: r.description.value })) : null;
+  } finally {
+    urls.forEach((u) => URL.revokeObjectURL(u));
+  }
 }
 
 export async function variablesDialog(variables: Record<string, string>): Promise<Record<string, string> | null> {
