@@ -12,7 +12,8 @@ while it captures, and plain-words failures) is built too, and part 6 gave the a
 a rectangle of a chosen screen, with a "bring the window to the front first" choice. **Select on the screen** (part 6,
 continued) takes a snapshot of a screen, shows it full screen, lets the author drag out a rectangle (or use the keys or four
 number boxes), and cuts the picture from that snapshot. **Wait before capturing** (part 6, continued) gives the author a few
-seconds to get another program ready, for example to open a menu. Click-by-click capture is not built. See `docs/HANDOFF.md`.
+seconds to get another program ready, for example to open a menu. **Click by click** (part 7) is built on the helper's side
+(`watch-clicks`: a picture of the whole screen and a note for every click); the app side of it is not built. See `docs/HANDOFF.md`.
 
 ## How to try it (double-click these)
 
@@ -23,7 +24,11 @@ seconds to get another program ready, for example to open a menu. Click-by-click
 - `Test Region Capture.bat`: shows your screens, you pick one and type four numbers (left, top, width, height,
   counted from that screen's top left corner), or `all` for the whole screen. Saved and opened the same way.
 
-All four build the helper first and keep their window open at the end so any error can be read. They run
+- `Test Click Capture.bat`: watches your mouse clicks for 20 seconds (press Enter to stop sooner). Every click on any program
+  is saved as a picture of the whole screen the click was on, with a note of what was clicked, in a new folder inside
+  `Test captures\`. It says plainly, before it starts, that the pictures show everything on the screen.
+
+All of these build the helper first and keep their window open at the end so any error can be read. They run
 `tools/capture-helper-test.mjs`, which talks to the helper exactly as the app will.
 
 ## The messages
@@ -49,6 +54,10 @@ or
 
 `message` is always in plain words and is safe to show the author. `code` is for the app to act on. `detail` is
 technical and is only shown if the author asks for it.
+
+One command, `watch-clicks`, keeps going after its reply. Until it ends, the helper also writes **event lines**, which have an
+`event` (and a `watch` carrying the `id` of the `watch-clicks` request) instead of an `ok`. Every line the helper writes goes out
+through one lock, so a reply and an event never mix.
 
 ### `ping`
 
@@ -147,6 +156,63 @@ no size, is refused with `bad-request` and plain words that give the picture's s
 damaged is explained too. Only 8-bit red-green-blue (and with alpha) PNGs, which is what the helper makes, can be cut.
 It is how Select on the screen gets the author's rectangle out of the snapshot.
 
+### `watch-clicks`
+
+Request: `{"id": 7, "command": "watch-clicks", "out_dir": "C:\\...\\pictures", "idle_seconds": 600, "max_clicks": 200,
+"exclude_pids": []}`. `out_dir` must be the full path of a folder that already exists. `idle_seconds` (1 to 3600, default 600)
+and `max_clicks` (1 to 1000, default 200, a safety limit so a mistake cannot fill the disk) are optional. It answers at once with
+`{"watching": true, "idle_seconds", "max_clicks", "double_click_ms"}`, or an error (`bad-request` for a folder that is not there
+or a number out of range, `busy` if a session is already running, `capture-failed` if Windows would not let the helper watch the
+mouse). Only one session runs at a time. After the answer, **each click is an event line**:
+
+```json
+{"event": "click", "watch": 7, "n": 3, "path": "C:\\...\\click-1792454313196-003.png", "width": 1920, "height": 1080,
+ "screen": {"x": 0, "y": 0, "width": 1920, "height": 1080},
+ "click": {"x": 196, "y": 453, "button": "left", "target": {"role": "button", "name": "Save", "accessKey": "Alt+s",
+           "bounds": {"x": 121, "y": 431, "width": 150, "height": 44}}},
+ "held_ms": 40, "note": "optional plain words"}
+```
+
+- **The picture** is the whole screen the click was on (a `.png` in `out_dir`, written whole or not at all), as it looked
+  just before the program under the pointer reacted. The mouse pointer is not in it.
+- **`click`** is exactly a click note of the project format (`ClickInfo`, see `docs/format-spec.md`): `x` and `y` in picture
+  pixels, `button` (`left`, `right`, `middle`), `double` (only when true) and `target`. The app can keep it as it is.
+- **`n`** counts the clicks of this session from 1. **`held_ms`** is how long the click was held back while the screen was copied.
+- **`note`** is present when something is worth saying: Windows did not say what was clicked, or did not answer in time (a
+  program that has stopped responding), or the click was held back longer than 250 ms.
+- A second click of the same button, soon enough and close enough (Windows' own double-click settings), is not a new step: the
+  first click's event says `"double": true` instead. For that, the first click's event is sent up to about half a second late.
+- Clicks in OpenExplainer's own windows (the helper's parent program) and in programs named in `exclude_pids` are ignored, so
+  pressing the Stop button is not a step. A click that cannot be captured is counted, and a `{"event": "skipped", "watch", "count",
+  "message"}` line says so, so a click is never lost silently.
+- The session ends with `{"event": "ended", "watch": 7, "ended": "stopped" | "idle" | "limit" | "hook-lost", "clicks", "skipped",
+  "slowest_hold_ms"}`: `stopped` after `stop-watching`, `idle` after `idle_seconds` with no recorded click, `limit` at `max_clicks`,
+  `hook-lost` if Windows took the mouse watcher away. The last picture is saved before `ended` is sent.
+
+**What is said about the clicked item (the privacy rules).** Windows UI Automation is asked what is under the pointer. A
+**password box** is reported as `{"password": true}` and nothing else is asked about it. For a **button, check box, radio button,
+combo box, menu, menu bar, menu item, slider, spin box or split button** the `name`, `acceleratorKey`, `accessKey` and
+`description` are given. For **everything else** (list items, text boxes, documents, windows, tabs, links, panes) only the `role`
+(the kind of item) and the `bounds` (its outline, cut to the screen, in picture pixels) are given, because such names can be private:
+an email subject, a file name, what is in a box, a browser tab's page title or a link's text. What is typed in a box is never
+read, and the keyboard is never watched. The list is one function, `details_allowed`, in `capture-helper/src/clicks.rs`. The
+project's own code checks the same rules again when a project is opened and saved (`src/project/clicks.ts`).
+
+**How it works, and its limits.** A low-level mouse hook (`WH_MOUSE_LL`) sees every click before the program under the pointer. For
+each button-down it holds the click back while it copies the screen (about 35 to 45 ms for a 1920 by 1080 screen on the test PC;
+a bigger screen takes longer), so the picture is from before the program reacted. At the same moment a second thread asks UI
+Automation what is there (it gives up on a stuck program after 1.5 seconds, and the event waits at most 2.5 seconds for the answer),
+and a third saves the PNG and writes the event. Windows removes a hook that holds a click for too long (usually about 300 ms), so the
+hook does nothing slow; if a copy is ever slower than 250 ms the event says so. At most six pictures wait to be saved; a click
+beyond that is skipped and counted. A program running as administrator may not be seen by a helper that is not, and some security
+programs warn about any program that watches the mouse. Neither was tried.
+
+### `stop-watching`
+
+Request: `{"command": "stop-watching"}`. Answers `{"stopping": true}` if a session is running (`false` if not, which is fine). The
+`ended` event follows as soon as the last picture is saved (0.1 seconds in the tests). When the app closes the pipe the helper
+quits and Windows takes the hook away with it.
+
 ### Error codes
 
 | Code | When |
@@ -164,6 +230,7 @@ It is how Select on the screen gets the author's rectangle out of the snapshot.
 | `capture-failed` | Windows would not give the pixels. |
 | `write-failed` | The PNG could not be saved. The message says where and why. |
 | `helper-crashed` | A bug inside the helper while handling one request. The helper keeps running. |
+| `busy` | A click-by-click session is already running. |
 | `not-supported` | A non-Windows build. |
 
 ## What the app does (Step 3b, part 5)
@@ -360,6 +427,26 @@ it, and the test now makes the menu appear during the wait. The earlier checks (
 window, rectangles, whole screen, mistakes, labels, bring to front, drag, keyboard, numbers, close, fail-safe, handles) were run
 again and passed. The shell has 16 tests (3 new for the wait: it runs its full length, Cancel ends it at once, it only happens
 when the app is hidden and is capped at 60 seconds), and `src/capture/wait.ts` has 5.
+
+Click by click (part 7b) was tried with the real helper and real mouse clicks (sent by a test tool, so the pointer moved by itself)
+on made-up windows with a real button, check box, password box, text box holding private text, list box and pop-up menu, on both
+screens. Eight clicks gave eight pictures of the whole 1920 by 1080 screen, each held back 33 to 44 ms. The picture of a click on a
+button that turns a block purple the moment the mouse goes down showed the block still red, and the next picture showed it purple:
+the picture really is from before the program reacted. The notes said: button "Save" with its access key and outline, check box
+"Remember me", menu item "Open file", and a password box as only `{"password": true}`. The text box said only "text box" and the list
+item only "list item", and neither the password, its label, the text in the box nor the list item's text appears anywhere in what the
+helper said (searched in every line). A double-click was one step marked double. A right-click was marked right. A click in a window of
+a program named in `exclude_pids` (standing in for OpenExplainer's Stop button) was ignored. A click on the main screen gave a picture
+of the main screen with the click and the block in the right place. A click on a program that had stopped responding was not held up
+(44 ms) and gave a note that Windows did not answer. Eight quick clicks 120 ms apart were all captured (none skipped, slowest 42 ms).
+The session ended by itself after the idle time (2.1 s for a 2 second setting), at the click limit (2 pictures), and on `stop-watching`
+(0.1 s). A second session was refused, a missing folder was refused in plain words, and quitting the helper closed everything. The
+helper has 60 tests, 13 of them new (the privacy rules, double-click rule, outline cutting, settings and event shape), and
+`Test Click Capture.bat` was tried with two real clicks.
+
+Not tried (click by click): a program running as administrator, a display scaling above 100 percent, a screen bigger than 1920 by 1080
+(the hold-back grows with the size of the copy), a session of many minutes, a security program's reaction, Windows on ARM, a person
+doing it by hand with the bat file, and the app side (part 7c).
 
 Not tried: Select on the screen at a display scaling above 100 percent (the page is written to divide by `devicePixelRatio`),
 a screen reader on the selection page, and keyboard-only use start to finish by a person; a screen reader on the Capture dialog, the description prompt and the Cancel window; a release build of the

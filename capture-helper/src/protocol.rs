@@ -9,7 +9,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The commands the helper knows, in the order `docs/capture-helper.md` lists them.
-pub const COMMANDS: [&str; 6] = ["ping", "list-windows", "list-screens", "capture-window", "capture-region", "crop-picture"];
+pub const COMMANDS: [&str; 8] = [
+    "ping",
+    "list-windows",
+    "list-screens",
+    "capture-window",
+    "capture-region",
+    "crop-picture",
+    "watch-clicks",
+    "stop-watching",
+];
 
 /// Error codes. The app can switch on these; `message` is always plain words for the author.
 pub mod code {
@@ -28,6 +37,7 @@ pub mod code {
     pub const CAPTURE_FAILED: &str = "capture-failed";
     pub const WRITE_FAILED: &str = "write-failed";
     pub const HELPER_CRASHED: &str = "helper-crashed";
+    pub const BUSY: &str = "busy";
 }
 
 /// One request line: `{"id": 1, "command": "list-windows"}`. The `id` is handed back unchanged.
@@ -80,6 +90,21 @@ pub enum Request {
         height: i32,
         out: String,
     },
+    /// Starts click-by-click capture. Answers at once with `{"watching": true, ...}`. After that, each click is a line of its own:
+    /// `{"event": "click", "watch": <this id>, ...}` with a picture of the whole screen the click was on (a file in `out_dir`) and
+    /// a click note. The session ends with `{"event": "ended", ...}` when the app sends `stop-watching`, after `idle_seconds` with no
+    /// click, or at `max_clicks`. Clicks in the app's own windows are not recorded.
+    WatchClicks {
+        out_dir: String,
+        #[serde(default)]
+        idle_seconds: Option<u64>,
+        #[serde(default)]
+        max_clicks: Option<u32>,
+        #[serde(default)]
+        exclude_pids: Vec<u32>,
+    },
+    /// Ends click-by-click capture. The `ended` event follows once the last picture is saved.
+    StopWatching,
 }
 
 /// What the helper says about one screen (monitor).
@@ -157,6 +182,14 @@ impl Reply {
     pub fn failure(id: Value, error: CaptureError) -> Self {
         Reply { id, ok: false, result: None, error: Some(error) }
     }
+}
+
+/// Writes one line to stdout in one piece, so a reply and a click event from another thread never mix. False if nobody is listening.
+pub fn send_line(text: &str) -> bool {
+    use std::io::Write;
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+    writeln!(out, "{text}").and_then(|_| out.flush()).is_ok()
 }
 
 /// Reads one request line. A line that cannot be read becomes a ready-made failure reply, and the
@@ -240,6 +273,16 @@ mod tests {
             e.request,
             Request::CropPicture { source: "C:\\a.png".to_string(), x: 10, y: 20, width: 30, height: 40, out: "C:\\b.png".to_string() }
         );
+    }
+
+    #[test]
+    fn watch_clicks_reads_the_folder_and_the_optional_limits() {
+        let e = parse_line(r#"{"id":9,"command":"watch-clicks","out_dir":"C:/pics"}"#).unwrap();
+        assert_eq!(e.request, Request::WatchClicks { out_dir: "C:/pics".to_string(), idle_seconds: None, max_clicks: None, exclude_pids: vec![] });
+        let e = parse_line(r#"{"id":9,"command":"watch-clicks","out_dir":"C:/pics","idle_seconds":600,"max_clicks":50,"exclude_pids":[4]}"#).unwrap();
+        assert_eq!(e.request, Request::WatchClicks { out_dir: "C:/pics".to_string(), idle_seconds: Some(600), max_clicks: Some(50), exclude_pids: vec![4] });
+        assert!(parse_line(r#"{"id":9,"command":"watch-clicks"}"#).is_err(), "it must say where the pictures go");
+        assert_eq!(parse_line(r#"{"id":10,"command":"stop-watching"}"#).unwrap().request, Request::StopWatching);
     }
 
     #[test]

@@ -34,6 +34,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GA_ROOTOWNER, GWL_EXSTYLE, GW_OWNER, WINDOWPLACEMENT, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
 
+// Click-by-click capture lives in its own file, but is a child of this one so it can use the screen-copy functions here.
+#[path = "watch_windows.rs"]
+mod watch;
+pub use watch::{start_watching, Watching};
+
 /// Makes Windows give real screen pixels instead of scaled ones, whatever the display scaling is.
 pub fn prepare() {
     // It is fine if this fails: it only means something already set it.

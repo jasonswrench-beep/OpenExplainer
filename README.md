@@ -8,7 +8,7 @@ add numbered markers and callouts, and publish a printed-quality book or short s
 
 ## Status
 
-Early. You can create a project, build a chapter and topic tree with numbering and status, and save and open it as one file, such as Test1.openexplainer. You can import PNG and JPEG pictures into a topic, each with a description. Screen capture is built as a separate small program, the capture helper: it can list your open windows and capture one, list your screens, and capture a rectangle of the screen. In the app, **Capture into the selected item** (in Pictures) uses it to capture a window or a rectangle of a screen, with a 20-second limit and a Cancel window (see `docs/capture-helper.md`). A rectangle can be typed as four numbers or dragged out on a snapshot of the screen (**Select on the screen**). A **wait before capturing** (0 to 60 seconds) lets you open a menu in another program first. Page editing and export are not built yet.
+Early. You can create a project, build a chapter and topic tree with numbering and status, and save and open it as one file, such as Test1.openexplainer. You can import PNG and JPEG pictures into a topic, each with a description. Screen capture is built as a separate small program, the capture helper: it can list your open windows and capture one, list your screens, and capture a rectangle of the screen. In the app, **Capture into the selected item** (in Pictures) uses it to capture a window or a rectangle of a screen, with a 20-second limit and a Cancel window (see `docs/capture-helper.md`). A rectangle can be typed as four numbers or dragged out on a snapshot of the screen (**Select on the screen**). A **wait before capturing** (0 to 60 seconds) lets you open a menu in another program first. The helper can also capture click by click (a picture of the whole screen and a note of what was clicked, for every click); the app does not use that yet. Page editing and export are not built yet.
 
 ## What it will do
 
@@ -28,7 +28,7 @@ You need Node.js and Rust installed. The script tells you if either is missing.
 
 To check dependency licences, double-click **Check Licences.bat**.
 
-To try the capture helper, double-click **Test Helper.bat**, **Test Window List.bat**, **Test Window Capture.bat** or **Test Region Capture.bat**.
+To try the capture helper, double-click **Test Helper.bat**, **Test Window List.bat**, **Test Window Capture.bat**, **Test Region Capture.bat** or **Test Click Capture.bat**.
 
 ## Licence
 

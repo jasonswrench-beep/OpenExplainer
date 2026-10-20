@@ -6,6 +6,7 @@
 //! being captured stops responding, only this helper is stuck, and the app can stop it and carry on.
 //! The messages are written up in `docs/capture-helper.md`.
 
+mod clicks;
 mod handler;
 mod pixels;
 mod png_out;
@@ -18,14 +19,12 @@ mod platform;
 #[path = "other_os.rs"]
 mod platform;
 
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead};
 
 fn main() {
     platform::prepare();
     let stdin = io::stdin();
     let mut input = stdin.lock();
-    let stdout = io::stdout();
-    let mut output = stdout.lock();
     let mut buffer = Vec::new();
     loop {
         buffer.clear();
@@ -46,7 +45,8 @@ fn main() {
         let text = serde_json::to_string(&reply).unwrap_or_else(|_| {
             r#"{"id":null,"ok":false,"error":{"code":"helper-crashed","message":"The helper could not write its reply."}}"#.to_string()
         });
-        if writeln!(output, "{text}").and_then(|_| output.flush()).is_err() {
+        // Click events come from other threads too, so every line goes out through one lock.
+        if !protocol::send_line(&text) {
             break; // nobody is listening any more
         }
     }

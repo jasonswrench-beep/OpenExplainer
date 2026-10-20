@@ -28,3 +28,18 @@ pub fn capture_window(_window: i64, _out: &Path, _exclude_pids: &[u32], _activat
 pub fn capture_region(_region: Rect, _out: &Path, _exclude_pids: &[u32]) -> Result<Value, CaptureError> {
     Err(not_supported())
 }
+
+/// Click-by-click capture is Windows only.
+pub struct Watching;
+
+impl Watching {
+    pub fn request_stop(&self) {}
+
+    pub fn is_done(&self) -> bool {
+        true
+    }
+}
+
+pub fn start_watching(_id: Value, _settings: crate::clicks::Settings, _exclude_pids: Vec<u32>) -> Result<(Watching, Value), CaptureError> {
+    Err(not_supported())
+}

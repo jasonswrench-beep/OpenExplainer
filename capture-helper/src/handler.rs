@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Turns one request line into one reply.
 
+use crate::clicks;
 use crate::pixels;
 use crate::platform;
 use crate::png_out;
 use crate::protocol::{code, parse_line, CaptureError, Reply, Request};
 use serde_json::{json, Value};
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::Mutex;
+
+/// The click-by-click session in progress, if any. Only one at a time.
+static WATCH: Mutex<Option<platform::Watching>> = Mutex::new(None);
 
 pub fn handle_line(line: &str) -> Reply {
     let envelope = match parse_line(line) {
@@ -15,7 +20,7 @@ pub fn handle_line(line: &str) -> Reply {
     };
     let id = envelope.id.clone();
     // A bug in one request must not take the whole helper down without a word.
-    match catch_unwind(AssertUnwindSafe(|| run(envelope.request))) {
+    match catch_unwind(AssertUnwindSafe(|| run(envelope.request, &id))) {
         Ok(Ok(result)) => Reply::success(id, result),
         Ok(Err(error)) => Reply::failure(id, error),
         Err(_) => Reply::failure(
@@ -25,7 +30,7 @@ pub fn handle_line(line: &str) -> Reply {
     }
 }
 
-fn run(request: Request) -> Result<Value, CaptureError> {
+fn run(request: Request, id: &Value) -> Result<Value, CaptureError> {
     match request {
         Request::Ping => Ok(json!({
             "helper": "openexplainer-capture",
@@ -67,6 +72,26 @@ fn run(request: Request) -> Result<Value, CaptureError> {
             let region = pixels::check_region(x, y, width, height)?;
             platform::capture_region(region, &path, &exclude_pids)
         }
+        Request::WatchClicks { out_dir, idle_seconds, max_clicks, exclude_pids } => {
+            let settings = clicks::check_settings(&out_dir, idle_seconds, max_clicks)?;
+            let mut session = WATCH.lock().unwrap_or_else(|e| e.into_inner());
+            if session.as_ref().is_some_and(|s| !s.is_done()) {
+                return Err(CaptureError::new(code::BUSY, "The helper is already watching clicks. Stop that first."));
+            }
+            let (started, info) = platform::start_watching(id.clone(), settings, exclude_pids)?;
+            *session = Some(started);
+            Ok(info)
+        }
+        Request::StopWatching => {
+            let session = WATCH.lock().unwrap_or_else(|e| e.into_inner());
+            match session.as_ref() {
+                Some(s) if !s.is_done() => {
+                    s.request_stop();
+                    Ok(json!({ "stopping": true }))
+                }
+                _ => Ok(json!({ "stopping": false })),
+            }
+        }
     }
 }
 
@@ -82,6 +107,16 @@ mod tests {
         assert_eq!(result["helper"], "openexplainer-capture");
         assert_eq!(result["protocol"], 1);
         assert!(result["commands"].as_array().unwrap().iter().any(|c| c == "capture-window"));
+    }
+
+    #[test]
+    fn watching_clicks_needs_a_real_folder_and_stopping_when_nothing_runs_is_fine() {
+        let bad = handle_line(r#"{"id": 2, "command": "watch-clicks", "out_dir": "C:/no/such/folder"}"#);
+        assert!(!bad.ok);
+        assert_eq!(bad.error.unwrap().code, code::BAD_REQUEST);
+        let stop = handle_line(r#"{"id": 3, "command": "stop-watching"}"#);
+        assert!(stop.ok);
+        assert_eq!(stop.result.unwrap()["stopping"], false);
     }
 
     #[test]

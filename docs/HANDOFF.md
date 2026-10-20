@@ -119,12 +119,21 @@ Still to build, in this order, testing each on this PC (6 left two things for Ja
       (such as text typed in a box) is dropped, both when a project is opened and when it is saved (`src/project/clicks.ts`). Migration 2 to 3 adds
       nothing. `describeClick` says a click in plain words. Tests in `tests/clicks.test.ts`; `docs/format-spec.md` updated. Counts: helper 47, app
       shell 16, TypeScript 83 (81 pass; the 2 old `python3` ones fail on this PC).
-   b. The helper watches clicks (only while asked, never keystrokes) and describes the item under the pointer. NOT built.
-   c. The app side: a third choice in the Capture dialog, "Click by click", with an always-visible Stop window. NOT built.
+   b. **The helper watches clicks (DONE 2026-10-19)**: `watch-clicks` and `stop-watching` (see `docs/capture-helper.md`). Jason's answers: a picture of
+      the WHOLE screen the click was on, taken just before the program reacts (the hook holds the click back about 40 ms to copy the screen),
+      a session ends by itself after 10 idle minutes (default; plus a 200 click safety limit I added), and names are kept only for buttons, menus
+      and similar controls (not list items). My judgment on top: tabs and links also have their names withheld (page titles, link text); one
+      list, `details_allowed` in `capture-helper/src/clicks.rs`, to change that. A password box is only `{password: true}`. Clicks in the app's own
+      windows (the Stop button) are ignored. A double-click is one step. Events are JSON lines with an `event` and a `watch` field. Files:
+      `capture-helper/src/clicks.rs` (rules, 13 tests), `watch_windows.rs` (hook, UI Automation, saving), `Test Click Capture.bat`. Counts: helper 60,
+      app shell 16, TypeScript 83 (81 pass).
+   c. The app side: a third choice in the Capture dialog, "Click by click", with an always-visible Stop window (it must be kept out of screen
+      copies, like the Cancel window, and the app must keep the helper's events coming while it hides itself). The shell needs a streaming version
+      of `run_helper` (the current one is one request, one reply). NOT built.
    d. Showing click notes in the picture list, then the highlight. NOT built.
-   Ask Jason before b: is each picture the whole screen or just the window clicked in; when is the picture taken relative to the click (before the
-   program reacts is best, but the copy takes about 60 to 140 ms); does a session stop by itself after some idle minutes; what is shown for a
-   private item other than a password box (a list item's name can be an email subject). All of these are open.
+   Jason answered the four questions for b on 2026-10-19 (see b). Still to ask before c: what the author sees for each click picture (a review
+   list to describe each picture, or one at a time), whether the Stop window also shows the click count, and where the steps go (one topic, one
+   picture per step).
 
 Reference (read only, for ideas, not for copying wholesale): OpenStage's Rust capture crates under `D:\Documents\OpenStage\capture\crates\` on this
 PC (the first version of this note said `C:\Users\Jason\OpenStage`, which does not exist here) (`openstage-capture-windows`, `-protocol`, `-project`,
@@ -185,6 +194,17 @@ Lessons from part 6:
   (hang after 4 seconds, wait about 4.8 seconds, then click), or the helper takes its quick route and the Cancel window is gone before a test can find it.
 - A test that starts its own helper to look at windows will itself be counted as a "capture helper still running": check for leftover processes by who
   started them (parent process id), not by name alone.
+Lessons from click by click (part 7b):
+- A low-level mouse hook only works while its thread keeps taking messages, and Windows removes a hook that holds a click too long (about 300 ms),
+  so the hook thread only copies the screen; Windows UI Automation runs on its own thread (it can hang on a stuck program) and PNG saving on a third.
+- The helper's stdout is now shared by the main thread and the click threads, so every line goes through `protocol::send_line` (one lock). Do not
+  hold `stdout().lock()` for a whole loop again.
+- To test real clicks, inject them with `mouse_event` from a script (they pass through the hook). Make the made-up window react on MouseDown, then
+  a picture that still shows the old state proves the picture was taken before the program reacted. Test windows go on the second screen, topmost, so
+  a stray click can never land on Jason's own programs. The pointer moves by itself during these tests.
+- C# test windows: `AccessibleDescription` does not come through UI Automation's help text, so `description` was never seen in a test.
+- `csc.exe` options from Git Bash need a dash (`-nologo`, `-out:`), not a slash, or bash turns them into paths.
+
 Lessons from the wait:
 - The Capture dialog remembers the last wait for the rest of the app session. A test that does not set the box itself inherits the old number: after
   my wait tests the frozen-program and time-limit checks "failed" (a 5-second wait lets a frozen window become a stand-in "Ghost" window, which

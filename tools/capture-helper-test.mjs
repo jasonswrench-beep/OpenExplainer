@@ -5,12 +5,13 @@
 //   node tools/capture-helper-test.mjs capture [--title text] [--process name.exe] [--number N] [--out folder] [--no-open]
 //   node tools/capture-helper-test.mjs screens
 //   node tools/capture-helper-test.mjs region [--screen N] [--rect "left top width height"] [--whole] [--out folder] [--no-open]
+//   node tools/capture-helper-test.mjs clicks [--seconds N] [--out folder] [--no-open]
 //
 // It talks to the helper exactly as OpenExplainer will: one JSON line in, one JSON line out, with a
 // timeout (20 seconds unless --timeout says otherwise) after which the helper is stopped.
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,7 +31,7 @@ const timeoutSeconds = Number(options.timeout ?? 20);
 
 function say(text = "") { console.log(text); }
 
-function startHelper() {
+function startHelper(onEvent) {
   if (!existsSync(exe)) {
     say("The capture helper has not been built yet.");
     say("Double-click \"Test Helper.bat\" first. It builds the helper and tries it.");
@@ -44,6 +45,8 @@ function startHelper() {
   createInterface({ input: child.stdout }).on("line", (line) => {
     let reply;
     try { reply = JSON.parse(line); } catch { say(`The helper said something that is not a reply: ${line}`); return; }
+    // Click-by-click capture sends lines of its own, with an "event" and no reply id.
+    if (reply.event) { if (onEvent) onEvent(reply); return; }
     const w = waiting.get(reply.id);
     if (!w) return;
     waiting.delete(reply.id);
@@ -258,14 +261,75 @@ async function runRegion(helper) {
   }
 }
 
-const modes = { ping: runPing, list: runList, capture: runCapture, screens: runScreens, region: runRegion };
+// ---- Click by click -----------------------------------------------------------------------------------------
+
+function sayClick(e) {
+  const c = e.click;
+  const how = c.double ? "Double-click" : c.button === "left" ? "Click" : c.button === "right" ? "Right-click" : "Middle-click";
+  const t = c.target;
+  let what;
+  if (t?.password) what = "a password box (nothing else about it is kept)";
+  else if (t) {
+    const keys = [t.acceleratorKey ? `shortcut ${t.acceleratorKey}` : "", t.accessKey ? `access key ${t.accessKey}` : ""].filter(Boolean).join(", ");
+    what = `${t.role ? `the ${t.role}` : "an item"}${t.name ? ` "${t.name}"` : ""}${keys ? ` (${keys})` : ""}`;
+  } else what = "something Windows did not describe";
+  say(`${String(e.n).padStart(3)}. ${how} on ${what}`);
+  say(`       at ${c.x} across, ${c.y} down in a ${e.width} x ${e.height} picture of the screen; the click was held back ${e.held_ms} ms to take it`);
+  say(`       ${e.path}`);
+  if (e.note) say(`       Note: ${e.note}`);
+}
+
+async function runClicks(helper, finished) {
+  const seconds = Math.min(120, Math.max(5, Number(options.seconds ?? 20)));
+  const folder = resolve(options.out ?? join(root, "Test captures"), `clicks-${stamp()}`);
+  mkdirSync(folder, { recursive: true });
+  say("For the next " + seconds + " seconds the helper will watch your mouse clicks. It never watches the keyboard.");
+  say("Each click, on any program, is saved as a picture of the WHOLE screen the click was on, taken just before the program reacts,");
+  say("with a note of what was clicked. A click on a password box is reported only as \"a password box\". Pictures go in:");
+  say("  " + folder);
+  say("They show everything on your screen, so delete them if they show anything private.");
+  say();
+  say("Click on a few things in other programs (try opening a menu and clicking an item). Press Enter here to stop early.");
+  say();
+  const started = await helper.ask("watch-clicks", { out_dir: folder, idle_seconds: seconds + 10 });
+  if (!started.ok) { say(`Click capture could not start: ${started.error.message}`); process.exitCode = 1; return; }
+  say(`Watching now (it ends by itself after ${seconds} seconds)...`);
+  say();
+  startInput();
+  let stopNow;
+  const early = new Promise((done) => { stopNow = done; });
+  const timer = setTimeout(() => stopNow("time"), seconds * 1000);
+  waitingForLine.push(() => stopNow("enter"));
+  await Promise.race([early, finished.ended]);
+  clearTimeout(timer);
+  const stop = await helper.ask("stop-watching");
+  if (!stop.ok) say(`The helper would not stop cleanly: ${stop.error.message}`);
+  const ended = await Promise.race([finished.ended, new Promise((r) => setTimeout(() => r(null), 8000))]);
+  say();
+  if (!ended) { say("The helper did not say that it had finished within 8 seconds, so it was stopped."); process.exitCode = 1; return; }
+  const count = ended.clicks;
+  say(`Done. ${count} click${count === 1 ? "" : "s"} captured${ended.skipped ? `, ${ended.skipped} skipped` : ""}. The slowest click was held back ${ended.slowest_hold_ms} ms.`);
+  say(`It ended because: ${{ stopped: "it was stopped, by you or when the time was up", idle: "there was no click for a while", limit: "it reached the most clicks it allows", "hook-lost": "Windows took the mouse watcher away" }[ended.ended] ?? ended.ended}.`);
+  if (count === 0) { say("Nothing was captured, so the folder is empty."); process.exitCode = 3; return; }
+  say(`The pictures are in: ${folder}  (${readdirSync(folder).length} files)`);
+  if (!options.noOpen) spawn("explorer", [folder], { detached: true, stdio: "ignore" }).unref();
+}
+
+const modes = { ping: runPing, list: runList, capture: runCapture, screens: runScreens, region: runRegion, clicks: runClicks };
 if (!modes[mode]) {
-  say("Usage: node tools/capture-helper-test.mjs ping | list | capture | screens | region");
+  say("Usage: node tools/capture-helper-test.mjs ping | list | capture | screens | region | clicks");
   process.exit(2);
 }
-const helper = startHelper();
+// Click events arrive on their own, so they are shown as they come and the end of the session is noted.
+let sessionEnded;
+const finished = { ended: new Promise((done) => { sessionEnded = done; }) };
+const helper = startHelper((e) => {
+  if (e.event === "click") sayClick(e);
+  else if (e.event === "skipped") say(`       (A click was skipped: ${e.message})`);
+  else if (e.event === "ended") sessionEnded(e);
+});
 try {
-  await modes[mode](helper);
+  await modes[mode](helper, finished);
 } catch (e) {
   say(e.message);
   process.exitCode = 1;
