@@ -6,7 +6,7 @@ Read this before touching anything that reads or writes a project. Change it in 
 
 A saved project is ONE file named after the project, such as `Test1.openexplainer`. It is a standard zip package
 (stored without compression, so pictures are not compressed twice), written and read by `src/project/zip.ts` and
-`src/project/package.ts`. Any zip program can open it for inspection. Inside it, format version 5 holds two files, a page file for each topic that has a page, and a picture folder:
+`src/project/package.ts`. Any zip program can open it for inspection. Inside it, format version 6 holds two files, a page file for each topic that has a page, and a picture folder:
 
 - `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others) and `highlight` (the look of the click circle, see "The click highlight").
 - `structure.json`: `version` and `tree`, the chapters and topics.
@@ -25,7 +25,7 @@ All of these carry the same `version`. If they differ, the project is refused, b
 
 ## Pictures
 
-Each node holds a list of pictures: `{ id, file, width, height, altText, source }`, and a picture may also have `click` (a click-by-click capture, see "Click notes") and `highlight` (its own choices about the click circle, see "The click highlight").
+Each node holds a list of pictures: `{ id, file, width, height, altText, source }`, and a picture may also have `click` (a click-by-click capture, see "Click notes") `highlight` (its own choices about the click circle, see "The click highlight") and `callouts` (see "Lettered callouts").
 
 - `file` is the path inside the package. `width` and `height` are in pixels.
 - `altText` says what the picture shows. It is always asked for and never filled in silently. Empty means it still needs one, and the app shows it as "Needs a description".
@@ -89,6 +89,28 @@ Rules enforced in code (`src/project/page.ts`), when a project is opened and whe
   rather than being lost. A page file for a topic that is not in the project is ignored. A topic whose id is not a safe file name (letters, digits,
   `_` and `-`) has its page left out.
 
+## Lettered callouts
+
+A picture can have **callouts**: a small lettered marker with a leader line to the part of the picture it names, and an entry under the picture with its
+letter, its name and a sentence about it. Callouts belong to the picture (not to a page, so the same picture shows the same callouts wherever it is used),
+are stored beside it and are never burned into it. `callouts` is a list on the picture, in order. Each is `{ id, name, description, target, marker }`:
+
+- `name`: what it names, such as "Save". Empty means it still needs a name. `description`: a sentence about it. Empty means it still needs one. Each is
+  at most 300 letters, with white space squeezed.
+- `target`: `{ x, y, width, height }`, the part of the picture it names, in picture pixels from the top left corner. It is cut to the picture.
+- `marker`: `{ x, y }`, where the middle of the lettered marker sits, in picture pixels, kept on the picture.
+- **The letters are never stored.** They are A, B, C ... Z, AA, AB ... by position in the list, so moving or deleting a callout re-letters the rest. Letters, not
+  numbers, because numbers belong to the steps of a procedure.
+
+A click picture gets its first callout automatically from the click note: the clicked item's `bounds` become the `target`, its `name` (when the name is
+kept, see "Click notes") becomes the `name`, the sentence starts empty, and the marker is placed just outside the item, above and to the left when there is
+room, and not on another marker (`placeMarker` in `src/project/callouts.ts`). A password box, a click with no outline and an outline that is off the picture
+make none. The marker is a fixed share of the picture's width (a little over 1 percent, never under 10 pixels), so it looks the same at any picture size.
+The leader line runs from the edge of the marker to the nearest part of the item, and there is none when the marker is on the item.
+
+Cleaned when a project is opened and saved: a callout with no usable outline or marker, or whose outline is wholly off the picture, is dropped; a repeated id
+gets a new one; and a picture with none has no `callouts`.
+
 ## The click highlight
 
 A transparent circle can be drawn on the spot of a click, so the reader sees where to click. It is never burned into a picture: it is drawn from the
@@ -125,11 +147,12 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 6: a picture can have lettered callouts. A version 5 project upgrades with none. A copy of OpenExplainer that only knows version 5 refuses a version 6 project, so it can never open one and save it without the callouts.
 - Version 5: a topic can have a page, saved in its own file under `topics/`. A version 4 project upgrades with no pages. A copy of OpenExplainer that only knows version 4 refuses a version 5 project, so it can never open one and save it without the pages.
 - Version 4: the project keeps the look of the click circle (`highlight`), and a picture can have its own choices about it. A version 3 project upgrades with the starting look. A copy of OpenExplainer that only knows version 3 refuses a version 4 project, so it can never open one and save it without the circle settings.
 - Version 3: a picture can hold a click note. A version 2 project upgrades with nothing added. A copy of OpenExplainer that only knows version 2 refuses a version 3 project, so it can never open one and save it without the click notes.
 
 ## Coming in later steps
 
-Lettered callouts on pictures and picture views (full window, a cropped region, zoomed on the click), comments, annotation shapes stored beside
+Picture views (full window, a cropped region, zoomed on the click), comments, annotation shapes stored beside
 each picture (never burned in), styles, and export settings.

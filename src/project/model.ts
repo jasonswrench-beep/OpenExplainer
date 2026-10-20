@@ -4,10 +4,11 @@
 import { cleanPictureHighlight, defaultHighlight, type HighlightSettings, type PictureHighlight } from "./highlight.ts";
 import { newId } from "./ids.ts";
 import { emptyPage, forgetPicture, type Page } from "./page.ts";
+import type { Callout } from "./callouts.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 5;
+export const CURRENT_VERSION = 6;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -68,6 +69,8 @@ export interface Picture {
   click?: ClickInfo;
   /** This picture's own choices about its click circle (format version 4). Without it the picture follows the project's setting. */
   highlight?: PictureHighlight;
+  /** Lettered callouts on this picture, in order (format version 6). The letters are worked out from the order, never stored. */
+  callouts?: Callout[];
 }
 
 export interface TreeNode {

@@ -3,6 +3,7 @@
 import { CURRENT_VERSION, type Project, type TreeNode } from "./model.ts";
 import { cleanClicks } from "./clicks.ts";
 import { cleanHighlight, cleanTreeHighlights, defaultHighlight } from "./highlight.ts";
+import { cleanTreeCallouts } from "./callouts.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -27,6 +28,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   3: (raw) => ({ ...raw, version: 4, highlight: defaultHighlight() }),
   // Version 4 to 5: a topic can have a page, saved in its own file. An older project simply has no pages yet.
   4: (raw) => ({ ...raw, version: 5 }),
+  // Version 5 to 6: a picture can have lettered callouts. An older project has none.
+  5: (raw) => ({ ...raw, version: 6 }),
 };
 
 export function migrate(input: unknown): Project {
@@ -43,7 +46,7 @@ export function migrate(input: unknown): Project {
   }
   // A click note and the circle's settings are checked every time a project is opened, whatever version it was saved as.
   const project = raw as unknown as Project;
-  if (Array.isArray(project.tree)) project.tree = cleanTreeHighlights(cleanClicks(project.tree as TreeNode[]));
+  if (Array.isArray(project.tree)) project.tree = cleanTreeCallouts(cleanTreeHighlights(cleanClicks(project.tree as TreeNode[])));
   project.highlight = cleanHighlight(project.highlight);
   return project;
 }

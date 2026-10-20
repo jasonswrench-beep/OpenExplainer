@@ -308,7 +308,12 @@ Parts, in order:
    `src/style.css`, written up in `docs/editor.md`. Heading, paragraph, picture, numbered procedure and callout box blocks, each with Move up, Move down and
    Delete, marks buttons, a preview of the marks, announcements. Tried in the real window (see `docs/editor.md`).
 3. **Procedures and callout boxes (DONE 2026-10-20, in the same piece)**: steps with an optional picture and result line, and the six kinds of box.
-4. Then lettered callouts on pictures and picture views, comments, the check tool, previews.
+4. **Lettered callouts on pictures (started 2026-10-20; Jason chose: made automatically from a click picture's clicked item, and moved with typed numbers first,
+   mouse dragging later)**. a. **Format version 6 and the rules (DONE)**: `Picture.callouts`, `src/project/callouts.ts` (letters, marker placement, entries, leader
+   line geometry, the dialog's checks, cleaning), 18 tests, `docs/format-spec.md` ("Lettered callouts"). b. Drawing them over pictures and listing the entries under
+   them, in the picture list and on the page. NOT built. c. The Callouts dialog (add, name, describe, move, re-order, delete, make from the click) and making the first
+   callout automatically when a click picture is added. NOT built.
+5. Then picture views (full window, cropped region, zoomed on the click), comments, the check tool, previews.
 
 ## Still open (ask Jason, do not guess)
 
