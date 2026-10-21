@@ -396,8 +396,15 @@ Parts, in order:
 - Print layout: the design says the layout switches to a cropped or zoomed picture when a full window would be too small to read on paper. The preview only flags such a picture (a
   note for the writer) and never changes it. Should the export switch automatically, or only warn?
 
+  Detail for that question: only a picture with a click can be zoomed in on automatically (the zoom is centred on the click). For a picture with no click there is no obvious region, so it would have to
+  stay whole (and flagged) unless the author gives it a crop. A setting that is off to begin with would change nothing for anyone until it is switched on.
+- Short guides (built 2026-10-21): please confirm the choices I made without asking (HANDOFF item 12): a guide takes only the numbered steps and boxed notes of its topics; each step is headed "Step N"; close-ups
+  are on by default; the left layout shows the picture and a close-up because a step holds one picture (the design says up to three: should a step be able to hold more, such as a result picture?); the step
+  number marker is dark blue and 2.5 percent of the width in radius. Also the Step 5 defaults: a named style is applied by copy, a marker's label is typed, and a mark saved with low contrast keeps a record.
 - Qwen 3.5: which size, and what its weights licence allows (audit before downloading or bundling).
-- MCP server: which actions to offer first.
+- MCP server: which actions to offer first. Note for the answer: an export needs a canvas to draw the marks into the pictures (src/render/flatten.ts), so "run exports" from outside the window needs either the
+  running app to do it, or a separate drawing library in the MCP program.
+- The book index (Step 9): where index terms are marked (a list of terms on each topic, or marks inside the text), and who writes them (by hand, or drafted by the AI and reviewed).
 - Which the reference authoring platform page styles to copy exactly versus only resemble; how much detail per feature in the OpenStage book.
 - The name "OpenExplainer" has not been checked for conflicts on GitHub and elsewhere.
 - Capture helper: should the window list also show a program's dialogs (marked as belonging to it) so a native dialog can be captured by itself?
