@@ -6,7 +6,9 @@ import type { Guide } from "../project/guides.ts";
 import type { Project, TreeNode } from "../project/model.ts";
 import { renderGuide } from "../render/guide.ts";
 import { esc, fillVariables, type RenderContext } from "../render/html.ts";
-import { renderPrintPreview, topicAnchor, type ContentsPages } from "../render/print.ts";
+import { INDEX_ANCHOR, INDEX_KEY, renderPrintPreview, topicAnchor, type ContentsPages } from "../render/print.ts";
+import { buildBookIndex } from "../project/book-index.ts";
+import { numbering } from "../project/model.ts";
 import { pdfCss } from "./pdf-css.ts";
 import { guideKey, type FlatPicture } from "./pictures.ts";
 
@@ -57,6 +59,7 @@ export function placeholderPages(project: Project): ContentsPages {
   const pages: ContentsPages = new Map();
   const walk = (nodes: TreeNode[]) => nodes.forEach((n) => { pages.set(n.id, "000"); walk(n.children); });
   walk(project.tree);
+  if (buildBookIndex(project, numbering(project.tree)).terms > 0) pages.set(INDEX_KEY, "000");
   return pages;
 }
 
@@ -150,7 +153,11 @@ export function pageNumbersFor(project: Project, anchors: Map<string, number>): 
     }
   };
   walk(project.tree);
-  return pages.size > 0 ? pages : null;
+  if (pages.size === 0) return null;
+  // The index, if the book has one, is the last entry of the contents.
+  const index = anchors.get(INDEX_ANCHOR);
+  if (index !== undefined && buildBookIndex(project, numbering(project.tree)).terms > 0) pages.set(INDEX_KEY, String(index));
+  return pages;
 }
 
 /** Are the numbers the same as the ones the page was printed with? Then nothing moved, and the PDF is right. */

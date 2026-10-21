@@ -6,6 +6,21 @@ the Export dialog is `src/export-dialog.ts`. Comments are working notes and are 
 The book is exported as it prints: pictures use the book's click circle and zoom settings (`place: "book"`). The two outputs made for paper, Word and PDF, also apply the automatic zoom for print when the project
 asks for it (see `docs/format-spec.md`, "Paper settings"): a picture that would print too small is made zoomed in on its click (`flattenPlaced(..., { paper: true })`). The help site, Markdown and JSON do not.
 
+## The index
+
+When any topic has index terms (see `docs/editor.md`, "The index"), every output made for reading has the index, worked out by `buildBookIndex` and written by the same code where it can be (`src/render/index-html.ts`):
+
+- **Print preview and PDF**: an Index sheet after the last chapter, with a heading for each letter and the terms in two columns, and an Index entry at the end of the contents. In the preview each term lists the
+  numbers of its topics as links. In the PDF it lists the **page numbers** of its topics (each page once, in order, linking to the first topic on it), found the same way as the contents' (the first printing has stand-in
+  numbers, the links' named places are read from the PDF, and it is printed again): the index's own page is read from the named place `pv-index`.
+- **Word**: an Index heading (Heading 1, on its own page, in the contents), a heading for each letter ("Index letter") and one "index 1" paragraph for each term, with the numbers of its topics as links to the topics'
+  headings. Word's own page numbers are not used: only Word knows the pages, and the topic numbers are right as they are.
+- **Help site**: `book-index.html`, a page like the others with the contents tree, linked as "Index" from the header of every page. Each term lists its topics by number and title, as links.
+- **Markdown**: `## Index`, a `###` heading for each letter and a list item for each term with its topics' numbers and titles.
+- **JSON**: each topic's `index` (its terms and which the software wrote), not the finished index, so an import gets the terms back.
+
+A book with no terms has no index in any of them, and no contents entry for one.
+
 ## Pictures with their marks drawn in
 
 The project keeps each picture as it was captured, with the click circle, the callouts and the marks stored beside it. An output that cannot lay a drawing over a picture (a help site that must

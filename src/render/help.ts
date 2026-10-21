@@ -1,7 +1,9 @@
 // A page of the help site, as HTML: the contents tree on the left, then the topic with its breadcrumbs, its page, and links to the previous and next topic. Each topic
 // is one page. Search, the index and the collapsible FAQ come with the export. Comments are never part of it. Nothing here needs a screen.
+import { buildBookIndex } from "../project/book-index.ts";
 import { numbering, type Project, type TreeNode } from "../project/model.ts";
 import { blocksHtml, esc, fillVariables, type RenderContext } from "./html.ts";
+import { indexHtml, topicWords } from "./index-html.ts";
 
 /** Every topic in reading order (the order of the numbers), with the chain of titles above it. */
 export interface Placed {
@@ -36,6 +38,24 @@ function treeHtml(tree: TreeNode[], numbers: Map<string, string>, currentId: str
     })
     .join("");
   return `<ul class="hs-tree-list">${items}</ul>`;
+}
+
+/** Does the book have an index to show? */
+export function hasIndex(project: Project): boolean {
+  return buildBookIndex(project, numbering(project.tree)).terms > 0;
+}
+
+/** The index as a page of the help site, with the contents tree: each term with the topics it is in, as links. `links` says where each topic's page is. */
+export function renderHelpIndexPage(ctx: RenderContext, links: LinkFor): string {
+  const project: Project = ctx.project;
+  const numbers = numbering(project.tree);
+  const book = esc(fillVariables(project.name, project.variables));
+  const all = placedTopics(project.tree);
+  const nav = `<nav class="hs-tree" aria-label="Contents of ${book}">${treeHtml(project.tree, numbers, null, ctx, links)}</nav>`;
+  const index = buildBookIndex(project, numbers);
+  const places = (entry: { topics: { id: string; number: string; title: string }[] }) => entry.topics.map((t) => `<a ${topicLink(links, t.id)}>${esc(topicWords(t, project.variables))}</a>`);
+  const crumbs = `<li><a ${topicLink(links, all[0]?.node.id ?? "")}>${book}</a></li><li aria-current="page">Index</li>`;
+  return `<div class="hs">${nav}<main class="hs-page" id="topic-main"><nav class="hs-crumbs" aria-label="Breadcrumb"><ol>${crumbs}</ol></nav><article><h1>Index</h1>\n${indexHtml(index, places, project.variables)}</article></main></div>`;
 }
 
 /** Writes one page of the help site, with its contents tree. `currentId` is the topic shown; with none, the page says so. */

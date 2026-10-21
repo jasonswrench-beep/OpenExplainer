@@ -2,6 +2,7 @@
 // contents work), Step (a numbered list that starts again at 1 for each procedure), Callout box styles (one for each kind, said in words), Caption (the callout entries under a picture), a
 // character style for control names, and Contents entries that link to their headings. Pictures are the flat PNGs (cut to the part shown, with their marks drawn in) with their description as the picture's
 // alternative text. There is a running header with the book's name and a page number in the footer. Comments are never included. Nothing here needs a screen.
+import { buildBookIndex, type BookIndex } from "../project/book-index.ts";
 import { entries, entryWords } from "../project/callouts.ts";
 import { numbering, type Picture, type Project, type TreeNode } from "../project/model.ts";
 import { CALLOUT_KINDS, calloutLabel, type Block } from "../project/page.ts";
@@ -119,7 +120,7 @@ function heading(ctx: Context, level: number, number: string, title: string, id:
   const n = ctx.bookmarks.size + 1;
   ctx.bookmarks.set(id, n);
   const pageBreak = level === 1 ? "<w:pageBreakBefore/>" : "";
-  return para(`Heading${Math.min(6, level)}`, `<w:bookmarkStart w:id="${n}" w:name="_Toc${n}"/>${run(`${number} ${fillVariables(title, ctx.project.variables)}`)}<w:bookmarkEnd w:id="${n}"/>`, pageBreak);
+  return para(`Heading${Math.min(6, level)}`, `<w:bookmarkStart w:id="${n}" w:name="_Toc${n}"/>${run(`${number ? `${number} ` : ""}${fillVariables(title, ctx.project.variables)}`)}<w:bookmarkEnd w:id="${n}"/>`, pageBreak);
 }
 
 function topicXml(ctx: Context, node: TreeNode, depth: number, numbers: Map<string, string>): string {
@@ -131,6 +132,30 @@ function topicXml(ctx: Context, node: TreeNode, depth: number, numbers: Map<stri
   }
   for (const block of node.page?.blocks ?? []) out += blockXml(ctx, node, block, level);
   for (const child of node.children) out += topicXml(ctx, child, depth + 1, numbers);
+  return out;
+}
+
+/** The key of the index heading's bookmark. */
+const INDEX_ID = "@index";
+
+/**
+ * The index: a Heading 1 on its own page, a heading for each letter, then each term (an "index 1" paragraph) with where it is, as the numbers of its topics, each a link to the topic's
+ * heading. Word's own page numbers are not used: only Word knows the pages, and the numbers of the topics are right as they are.
+ */
+function indexXml(ctx: Context, index: BookIndex): string {
+  const v = ctx.project.variables;
+  let out = heading(ctx, 1, "", "Index", INDEX_ID);
+  for (const group of index.groups) {
+    out += para("IndexHeading", run(group.heading));
+    for (const entry of group.entries) {
+      const places = entry.topics.map((t) => {
+        const label = run(t.number, '<w:rStyle w:val="Hyperlink"/>');
+        const bookmark = ctx.bookmarks.get(t.id);
+        return bookmark ? `<w:hyperlink w:anchor="_Toc${bookmark}" w:history="1">${label}</w:hyperlink>` : run(t.number);
+      });
+      out += para("Index1", run(`${fillVariables(entry.text, v)}, `) + places.join(run(", ")));
+    }
+  }
   return out;
 }
 
@@ -148,8 +173,13 @@ function contentsEntries(ctx: Context, nodes: TreeNode[], numbers: Map<string, s
  * The contents as Word's own table of contents field, holding the entries as they are now. They link to their headings and have no page numbers yet,
  * because only Word knows where the pages break: in Word, right-click the contents and choose Update Field to add the page numbers.
  */
-function contentsXml(ctx: Context, nodes: TreeNode[], numbers: Map<string, string>): string {
+function contentsXml(ctx: Context, nodes: TreeNode[], numbers: Map<string, string>, withIndex: boolean): string {
   const entries = contentsEntries(ctx, nodes, numbers, 0);
+  if (withIndex) {
+    const bookmark = ctx.bookmarks.get(INDEX_ID);
+    const label = run("Index", '<w:rStyle w:val="Hyperlink"/>');
+    entries.push({ style: "Contents1", link: bookmark ? `<w:hyperlink w:anchor="_Toc${bookmark}" w:history="1">${label}</w:hyperlink>` : label });
+  }
   const begin = '<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> TOC \\o "1-3" \\h \\z \\u </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>';
   const end = '<w:r><w:fldChar w:fldCharType="end"/></w:r>';
   return entries.map((e, i) => para(e.style, `${i === 0 ? begin : ""}${e.link}${i === entries.length - 1 ? end : ""}`)).join("");
@@ -174,6 +204,8 @@ function stylesXml(guide: boolean): string {
 ${heading(1, 40, 360)}${heading(2, 32, 280)}${heading(3, 28, 240)}${heading(4, 26, 200)}${heading(5, 24, 200)}${heading(6, 22, 200)}
 <w:style w:type="paragraph" w:customStyle="1" w:styleId="ContentsHeading"><w:name w:val="Contents heading"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="160"/></w:pPr><w:rPr><w:b/><w:sz w:val="36"/><w:szCs w:val="36"/></w:rPr></w:style>
 ${contents}
+<w:style w:type="paragraph" w:customStyle="1" w:styleId="IndexHeading"><w:name w:val="Index letter"/><w:basedOn w:val="Normal"/><w:next w:val="Index1"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="200" w:after="60"/></w:pPr><w:rPr><w:b/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Index1"><w:name w:val="index 1"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="99"/><w:pPr><w:spacing w:after="20"/><w:ind w:left="240" w:hanging="240"/></w:pPr></w:style>
 <w:style w:type="paragraph" w:customStyle="1" w:styleId="ChapterOpener"><w:name w:val="Chapter opener"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="120" w:after="60"/></w:pPr></w:style>
 <w:style w:type="paragraph" w:styleId="ListBullet"><w:name w:val="List Bullet"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="99"/><w:pPr><w:spacing w:after="40"/></w:pPr></w:style>
 <w:style w:type="paragraph" w:customStyle="1" w:styleId="Step"><w:name w:val="Step"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="80" w:after="80"/></w:pPr></w:style>
@@ -243,9 +275,12 @@ export function buildDocxParts(project: Project, flat: Map<string, FlatPicture>,
   const details = ["PRODUCT", "VERSION", "COMPANY"].map((k) => project.variables[k]?.trim()).filter(Boolean);
   // The headings are made first so the contents can link to them; the contents then goes in front of them.
   const body = project.tree.map((chapter) => topicXml(ctx, chapter, 0, numbers)).join("");
+  // The index comes after the last chapter; it is made now so its heading has a bookmark for the contents to link to.
+  const bookIndex = buildBookIndex(project, numbers);
+  const indexPart = bookIndex.terms > 0 ? indexXml(ctx, bookIndex) : "";
   const front = para("Title", run(title)) + details.map((d) => para("Subtitle", run(d))).join("");
-  const contents = project.tree.length > 0 ? para("ContentsHeading", run("Contents"), '<w:pageBreakBefore/>') + contentsXml(ctx, project.tree, numbers) : "";
-  return assembleDocx(ctx, title, `${front}${contents}${body}`, options);
+  const contents = project.tree.length > 0 ? para("ContentsHeading", run("Contents"), '<w:pageBreakBefore/>') + contentsXml(ctx, project.tree, numbers, indexPart !== "") : "";
+  return assembleDocx(ctx, title, `${front}${contents}${body}${indexPart}`, options);
 }
 
 /** The book as the bytes of a .docx file. */

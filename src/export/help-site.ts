@@ -5,7 +5,7 @@ import { numbering, type Project, type TreeNode } from "../project/model.ts";
 import { plainText } from "../project/text.ts";
 import { entries, entryWords } from "../project/callouts.ts";
 import { esc, fillVariables, type RenderContext } from "../render/html.ts";
-import { placedTopics, renderHelpPage } from "../render/help.ts";
+import { hasIndex, placedTopics, renderHelpIndexPage, renderHelpPage } from "../render/help.ts";
 import { flatFiles, type FlatPicture } from "./pictures.ts";
 import { SITE_CSS, SITE_JS } from "./site-assets.ts";
 
@@ -60,6 +60,9 @@ export function buildHelpSiteText(project: Project, flat: Map<string, FlatPictur
   const ctx: RenderContext = { project, place: "book", notes: false, flat: true, imageSrc: (p) => flat.get(p.id)?.path ?? null };
   const book = esc(fillVariables(project.name, project.variables));
   const out: Record<string, string> = {};
+  // A book with an index has an Index page, linked from the header of every page.
+  const withIndex = hasIndex(project);
+  const indexLink = withIndex ? `<nav class="site-nav" aria-label="Site"><a href="book-index.html">Index</a></nav>` : "";
   const document = (title: string, body: string) =>
     `<!DOCTYPE html>
 <html lang="en">
@@ -73,6 +76,7 @@ export function buildHelpSiteText(project: Project, flat: Map<string, FlatPictur
 <a class="skip-link" href="#topic-main">Skip to the topic</a>
 <header class="site-header">
 <p class="site-title"><a href="index.html">${book}</a></p>
+${indexLink}
 <form id="site-search" role="search" class="site-search"><label for="site-search-input">Search this help</label> <input id="site-search-input" type="search" autocomplete="off"> <button type="submit">Search</button></form>
 </header>
 <div id="search-results" class="search-results" hidden tabindex="-1"><h2 id="search-title"></h2><ol id="search-list"></ol><p><button type="button" id="search-close">Close the results</button></p></div>
@@ -90,6 +94,7 @@ ${body}
     if (i === 0) out["index.html"] = page;
   });
   if (topics.length === 0) out["index.html"] = document(fillVariables(project.name, project.variables), `<main class="hs" id="topic-main"><p>This book has no topics yet.</p></main>`);
+  if (withIndex) out["book-index.html"] = document(`Index - ${fillVariables(project.name, project.variables)}`, renderHelpIndexPage(ctx, links));
   const index = topics.map(({ node }) => ({ number: numbers.get(node.id) ?? "", title: fillVariables(node.title, project.variables), url: files.get(node.id)!, text: topicText(project, node) }));
   out["assets/search-index.js"] = `window.SEARCH_INDEX = ${JSON.stringify(index).replace(/</g, "\\u003c")};\n`;
   out["assets/site.css"] = SITE_CSS;

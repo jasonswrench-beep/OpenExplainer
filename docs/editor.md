@@ -238,6 +238,22 @@ A **guide** is a few pages for one task, or for several (the quick, step-by-step
 - Not built yet: the third picture of the left layout (a step holds one picture today, so the left layout shows the picture and its close-up), exporting a guide as a help site, and book check rules for
   guides (a task whose topic has lost its steps shows a note for the writer in the preview).
 
+## The index
+
+Jason's choice (2026-10-21): **the software writes the first pass of the index, the author edits it, and can update it.** Each topic keeps its own index terms (format version 13, see `docs/format-spec.md`,
+"The book index"); the index of the book is worked out from them. It needs no AI.
+
+- **In a topic's Properties**, a box **Index terms, one on each line** and a button **Suggest terms**. Suggest terms makes the first pass for the topic from the book itself (the topic's title, the headings on its
+  page, every control name written in its text, and the names of the callouts on the pictures that are on its page) and, the next time, brings in what is new. The author changes, adds or removes any line; the box
+  keeps it when the author moves out of it and shows what was kept (blank lines, repeats and lines that cannot be a term, such as one with no letter or longer than 60 characters, are left out, and it says how many).
+  The line under the box says how many terms the software proposed and how many the author wrote or changed. An update keeps the author's terms, does not bring back a term the author took out, keeps software terms
+  the book still supports and drops software terms it no longer supports.
+- **Index** (a toolbar button) opens the index of the whole book: a heading for each letter, each term once, with every topic it is in as a button that goes to that topic. A box filters the terms. **Update the
+  index from the book** makes the first pass for every topic that has none and updates the rest, and says in words how many terms it added and took out. The terms themselves are edited in each topic's Properties.
+- The index is in every output made for reading: the print preview and the PDF (an Index at the end and as the last entry of the contents; in the PDF each term has the **page numbers** of its topics, found
+  as the contents' are), Word (an Index heading with a heading for each letter and "index 1" paragraphs whose topic numbers link to the topics, and a contents entry), the help site (an Index page linked from
+  every page's header) and Markdown (an `## Index` list). The JSON export carries each topic's terms. A book with no terms has no index and no entry for one.
+
 ## Automatic zoom for print
 
 **Zoom settings** (a button in Pictures) has, besides the zoom sizes for the book and for a quick guide, a box: **Zoom in on the click automatically when a picture would print too small**. It is **off to begin
@@ -286,6 +302,13 @@ A guide as Word, in the real window: the Export dialog with five kinds, the Guid
 by the real canvas (each step's picture and close-up with the step's number drawn on, checked by reading the pixel on the marker), built into a .docx, every XML part read by the browser's XML reader with no error. The real
 Word opened it with no repair message (6 pictures, 2 tables, header and page number) and its PDF was looked at; that showed the number marker too small to read in the left column, so it was made larger. The native
 Save dialog was not driven.
+
+The index, in the real window: a chapter whose topic names controls and has a heading; the terms box empty and said so in words; Suggest terms filling it with the first pass and saying what it added; an edit
+(a term taken out, one added, a blank, a repeat and a one-letter line) kept, with what was left out counted; an update not bringing back the term taken out and keeping the author's own; a new control name added by an
+update; the Index dialog (the keyboard starts on the update button, a heading for each letter in alphabetical order, the whole-book update with its summary in words, the filter, no match said, Tab round the dialog
+with no trap, each topic button naming where it goes and for which term, Escape closing and giving the keyboard back to the Index button, a topic button going to that topic). The Word file with an index was opened in the
+real Word: it recognised the new styles (Index 1, Index letter), the Index heading and the contents entry, and its own Update Field gave the Index a page. The PDF's index page was drawn and looked at (two columns, letters,
+page numbers) and its contents has the index's page. Not tried: a screen reader, and a book with hundreds of terms.
 
 The automatic zoom for print, in the real window, with a real click picture (a whole screen, which prints small): the box in Zoom settings (described in words, off to begin with, Space turns it on, Escape closes
 without saving and gives the keyboard back); with it off the print preview shows the picture whole; saved on, the print preview shows it zoomed on the click and says so in a note, the help site preview and the

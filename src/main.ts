@@ -34,6 +34,8 @@ import { makeBookPdf, makeGuidePdf } from "./export/pdf-make.ts";
 import { buildHelpSite } from "./export/help-site.ts";
 import { flattenPicture } from "./render/flatten.ts";
 import { guidesDialog } from "./guides-dialog.ts";
+import { indexDialog } from "./index-dialog.ts";
+import { buildBookIndex, indexSummary, setTermLines, termLines, updateBookIndex, updateTopicIndex } from "./project/book-index.ts";
 import { cleanGuides, guideSummary } from "./project/guides.ts";
 import { renderGuide } from "./render/guide.ts";
 import { zip } from "./project/zip.ts";
@@ -71,6 +73,7 @@ app.innerHTML = `
       <button type="button" id="b-import-export">Import an export</button>
       <button type="button" id="b-vars">Project variables</button>
       <button type="button" id="b-guides">Guides</button>
+      <button type="button" id="b-index">Index</button>
       <button type="button" id="b-check">Check the book</button>
     </div>
     <p id="panes-help" class="help">Three panes: the chapters and topics, the page, and the properties. F6 moves to the next pane and Shift+F6 to the one before.</p>
@@ -147,6 +150,13 @@ app.innerHTML = `
           <p id="props-topic-line"></p>
           <p id="props-comments-line"></p>
           <p><label>Status of this item <select id="status-select"></select></label></p>
+        </div>
+        <div id="props-index">
+          <h4 id="props-index-heading">Index terms for this topic</h4>
+          <p class="help" id="props-index-help">One term on each line. The software proposes terms from the topic's title, headings, control names and callout names. You can change, add or remove any of them. Choose Suggest terms to bring in what is new without undoing your changes.</p>
+          <p><label for="index-terms">Index terms, one on each line</label><br><textarea id="index-terms" rows="6" cols="28" aria-describedby="props-index-help index-line"></textarea></p>
+          <p><button type="button" id="b-index-suggest">Suggest terms</button></p>
+          <p id="index-line" class="help"></p>
         </div>
         <div id="props-block" aria-live="off"></div>
       </section>
@@ -322,6 +332,62 @@ async function manageGuides() {
 }
 $("b-guides").addEventListener("click", () => void manageGuides());
 
+// ---- The index ---------------------------------------------------------------------------------------------
+const indexBox = $<HTMLTextAreaElement>("index-terms");
+
+/** The author finished editing the terms of a topic: they are kept for it, and the box shows what was kept. */
+indexBox.addEventListener("change", () => {
+  const node = indexNodeId ? findNode(project.tree, indexNodeId) : null;
+  if (!node) return;
+  const asked = indexBox.value.split(/\r?\n/).filter((line) => line.trim() !== "").length;
+  const before = termLines(node).join("\n");
+  setTermLines(node, indexBox.value.split(/\r?\n/), project.variables);
+  const kept = termLines(node);
+  indexBox.value = kept.join("\n");
+  if (kept.join("\n") !== before) markDirty();
+  const skipped = asked - kept.length;
+  $("index-line").textContent = indexLineFor(node);
+  announce(`Index terms kept for ${node.title}: ${kept.length}.${skipped > 0 ? ` ${skipped} ${skipped === 1 ? "line was" : "lines were"} left out: a term needs a letter, at least 2 characters, at most 60, and each term is listed once.` : ""}`);
+});
+
+$("b-index-suggest").addEventListener("click", () => {
+  const node = selected();
+  if (!node) return;
+  const result = updateTopicIndex(node, project.variables);
+  indexNodeId = null;
+  renderIndexTerms();
+  if (result.added.length || result.dropped.length) markDirty();
+  const some = (list: string[]) => `${list.slice(0, 5).join(", ")}${list.length > 5 ? `, and ${list.length - 5} more` : ""}`;
+  announce(
+    result.added.length || result.dropped.length
+      ? `${result.added.length ? `Added ${result.added.length}: ${some(result.added)}. ` : ""}${result.dropped.length ? `Took out ${result.dropped.length} the book no longer supports: ${some(result.dropped)}.` : ""}`.trim()
+      : "Nothing new to suggest for this topic.",
+  );
+  indexBox.focus();
+});
+
+async function manageIndex() {
+  const goTo = await indexDialog({
+    build: () => buildBookIndex(project, numbering(project.tree)),
+    summary: () => indexSummary(project.tree),
+    update: () => {
+      const result = updateBookIndex(project.tree, project.variables);
+      if (result.added || result.dropped) markDirty();
+      indexNodeId = null;
+      renderIndexTerms();
+      return result.added || result.dropped
+        ? `Updated: ${result.added} ${result.added === 1 ? "term" : "terms"} added and ${result.dropped} taken out, in ${result.topics} ${result.topics === 1 ? "topic" : "topics"}.`
+        : "Nothing new: the index is up to date.";
+    },
+  });
+  if (goTo) {
+    if (viewMode !== "edit") setViewMode("edit", { announce: false });
+    select(goTo);
+    announce(`Showing ${findNode(project.tree, goTo)?.title ?? "the topic"}.`);
+  } else $("b-index").focus();
+}
+$("b-index").addEventListener("click", () => void manageIndex());
+
 // A link inside a preview works inside it: the help site's links open that topic, and the book's contents jump to that place.
 $("preview-content").addEventListener("click", (event) => {
   const link = (event.target as HTMLElement).closest<HTMLElement>("a[data-topic], a[data-anchor]");
@@ -382,7 +448,31 @@ function goToComment(item: UnresolvedItem) {
 }
 
 /** The properties of the topic and of the block that has the keyboard. */
+/** Which topic the index terms box is showing, so a change is kept for that topic even if the selection has moved by then. */
+let indexNodeId: string | null = null;
+
+/** Puts the selected topic's index terms in the box, unless the author is in the middle of typing in it. */
+function renderIndexTerms() {
+  const node = selected();
+  const box = $<HTMLTextAreaElement>("index-terms");
+  if (document.activeElement === box && indexNodeId === node?.id) return;
+  indexNodeId = node?.id ?? null;
+  box.value = node ? termLines(node).join("\n") : "";
+  box.disabled = !node;
+  $<HTMLButtonElement>("b-index-suggest").disabled = !node;
+  $("index-line").textContent = node ? indexLineFor(node) : "";
+}
+
+function indexLineFor(node: TreeNode): string {
+  const terms = node.index?.terms ?? [];
+  const own = terms.filter((t) => t.by === "author").length;
+  return terms.length === 0
+    ? "This topic has no index terms yet."
+    : `${terms.length} ${terms.length === 1 ? "term" : "terms"}: ${terms.length - own} proposed by the software and ${own} written or changed by you.`;
+}
+
 function renderProperties() {
+  renderIndexTerms();
   const node = selected();
   const numbers = numbering(project.tree);
   const inBook = unresolvedCount(project.tree);

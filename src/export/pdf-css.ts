@@ -65,6 +65,12 @@ p { margin: 0.4em 0; orphans: 3; widows: 3; }
 .pv-box-time-saver { border-left-color: #1b6b2f; }
 .pv-box-new-feature { border-left-color: #00606b; }
 .pv-missing { font-family: "Segoe UI", Calibri, Arial, sans-serif; color: #8a1c1c; font-weight: 600; }
+.pv-index-groups { column-count: 2; column-gap: 0.4in; font-size: 10pt; }
+.pv-index-group { break-inside: avoid-column; margin: 0 0 0.6em; }
+.pv-index-letter { font-size: 12pt; margin: 0.4em 0 0.2em; border-bottom: 0.75pt solid #888; }
+.pv-index-list { list-style: none; margin: 0; padding: 0; }
+.pv-index-list li { margin: 0.15em 0; padding-left: 1em; text-indent: -1em; }
+.pv-index-places a { color: inherit; text-decoration: none; }
 .gd-title { font-size: 26pt !important; margin-bottom: 0.3em !important; }
 .gd-task-title { font-size: 18pt; margin: 0.8em 0 0.5em; }
 .gd-step { margin: 1.1em 0; }

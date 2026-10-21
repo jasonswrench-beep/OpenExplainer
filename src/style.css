@@ -141,6 +141,17 @@ fieldset.co-active { border: 2px solid var(--accent); padding: calc(0.25rem - 1p
 .gd-step-left .gd-words { grid-column: 2; }
 .gd-step-left.gd-step-nopicture { display: block; }
 .gd-pick { margin: 0.4rem 0; }
+/* The index in the print preview. */
+.pv-index-groups { column-count: 2; column-gap: 1.5rem; font-size: 0.9rem; }
+.pv-index-group { break-inside: avoid; margin: 0 0 0.6rem; }
+.pv-index-letter { font-size: 1.05rem !important; margin: 0.4rem 0 0.2rem !important; border-bottom: 1px solid #888; }
+.pv-index-list { list-style: none; margin: 0; padding: 0; }
+.pv-index-list li { margin: 0.15rem 0; }
+/* The Index dialog and the index terms box. */
+.ix-entries { list-style: none; padding-left: 0; margin: 0.2rem 0 0.8rem; }
+.ix-entries li { margin: 0.25rem 0; }
+.ix-go { font: inherit; padding: 0 0.3rem; }
+#index-terms { width: 100%; box-sizing: border-box; font: inherit; }
 .hs { background: #fff; color: #111; padding: 0.75rem 1rem; font-family: system-ui, sans-serif; line-height: 1.5; display: block; }
 .hs-tree-list { list-style: none; margin: 0; padding-left: 1rem; }
 .hs-tree > .hs-tree-list { padding-left: 0; }

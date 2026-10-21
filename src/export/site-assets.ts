@@ -13,6 +13,12 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 .site-header { background: var(--accent); color: #ffffff; padding: 0.6rem 1rem; display: flex; flex-wrap: wrap; gap: 0.6rem 1.5rem; align-items: center; justify-content: space-between; }
 .site-title { margin: 0; font-size: 1.2rem; font-weight: 700; }
 .site-title a { color: #ffffff; text-decoration: none; }
+.site-nav a { color: #ffffff; font-weight: 600; }
+.pv-index-groups { column-width: 18rem; column-gap: 2rem; }
+.pv-index-group { break-inside: avoid; margin: 0 0 1rem; }
+.pv-index-letter { font-size: 1.15rem; border-bottom: 1px solid var(--line); margin: 0.6rem 0 0.3rem; }
+.pv-index-list { list-style: none; margin: 0; padding: 0; }
+.pv-index-list li { margin: 0.25rem 0; }
 .site-search { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 .site-search input { font: inherit; padding: 0.3rem 0.5rem; min-width: 14rem; }
 .site-search button, .site-footer button, .search-results button { font: inherit; padding: 0.3rem 0.8rem; cursor: pointer; }

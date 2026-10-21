@@ -392,8 +392,13 @@ Parts, in order:
 15. **Automatic zoom for print (DONE 2026-10-21; Jason: a setting that starts off)**: format v12 `project.paper.autoZoom` (off), `switchedForPaper` / `forPaper` in `src/project/views.ts`, `RenderContext.paper`,
     `flattenPlaced(..., { paper })`, Word captions and the book check follow it, a box in Zoom settings, a note for the writer in the print preview; tests in `tests/paper.test.ts`; scenario `paper`. Applies to the print
     preview, PDF and Word only.
-16. Next, from Jason's answers 2026-10-21: the book index (the software writes the first pass, the author edits it and can update it), the local AI (Qwen's weights are Apache 2.0, Jason confirmed) and the MCP server
-    (Jason wants an AI assistant able to document something without a person being involved). See "Still open".
+16. **The book index (DONE 2026-10-21; Jason: the software writes the first pass, the author edits it and can update it)**: format v13 (`TreeNode.index`, commit dad1f7a), `src/project/book-index.ts` (the first pass from the
+    book, editing as lines, update, the index of the book), `src/render/index-html.ts`, the terms box and Suggest terms in the Properties pane and the Index dialog (`src/index-dialog.ts`) in `src/main.ts`, and the index in the
+    print preview, PDF (page numbers), Word, help site and Markdown; tests in `tests/book-index.test.ts` and `book-index-output.test.ts`; tried in the real window (scenario `index`; `word` and `pdf` extended) and in the real Word.
+    Not built: the AI's first pass of index terms (Step 7 says it may draft them; the software's own first pass works without), sub-entries ("Save, as a copy") and "see also", index terms on a picture or a
+    paragraph (terms are per topic), a book check rule for topics with no terms.
+17. Next, from Jason's answers 2026-10-21: the local AI (Qwen's weights are Apache 2.0, Jason confirmed) and the MCP server (Jason wants an AI assistant able to document something without a person being involved).
+    Both need a plan agreed with Jason first (see "Still open").
 
 ## Still open (ask Jason, do not guess)
 
@@ -407,8 +412,7 @@ Parts, in order:
 - MCP server (Jason, 2026-10-21: he wants an AI assistant to be able to use OpenExplainer to document something **without a person being actively involved**, so capture is in, not only read and write): the design
   question is where it runs. An export needs a canvas to draw the marks (src/render/flatten.ts) and the PDF needs the browser engine, so the choice is the running app doing the work (the MCP program talks to the
   app, which can run hidden) or a separate program with its own drawing. To decide with Jason before building it.
-- The book index (Jason, 2026-10-21: **the software writes the first pass, the author edits it and can update it**): the first pass is worked out from the book (control names, callout names, topic titles), kept per
-  topic, edited by the author, and updated without losing the author's changes. Next to build.
+- The book index: built (item 16). Open: whether it needs sub-entries and "see also", and a rule in the book check for topics with no terms.
 - Which the reference authoring platform page styles to copy exactly versus only resemble; how much detail per feature in the OpenStage book.
 - The name "OpenExplainer" has not been checked for conflicts on GitHub and elsewhere.
 - Capture helper: should the window list also show a program's dialogs (marked as belonging to it) so a native dialog can be captured by itself?

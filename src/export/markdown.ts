@@ -1,6 +1,7 @@
 // Markdown: the whole book as one plain text file (book.md) with the pictures as linked files beside it. Each picture is its flat PNG (cut to the part that is shown, with its marks drawn in),
 // with its description as the alternative text and its callout entries as a list under it. Comments are never included. Everything that comes from the project is escaped so it reads as
 // text, not as Markdown. Nothing here needs a screen.
+import { buildBookIndex } from "../project/book-index.ts";
 import { entries, entryWords } from "../project/callouts.ts";
 import { numbering, type Picture, type Project, type TreeNode } from "../project/model.ts";
 import { calloutLabel, type Block } from "../project/page.ts";
@@ -100,6 +101,14 @@ export function bookMarkdown(project: Project, flat: Map<string, FlatPicture>): 
   const parts = [`# ${escapeInline(one(fillVariables(project.name, project.variables)))}`];
   if (project.tree.length > 0) parts.push("## Contents", contents(project.tree, numbers, project.variables, 0).join("\n"));
   for (const chapter of project.tree) parts.push(...topicMarkdown(project, chapter, 0, numbers, flat));
+  const index = buildBookIndex(project, numbers);
+  if (index.terms > 0) {
+    parts.push("## Index");
+    for (const group of index.groups) {
+      parts.push(`### ${escapeInline(group.heading)}`);
+      parts.push(group.entries.map((e) => `- **${escapeInline(one(fillVariables(e.text, project.variables)))}**: ${e.topics.map((t) => `${t.number} ${escapeInline(one(fillVariables(t.title, project.variables)))}`).join(", ")}`).join("\n"));
+    }
+  }
   return parts.join("\n\n") + "\n";
 }
 
