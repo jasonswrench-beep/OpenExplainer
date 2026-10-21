@@ -9,10 +9,11 @@ import { cleanPictureView, defaultZoom, type PictureView, type ZoomSettings } fr
 import type { Shape } from "./shapes.ts";
 import type { NamedStyle } from "./styles.ts";
 import { emptyCheckSettings, type CheckSettings } from "./checks.ts";
+import type { Guide } from "./guides.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 10;
+export const CURRENT_VERSION = 11;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -104,6 +105,8 @@ export interface Project {
   styles: NamedStyle[];
   /** What the author chose to ignore in the book check (format version 10). */
   checks: CheckSettings;
+  /** Short step-by-step guides made from topics of the book (format version 11). */
+  guides: Guide[];
   tree: TreeNode[];
 }
 
@@ -121,6 +124,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     zoom: defaultZoom(),
     styles: [],
     checks: emptyCheckSettings(),
+    guides: [],
     tree: [],
   };
   if (template === "openstage-how-to-book") {

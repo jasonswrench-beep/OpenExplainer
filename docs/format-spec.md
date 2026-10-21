@@ -8,7 +8,7 @@ A saved project is ONE file named after the project, such as `Test1.openexplaine
 (stored without compression, so pictures are not compressed twice), written and read by `src/project/zip.ts` and
 `src/project/package.ts`. Any zip program can open it for inspection. Inside it, format version 6 holds two files, a page file for each topic that has a page, and a picture folder:
 
-- `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others) and `highlight` (the look of the click circle, see "The click highlight").
+- `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others), `highlight` (the look of the click circle, see "The click highlight"), `zoom`, `styles`, `checks` and `guides` (see "Short guides").
 - `structure.json`: `version` and `tree`, the chapters and topics.
 - `topics/<topic id>.json`: the page of a topic, only for a topic that has something on its page (see "The page").
 - `images/`: one file per picture, named `images/<picture id>.png` or `.jpg`. Only pictures a topic still uses are saved.
@@ -186,6 +186,23 @@ as `picture-alt:<picture id>`, `empty-topic:<topic id>`, `callout-description:<p
 adds the keys of the things of that kind found at that moment; a new one found later still shows. Cleaned when a project is opened and saved: only keys that are text, once each. The things the
 check finds are worked out from the project every time (`src/project/checks.ts`), never stored.
 
+## Short guides
+
+`project.json` has `guides`, a list of short step-by-step guides: `{ id, name, tasks, layout, stepLayouts?, zoomFocus }`. A guide holds **no text of its own**. It is made of topics that are already in
+the book, so material is written once: `tasks` is a list of topic ids (one topic is one task, in the order they appear in the guide), and the guide takes each task's numbered steps, with their pictures
+and results, and its boxed notes, in page order. A topic's paragraphs, headings and pictures that are not on a step belong to the book and are not in the guide. The numbers of the steps are worked
+out and start again at 1 for each numbered list, as in the book. Editing a topic changes the book and every guide made from it. Building a guide from a chapter just fills `tasks` with the chapter's
+topics that have steps.
+
+- `layout` is `"top"` (one picture across the page with the step's words below it) or `"left"` (the picture and its zoomed focus stacked on the left, with the words beside them). `stepLayouts` maps a
+  step's id to the other layout for just that step; a step that follows the guide is not listed, and an entry that says what the guide already says is dropped.
+- `zoomFocus` (true unless turned off): show a zoomed focus on the clicked spot with each step picture that has a click and no crop or zoom of its own (the author's own view is respected).
+- In a guide each step's picture carries a numbered marker on the clicked spot (the step's number). The marker is drawn from the click when the guide is shown, never stored, so it is not a mark on the
+  picture. The click circle and the zoom size follow the quick-guide settings (`highlight.guide`, `zoom.guide`).
+- A guide's name is at most 200 letters. Cleaned when a project is opened and saved (`cleanGuides` in `src/project/guides.ts`): the guides must be a list of objects with a known layout and a text id
+  of letters, digits, `_` and `-` (anything else gets a new id, and two guides never share one); a task must be a topic that is in the book, once; a step layout must be a known layout. A task whose topic is
+  removed from the book leaves its guides the next time the project is saved or opened.
+
 ## The click highlight
 
 A transparent circle can be drawn on the spot of a click, so the reader sees where to click. It is never burned into a picture: it is drawn from the
@@ -222,6 +239,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 11: the project can hold short step-by-step guides made from topics (`guides`). A version 10 project upgrades with none. A copy of OpenExplainer that only knows version 10 refuses a version 11 project, so it can never open one and save it without the guides.
 - Version 10: the project keeps what the author chose to ignore in the book check (`checks`). A version 9 project upgrades ignoring nothing. A copy of OpenExplainer that only knows version 9 refuses a version 10 project, so it can never open one and save it without those choices.
 - Version 9: a picture can have marks drawn on it (`shapes`), and the project keeps named styles (`styles`). A version 8 project upgrades with none. A copy of OpenExplainer that only knows version 8 refuses a version 9 project, so it can never open one and save it without the marks.
 - Version 8: a page can have comments on its blocks, saved in the page's file. A version 7 project upgrades with none. A copy of OpenExplainer that only knows version 7 refuses a version 8 project, so it can never open one and save it without the comments.

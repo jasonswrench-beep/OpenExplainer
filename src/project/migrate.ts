@@ -8,6 +8,7 @@ import { cleanTreeViews, cleanZoom, defaultZoom } from "./views.ts";
 import { cleanTreeShapes } from "./shapes.ts";
 import { cleanStyles } from "./styles.ts";
 import { cleanChecks } from "./checks.ts";
+import { cleanGuides } from "./guides.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -42,6 +43,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   8: (raw) => ({ ...raw, version: 9, styles: [] }),
   // Version 9 to 10: the project keeps what the author chose to ignore in the book check. An older project ignores nothing.
   9: (raw) => ({ ...raw, version: 10, checks: { ignored: [] } }),
+  // Version 10 to 11: the project can hold short guides made from topics. An older project has none.
+  10: (raw) => ({ ...raw, version: 11, guides: [] }),
 };
 
 export function migrate(input: unknown): Project {
@@ -63,5 +66,6 @@ export function migrate(input: unknown): Project {
   project.zoom = cleanZoom(project.zoom);
   project.styles = cleanStyles(project.styles);
   project.checks = cleanChecks(project.checks);
+  project.guides = cleanGuides(project.guides, project.tree ?? []);
   return project;
 }
