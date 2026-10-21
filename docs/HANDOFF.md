@@ -317,14 +317,17 @@ Parts, in order:
    pictures are added (`captureClicks` in `src/main.ts`). Written up in `docs/editor.md` ("Lettered callouts"); tried in the real window (scenarios `callouts`,
    and `circles`, `roundtrip` updated, in the scratch `ui_test.mjs`). Not built: moving a marker or outline with the mouse; drawing callouts and the click
    circle into exported pages (when export is built, reuse `shapesFor` and `circleFor` so the editor and the book always agree); a screen reader pass.
-5. **Picture views (started 2026-10-20; Jason chose: the zoom size is a project setting, one for the book and one for a quick guide, like the circle)**. a. **Format
-   version 7 and the rules (DONE)**: `Picture.view` (crop region or zoom on the click), `project.zoom {book, guide}`, `src/project/views.ts` (`shownPart` is the one place
-   that decides what is shown: exports must reuse it), `setPictureView`, the dialog checks, cleaning, migration 6 to 7, 14 tests, `docs/format-spec.md` ("Picture
-   views"). b. The Picture view dialog (typed numbers for a crop, a sample), the zoom settings dialog, thumbnails and page pictures drawn through the view with
-   callouts and the click circle laid over the shown part, an entry saying when a callout is outside the shown part. NOT built. c. Jason said callouts must be
-   as many as someone needs and that there must be a way for someone to make them themselves (there is no limit, tested with 300, and Add a callout works on every
-   picture; I read the rest as wanting the mouse, which was NOT yet confirmed with him): one shared control that draws a rectangle on a picture with the mouse
-   and nudges it with the arrow keys (used by callout outlines and markers and by the crop). NOT built.
+5. **Picture views (DONE 2026-10-20 except the mouse; Jason chose: the zoom size is a project setting, one for the book and one for a quick guide, like the circle)**.
+   a. **Format version 7 and the rules**: `Picture.view` (crop region or zoom on the click), `project.zoom {book, guide}`, `src/project/views.ts` (`shownPart` is the one
+   place that decides what is shown: exports must reuse it), `setPictureView`, the dialog checks, cleaning, migration 6 to 7, 14 tests, `docs/format-spec.md`
+   ("Picture views"). b. **The screens**: `pictureBox` and `entryList(picture, shown)` in `src/picture-marks.ts` draw a picture through its view with the circle and
+   callouts laid over it (used by the Pictures list and the page; callouts outside the shown part are not drawn and their entry says so; markers are sized by the
+   shown width); `pictureViewDialog` and `zoomSettingsDialog` in `src/dialogs.ts`; the Picture view and Zoom settings buttons and the "Show the pictures as in the"
+   preview in `src/main.ts`; a global `[hidden] { display: none !important; }` in `src/style.css` (the keyboard run found the region boxes staying on screen).
+   Written up in `docs/editor.md` ("Picture views"); tried in the real window (scenarios `views`, `keyboard2`, and `circles`, `callouts`, `roundtrip` updated).
+   c. Jason said callouts must be as many as someone needs and that there must be a way for someone to make them themselves (there is no limit, tested with 300,
+   and Add a callout works on every picture; I read the rest as wanting the mouse, which was NOT yet confirmed with him): one shared control that draws a rectangle
+   on a picture with the mouse and nudges it with the arrow keys (used by callout outlines and markers and by the crop). NOT built.
 6. Then comments, the check tool, previews.
 
 ## Still open (ask Jason, do not guess)

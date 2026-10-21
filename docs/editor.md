@@ -3,8 +3,8 @@
 The editor window has three panes: the chapters and topics on the left, the page in the middle, and the properties on the right. The
 rules about what a page is are in `docs/format-spec.md` ("The page"); this file says what the editor does and what has been tried.
 
-Status: the three panes, the block editor and the lettered callouts on pictures are built (Step 4, parts 2, 3 and 4). Moving a callout with the mouse,
-picture views, comments, the check tool and the print and help site previews are not built yet. See `docs/HANDOFF.md`.
+Status: the three panes, the block editor, the lettered callouts on pictures and the picture views are built (Step 4, parts 2 to 5). Using the mouse to place
+callouts and crops, comments, the check tool and the print and help site previews are not built yet. See `docs/HANDOFF.md`.
 
 ## The panes
 
@@ -62,7 +62,31 @@ The rules (what a callout is, how the letters, the marker place and the leader l
   **Save the callouts**; **Cancel** and Escape leave the callouts as they were.
 - **Letters follow position.** A letter is never saved: moving a callout up or down, or deleting one, re-letters the others.
 
-Moving the marker or the outline with the mouse is not built yet; it is typed numbers for now (Jason's choice, mouse dragging later).
+There is no limit on how many callouts a picture has (a test keeps 300; after Z the letters go AA, AB and on). Moving the marker or the outline with the mouse is not
+built yet; it is typed numbers for now (Jason's choice, mouse dragging later).
+
+## Picture views
+
+The rules (what a view is, how a zoom is worked out, what is saved) are in `docs/format-spec.md` ("Picture views") and `src/project/views.ts`. The picture file is
+never cut: a view only says which part of it is shown where it is used. What the editor does:
+
+- **Where it shows.** The thumbnail in the Pictures list and the picture on the page (a picture block or a step's picture) show only the part chosen, in the
+  shape of that part, with the click circle and the callouts laid over it so they line up (`pictureBox` in `src/picture-marks.ts`, using `shownPart`). Markers
+  keep the same size on the screen whether a picture is whole or zoomed. A callout wholly outside the part shown is not drawn, and its entry says "(Outside the
+  part of the picture that is shown.)" so nothing is hidden silently. A line under the picture says the view in words ("Picture view: cropped to 800 by 300
+  pixels, starting 100 across and 300 down.").
+- **The Picture view dialog** (the **Picture view** button on each picture). Three choices in one group, moved with the arrow keys: **The whole picture**, **A region
+  I choose** (four boxes: how far across and down it starts, and its width and height, in pixels from the picture's top left corner, starting at the middle half)
+  and **Zoomed in on the click** (off with a reason when the picture has no click). A sample of the whole picture shows the part that will be shown with the rest
+  dimmed and a yellow outline, and a line of words says the same. A mistake in a box is explained next to the boxes, names the box, marks it and keeps the dialog
+  open. Nothing changes until **Save the view**; **Cancel** and Escape leave the picture as it was. A zoom's own size is not set here but in Zoom settings.
+- **Zoom settings** (the **Zoom settings** button beside Click circle settings). The width of a zoomed picture's part as a percent of the picture's width, 10 to
+  100, one for the book (starting at 50) and one for a quick guide (starting at 40). They are project settings and apply to every picture set to zoom. The
+  height keeps the picture's shape, the zoom is centred on the click and slides along an edge rather than shrinking.
+- **Which place.** The choice *Show the pictures as in the* Book or Quick guide (above the picture list) now decides both whether the click circle shows and which
+  zoom size is used, so the list and the page preview how the picture will look in that place.
+
+Moving or drawing the region with the mouse is not built yet; it is typed numbers for now.
 
 ## What has been tried
 
@@ -83,5 +107,16 @@ the click button being off with its reason; Save updating the entry under the pi
 button; Cancel and Escape changing nothing; deleting all callouts and making one again from the click; and a project with callouts packed, unpacked and read
 by another program (the .NET zip reader) with no letters in the file.
 
-Not tried: callouts with a screen reader, and a callout on a very small or very large picture by eye; saving a project with pages through the app's own Save and Open (the format has unit tests, including packing and unpacking and every way a page file
+Picture views, in the real window with real clicks on a made-up window: a click picture shown whole to begin with; the Picture view dialog opened by its button with the
+keyboard on the chosen choice and every control named; a region typed (a word, a number too big and a region past the edge each explained next to the boxes and
+the box marked), the summary following what is typed, the sample dimming the rest; Save showing only the region on the thumbnail (its shape, and the drawing
+looking at the same part) and on a picture block of the page, said in words and announced; callout A inside the region drawn, and outside it not drawn with
+its entry saying so; zoom centred on the click at the book's size, then the Zoom settings dialog (a word, a number too small, 25 and 60 saved), the zoomed picture
+following the new size and the Quick guide preview using the quick guide's; Cancel and Escape changing nothing; and back to the whole picture. The pictures
+were looked at (a cropped page picture close up and the dialog sample). By keyboard alone: Tab reaching every control and never leaving the Picture view, Zoom
+settings and Callouts dialogs, the arrow keys moving through the three view choices, and Escape closing each and giving the keyboard back. That keyboard run found
+and fixed a real fault: the four region boxes were still on the screen and in the Tab order while "whole picture" was chosen (a style rule overrode the hidden
+attribute), so `[hidden]` now always hides.
+
+Not tried: picture views and callouts with a screen reader, a view on a very small or very large picture by eye, and a callout on a very small or very large picture by eye; saving a project with pages through the app's own Save and Open (the format has unit tests, including packing and unpacking and every way a page file
 can be wrong); a screen reader; keyboard-only use start to finish by a person; many blocks (a page of 200); and print or help site output, which is not built.

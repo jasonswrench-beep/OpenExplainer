@@ -22,6 +22,8 @@ button { font: inherit; padding: 0.5rem 1rem; }
 .node { padding: 0.35rem 0.5rem; cursor: default; border-bottom: 1px solid #e0e0e0; }
 .node.selected { background: #e6eef8; font-weight: 600; }
 .badge { font-size: 0.85rem; font-weight: 400; border: 1px solid; border-radius: 0.75rem; padding: 0 0.5rem; margin-left: 0.5rem; }
+/* The hidden attribute always hides, even where a rule below gives the same element a display of its own. */
+[hidden] { display: none !important; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 dialog { border: 2px solid var(--accent); border-radius: 6px; padding: 1rem 1.5rem; }
 dialog::backdrop { background: rgba(0, 0, 0, 0.4); }

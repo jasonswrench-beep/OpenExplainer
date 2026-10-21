@@ -6,6 +6,7 @@ import { checkWait } from "./capture/wait.ts";
 import { describeShot, type ClickShot } from "./capture/clicks.ts";
 import { discardQuestion, type ReviewAnswer } from "./capture/review.ts";
 import { marksOverlay } from "./picture-marks.ts";
+import { checkCropInput, checkZoomInput, shownPart, ZOOM_LIMITS, type PictureView, type Rect as ShownRect, type ZoomSettings } from "./project/views.ts";
 import {
   calloutFromClick, checkCalloutInput, clipToPicture, letterFor, newCalloutFromClick, placeMarker, type Callout, type CalloutField, type CalloutInput,
 } from "./project/callouts.ts";
@@ -890,6 +891,211 @@ export async function calloutsDialog(picture: Picture, imageUrl: string | null):
   });
   drawRows();
   await open(dialog, working.length ? rowsEl.querySelector<HTMLElement>("#co-0-name")! : dialog.querySelector<HTMLElement>("#co-add")!);
+  return dialog.returnValue === "ok" ? result : null;
+}
+
+/** What the author chose in the Picture view dialog: a view, or `null` for the whole picture. */
+export interface ViewChoice {
+  view: PictureView | null;
+}
+
+/**
+ * Chooses which part of one picture is shown where it is used: the whole picture, a region typed as four numbers, or zoomed in on the click. The picture
+ * itself is never cut. A sample of the whole picture shows the chosen part with the rest dimmed, and a line of words says the same. A mistake is
+ * explained in plain words and the dialog stays open. Returns `null` if cancelled.
+ */
+export async function pictureViewDialog(picture: Picture, imageUrl: string | null, zoom: ZoomSettings, place: HighlightKind): Promise<ViewChoice | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">Picture view</h2>
+      <p class="help" id="pv-help"></p>
+      <fieldset>
+        <legend>Which part of the picture to show</legend>
+        <p><label><input type="radio" name="pv-kind" id="pv-whole" value="whole"> The whole picture</label></p>
+        <p><label><input type="radio" name="pv-kind" id="pv-crop" value="crop"> A region I choose</label></p>
+        <div id="pv-crop-boxes" class="co-numbers" hidden></div>
+        <p><label><input type="radio" name="pv-kind" id="pv-zoom" value="zoom"> Zoomed in on the click</label></p>
+        <p id="pv-zoom-help" class="help"></p>
+      </fieldset>
+      <p id="pv-summary" class="help" role="status"></p>
+      <div id="pv-sample"></div>
+      <p id="pv-error" class="error" role="alert"></p>
+      <p><button value="ok">Save the view</button> <button value="cancel" formnovalidate>Cancel</button></p>
+    </form>`;
+  const size = { width: picture.width, height: picture.height };
+  const placeName = place === "book" ? "the book" : "a quick guide";
+  dialog.querySelector("#pv-help")!.textContent =
+    "The picture file is never cut: a view only says which part of it is shown, so it can be changed or taken off at any time. Callouts and the click circle stay on " +
+    `the picture and line up in every view. Numbers count in pixels from the top left corner of the picture, which is ${picture.width} by ${picture.height} pixels.`;
+  const errorEl = dialog.querySelector<HTMLElement>("#pv-error")!;
+  const summaryEl = dialog.querySelector<HTMLElement>("#pv-summary")!;
+  const sampleEl = dialog.querySelector<HTMLElement>("#pv-sample")!;
+  const cropBoxes = dialog.querySelector<HTMLElement>("#pv-crop-boxes")!;
+  const radio = (id: string) => dialog.querySelector<HTMLInputElement>(`#${id}`)!;
+  const hasClick = !!picture.click;
+  radio("pv-zoom").disabled = !hasClick;
+  const zoomWords = (settings: ZoomSettings) => {
+    const part = (p: HighlightKind) => shownPart({ ...size, click: picture.click, view: { kind: "zoom" } }, settings, p);
+    const book = part("book"), guide = part("guide");
+    return `Centred on the click. The size is a project setting: ${book.width} by ${book.height} pixels in the book (${settings.book.size} percent of the width) and ${guide.width} by ${guide.height} in a quick guide (${settings.guide.size} percent). Change it with Zoom settings.`;
+  };
+  dialog.querySelector("#pv-zoom-help")!.textContent = hasClick ? zoomWords(zoom) : "This picture has no click to zoom in on, so this choice is off. Pictures from Click by click have one.";
+
+  // The four boxes of a region, with the starting region being what the picture shows now, or the middle half.
+  const BOXES: { field: "left" | "top" | "width" | "height"; label: string }[] = [
+    { field: "left", label: "Region: how far across it starts" },
+    { field: "top", label: "Region: how far down it starts" },
+    { field: "width", label: "Region: width" },
+    { field: "height", label: "Region: height" },
+  ];
+  const current = picture.view?.kind === "crop" ? picture.view : null;
+  const start: ShownRect = current ?? { x: Math.round(size.width / 4), y: Math.round(size.height / 4), width: Math.round(size.width / 2), height: Math.round(size.height / 2) };
+  const startValues: Record<string, string> = { left: String(start.x), top: String(start.y), width: String(start.width), height: String(start.height) };
+  for (const box of BOXES) {
+    const p = document.createElement("p");
+    p.className = "co-number";
+    const label = document.createElement("label");
+    label.htmlFor = `pv-${box.field}`;
+    label.textContent = box.label;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.id = `pv-${box.field}`;
+    input.size = 6;
+    input.inputMode = "numeric";
+    input.autocomplete = "off";
+    input.value = startValues[box.field];
+    input.setAttribute("aria-describedby", "pv-error");
+    p.append(label, document.createElement("br"), input);
+    cropBoxes.append(p);
+  }
+  const boxValue = (field: string) => dialog.querySelector<HTMLInputElement>(`#pv-${field}`)!.value;
+  const cropInput = () => ({ left: boxValue("left"), top: boxValue("top"), width: boxValue("width"), height: boxValue("height") });
+
+  const kind = () => (radio("pv-crop").checked ? "crop" : radio("pv-zoom").checked ? "zoom" : "whole");
+  radio(picture.view?.kind === "crop" ? "pv-crop" : picture.view?.kind === "zoom" && hasClick ? "pv-zoom" : "pv-whole").checked = true;
+
+  /** The part that is shown by what is chosen and typed now, as far as it is good. */
+  let lastGood: ShownRect | null = picture.view?.kind === "crop" ? { x: picture.view.x, y: picture.view.y, width: picture.view.width, height: picture.view.height } : null;
+  function chosenPart(): ShownRect {
+    const whole = { x: 0, y: 0, width: size.width, height: size.height };
+    if (kind() === "zoom") return shownPart({ ...size, click: picture.click, view: { kind: "zoom" } }, zoom, place);
+    if (kind() === "crop") {
+      const checked = checkCropInput(cropInput(), size);
+      if (checked.ok && checked.view.kind === "crop") lastGood = { x: checked.view.x, y: checked.view.y, width: checked.view.width, height: checked.view.height };
+      return lastGood ?? start;
+    }
+    return whole;
+  }
+
+  function redraw() {
+    cropBoxes.hidden = kind() !== "crop";
+    const part = chosenPart();
+    const all = part.x === 0 && part.y === 0 && part.width === size.width && part.height === size.height;
+    summaryEl.textContent = kind() === "whole" || all
+      ? "The whole picture will be shown."
+      : kind() === "zoom"
+        ? `Zoomed in on the click: ${part.width} by ${part.height} pixels, starting ${part.x} across and ${part.y} down, as set for ${placeName}.`
+        : `Cropped: ${part.width} by ${part.height} pixels, starting ${part.x} across and ${part.y} down.`;
+    sampleEl.replaceChildren();
+    if (!imageUrl) return;
+    // The sample shows the whole picture with the part that is shown outlined and the rest dimmed.
+    const box = document.createElement("span");
+    box.className = "thumbbox";
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.alt = picture.altText || "The picture the view is for";
+    img.className = "thumb callout-preview";
+    box.append(img);
+    const svg = document.createElementNS(SVG, "svg");
+    for (const [k, v] of Object.entries({ viewBox: `0 0 ${size.width} ${size.height}`, preserveAspectRatio: "none", "aria-hidden": "true", focusable: "false", class: "circle-overlay" })) svg.setAttribute(k, v);
+    if (!all) {
+      const shade = document.createElementNS(SVG, "path");
+      shade.setAttribute("d", `M0 0H${size.width}V${size.height}H0Z M${part.x} ${part.y}V${part.y + part.height}H${part.x + part.width}V${part.y}Z`);
+      shade.setAttribute("fill-rule", "evenodd");
+      shade.setAttribute("fill", "#000000");
+      shade.setAttribute("fill-opacity", "0.55");
+      svg.append(shade);
+      const outline = document.createElementNS(SVG, "rect");
+      for (const [k, v] of Object.entries({ x: part.x, y: part.y, width: part.width, height: part.height, fill: "none", stroke: "#FFD600", "stroke-width": 2, "vector-effect": "non-scaling-stroke" })) outline.setAttribute(k, String(v));
+      svg.append(outline);
+    }
+    box.append(svg);
+    const marks = marksOverlay(picture, null);
+    if (marks) box.append(marks);
+    sampleEl.append(box);
+  }
+
+  const clearErrors = () => { errorEl.textContent = ""; cropBoxes.querySelectorAll("[aria-invalid]").forEach((e) => e.removeAttribute("aria-invalid")); };
+  for (const r of ["pv-whole", "pv-crop", "pv-zoom"]) radio(r).addEventListener("change", () => { clearErrors(); redraw(); });
+  cropBoxes.addEventListener("input", () => { clearErrors(); redraw(); });
+  redraw();
+
+  let result: ViewChoice | null = null;
+  dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return dialog.close("cancel");
+    clearErrors();
+    if (kind() === "crop") {
+      const checked = checkCropInput(cropInput(), size);
+      if (!checked.ok) {
+        const box = dialog.querySelector<HTMLInputElement>(`#pv-${checked.field}`)!;
+        box.setAttribute("aria-invalid", "true");
+        errorEl.textContent = `Problem with the region: ${checked.message}`;
+        box.focus();
+        return;
+      }
+      result = { view: checked.view };
+    } else {
+      result = { view: kind() === "zoom" ? { kind: "zoom" } : null };
+    }
+    dialog.close("ok");
+  });
+  await open(dialog, radio(kind() === "crop" ? "pv-crop" : kind() === "zoom" ? "pv-zoom" : "pv-whole"));
+  return dialog.returnValue === "ok" ? result : null;
+}
+
+/**
+ * The zoom sizes: how much of a picture a zoomed picture shows, for the book and for a quick guide, as a percent of the picture's width. Kept in the
+ * project. Returns the new sizes, or `null` if cancelled.
+ */
+export async function zoomSettingsDialog(zoom: ZoomSettings): Promise<ZoomSettings | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">Zoom settings</h2>
+      <p class="help">A picture can be zoomed in on its click. These sizes say how much of the picture a zoomed picture shows, as a percent of the picture's width
+        (${ZOOM_LIMITS.min} to ${ZOOM_LIMITS.max}; the height keeps the picture's shape, and ${ZOOM_LIMITS.max} shows all of it). They are kept in the project, one
+        for the book and one for a quick guide, and apply to every picture that is set to zoom. A smaller number zooms in closer.</p>
+      <p><label for="zs-book">Zoom size in the book, in percent</label><br><input type="text" id="zs-book" size="6" inputmode="decimal" autocomplete="off" aria-describedby="zs-error"></p>
+      <p><label for="zs-guide">Zoom size in a quick guide, in percent</label><br><input type="text" id="zs-guide" size="6" inputmode="decimal" autocomplete="off" aria-describedby="zs-error"></p>
+      <p id="zs-error" class="error" role="alert"></p>
+      <p><button value="ok">Save the settings</button> <button value="cancel" formnovalidate>Cancel</button></p>
+    </form>`;
+  const book = dialog.querySelector<HTMLInputElement>("#zs-book")!;
+  const guide = dialog.querySelector<HTMLInputElement>("#zs-guide")!;
+  const errorEl = dialog.querySelector<HTMLElement>("#zs-error")!;
+  book.value = String(zoom.book.size);
+  guide.value = String(zoom.guide.size);
+  for (const input of [book, guide]) input.addEventListener("input", () => { errorEl.textContent = ""; book.removeAttribute("aria-invalid"); guide.removeAttribute("aria-invalid"); });
+  let result: ZoomSettings | null = null;
+  dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return dialog.close("cancel");
+    const checked = checkZoomInput({ book: book.value, guide: guide.value });
+    if (!checked.ok) {
+      const box = checked.field === "book" ? book : guide;
+      box.setAttribute("aria-invalid", "true");
+      errorEl.textContent = `Problem in the zoom settings: ${checked.message}`;
+      box.focus();
+      return;
+    }
+    result = checked.zoom;
+    dialog.close("ok");
+  });
+  await open(dialog, book);
   return dialog.returnValue === "ok" ? result : null;
 }
 

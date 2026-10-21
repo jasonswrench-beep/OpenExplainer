@@ -177,9 +177,12 @@ function nearestOn(rect: CalloutRect, p: { x: number; y: number }): { x: number;
   return { x: clamp(p.x, rect.x, rect.x + rect.width), y: clamp(p.y, rect.y, rect.y + rect.height) };
 }
 
-/** Everything needed to draw a picture's callouts. */
-export function shapesFor(picture: Pick<Picture, "width" | "height" | "callouts">): Shape[] {
-  const r = markerRadius(picture.width);
+/**
+ * Everything needed to draw a picture's callouts. Markers and lines are sized by the width of the part of the picture that is shown (the whole
+ * picture by default), so they look the same size on the screen whether the picture is shown whole or zoomed in.
+ */
+export function shapesFor(picture: Pick<Picture, "width" | "height" | "callouts">, shownWidth: number = picture.width): Shape[] {
+  const r = markerRadius(shownWidth);
   const round = (n: number) => Math.round(n * 10) / 10;
   return (picture.callouts ?? []).map((c, i) => {
     // A marker that sits on the item it names needs no line.
@@ -188,7 +191,7 @@ export function shapesFor(picture: Pick<Picture, "width" | "height" | "callouts"
     const dx = end.x - c.marker.x, dy = end.y - c.marker.y;
     const length = Math.hypot(dx, dy);
     const line = !onItem && length > r + 1 ? { x1: round(c.marker.x + (dx / length) * r), y1: round(c.marker.y + (dy / length) * r), x2: round(end.x), y2: round(end.y) } : null;
-    return { letter: letterFor(i), marker: { cx: c.marker.x, cy: c.marker.y, r }, line, rect: c.target, stroke: Math.max(2, round(picture.width * 0.0015)) };
+    return { letter: letterFor(i), marker: { cx: c.marker.x, cy: c.marker.y, r }, line, rect: c.target, stroke: Math.max(2, round(shownWidth * 0.0015)) };
   });
 }
 

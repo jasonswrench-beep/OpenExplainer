@@ -2,12 +2,12 @@ import "./style.css";
 import {
   STATUSES, addNode, createProject, findNode, indent, locate, moveDown, moveUp, numbering,
   outdent, removeNode, renameNode, setStatus, visibleNodes, findNodes, replaceInTitles,
-  addPicture, removePicture, setAltText, setPictureHighlight, newId, type Picture, type Project, type Status, type TreeNode,
+  addPicture, removePicture, setAltText, setPictureHighlight, setPictureView, newId, type Picture, type Project, type Status, type TreeNode,
 } from "./project/model.ts";
 import { chooseImages, chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
-import { calloutsDialog, captureDialog, confirmDialog, highlightDialog, messageDialog, moveCircleDialog, newProjectDialog, promptText, reviewClicksDialog, variablesDialog } from "./dialogs.ts";
+import { calloutsDialog, captureDialog, confirmDialog, highlightDialog, messageDialog, moveCircleDialog, newProjectDialog, pictureViewDialog, promptText, reviewClicksDialog, variablesDialog, zoomSettingsDialog } from "./dialogs.ts";
 import { circleFor, HIGHLIGHT_KINDS, highlightWords, type HighlightKind } from "./project/highlight.ts";
 import { describeClick, describeClickDetails } from "./project/clicks.ts";
 import { createCaptureClient, type CapturedPicture } from "./capture/client.ts";
@@ -16,7 +16,8 @@ import { regionName, screenName } from "./capture/region.ts";
 import { describeWait } from "./capture/wait.ts";
 import { describeEnded, describeLost } from "./capture/clicks.ts";
 import { createPageEditor } from "./page-editor.ts";
-import { entryList, marksOverlay } from "./picture-marks.ts";
+import { entryList, pictureBox } from "./picture-marks.ts";
+import { shownPart, viewWords } from "./project/views.ts";
 import { addCalloutFromClick, setCallouts } from "./project/callouts.ts";
 import { blockLabel, calloutLabel } from "./project/page.ts";
 import { plainText } from "./project/text.ts";
@@ -86,7 +87,8 @@ app.innerHTML = `
             <button type="button" id="b-import">Import pictures into the selected item</button>
             <button type="button" id="b-capture">Capture into the selected item</button>
             <button type="button" id="b-highlight">Click circle settings</button>
-            <label>Show the click circle as in the
+            <button type="button" id="b-zoom">Zoom settings</button>
+            <label>Show the pictures as in the
               <select id="preview-kind"></select>
             </label>
           </div>
@@ -136,8 +138,11 @@ const pageEditor = createPageEditor({
   host: $("page-editor"),
   node: () => selected(),
   bytes: (file) => assets.get(file),
-  marks: (picture) => marksOverlay(picture, circleFor(picture, project.highlight, previewKind)),
-  marksKey: () => `${previewKind}|${JSON.stringify(project.highlight)}`,
+  show: (picture, url, alt) => pictureBox({
+    picture, url, alt, className: "thumb page-picture", circle: circleFor(picture, project.highlight, previewKind), shown: shownPart(picture, project.zoom, previewKind),
+  }),
+  entries: (picture) => entryList(picture, shownPart(picture, project.zoom, previewKind)),
+  marksKey: () => `${previewKind}|${JSON.stringify(project.highlight)}|${JSON.stringify(project.zoom)}`,
   changed: () => { markDirty(); renderProperties(); },
   announce: (text) => announce(text),
   selectionChanged: () => renderProperties(),
@@ -249,7 +254,7 @@ HIGHLIGHT_KINDS.forEach((kind) => {
 previewSelect.addEventListener("change", () => {
   previewKind = previewSelect.value as HighlightKind;
   renderPictures();
-  announce(`Showing the pictures as in the ${HIGHLIGHT_KINDS.find((k) => k.id === previewKind)!.name.toLowerCase()}.`);
+  announce(`Showing the pictures as in the ${HIGHLIGHT_KINDS.find((k) => k.id === previewKind)!.name.toLowerCase()}: the click circle and the zoom follow that place's settings.`);
 });
 
 const CIRCLE_MODES = [
@@ -267,6 +272,25 @@ function setCircleMode(nodeId: string, picture: Picture, mode: string) {
   renderPictures();
   document.querySelector<HTMLElement>(`[data-circle-mode="${picture.id}"]`)?.focus();
   announce(mode === "follow" ? "The click circle now follows the project setting." : mode === "on" ? "The click circle will always show." : "The click circle will never show.");
+}
+
+/** The Picture view dialog for one picture. Nothing changes unless the author presses Save. */
+async function editView(nodeId: string, picture: Picture, name: string) {
+  const bytes = assets.get(picture.file);
+  const url = bytes ? URL.createObjectURL(new Blob([bytes as BlobPart], { type: picture.file.endsWith(".png") ? "image/png" : "image/jpeg" })) : null;
+  let choice;
+  try {
+    choice = await pictureViewDialog(picture, url, project.zoom, previewKind);
+  } finally {
+    if (url) URL.revokeObjectURL(url);
+  }
+  if (!choice) return;
+  setPictureView(project.tree, nodeId, picture.id, choice.view);
+  markDirty();
+  renderPictures();
+  document.querySelector<HTMLElement>(`[data-view="${picture.id}"]`)?.focus();
+  const view = picture.view;
+  announce(!view ? `${name} is shown whole.` : view.kind === "crop" ? `${name} is cropped to ${view.width} by ${view.height} pixels.` : `${name} is zoomed in on the click.`);
 }
 
 /** The Callouts dialog for one picture. Nothing changes unless the author presses Save. */
@@ -302,6 +326,15 @@ async function moveCircle(nodeId: string, picture: Picture, name: string) {
   announce(choice.kind === "reset" ? `The click circle of ${name} is back on the click.` : `The click circle of ${name} was moved to ${choice.x} across and ${choice.y} down.`);
 }
 
+$("b-zoom").addEventListener("click", async () => {
+  const next = await zoomSettingsDialog(project.zoom);
+  if (!next) return;
+  project.zoom = next;
+  markDirty();
+  renderPictures();
+  announce("Zoom settings saved.");
+});
+
 $("b-highlight").addEventListener("click", async () => {
   const next = await highlightDialog(project.highlight);
   if (!next) return;
@@ -331,18 +364,12 @@ function renderPictures() {
     const li = document.createElement("li");
     const bytes = assets.get(picture.file);
     if (bytes) {
-      const img = document.createElement("img");
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: picture.file.endsWith(".png") ? "image/png" : "image/jpeg" }));
       blobUrls.push(url);
-      img.src = url;
-      img.alt = picture.altText || "Picture with no description yet";
-      img.className = "thumb";
-      const box = document.createElement("span");
-      box.className = "thumbbox";
-      box.append(img);
-      const marks = marksOverlay(picture, circleFor(picture, project.highlight, previewKind));
-      if (marks) box.append(marks);
-      li.append(box);
+      li.append(pictureBox({
+        picture, url, alt: picture.altText || "Picture with no description yet", className: "thumb",
+        circle: circleFor(picture, project.highlight, previewKind), shown: shownPart(picture, project.zoom, previewKind),
+      }));
     } else {
       const missing = document.createElement("p");
       missing.textContent = "⚠ This picture file is missing from the project.";
@@ -375,7 +402,14 @@ function renderPictures() {
         info.append(detail);
       }
     }
-    const callouts = entryList(picture);
+    const viewLine = viewWords(picture, project.zoom, previewKind);
+    if (viewLine) {
+      const viewState = document.createElement("p");
+      viewState.className = "help";
+      viewState.textContent = viewLine;
+      info.append(viewState);
+    }
+    const callouts = entryList(picture, shownPart(picture, project.zoom, previewKind));
     if (callouts) info.append(callouts);
     const circleWords = highlightWords(picture, project.highlight, previewKind);
     if (circleWords) {
@@ -412,7 +446,13 @@ function renderPictures() {
     calloutsButton.dataset.callouts = picture.id;
     calloutsButton.setAttribute("aria-label", `Callouts of ${name}`);
     calloutsButton.addEventListener("click", () => void editCallouts(picture, name));
-    info.append(edit, " ", calloutsButton, " ", remove);
+    const viewButton = document.createElement("button");
+    viewButton.type = "button";
+    viewButton.textContent = "Picture view";
+    viewButton.dataset.view = picture.id;
+    viewButton.setAttribute("aria-label", `Picture view of ${name}`);
+    viewButton.addEventListener("click", () => void editView(node.id, picture, name));
+    info.append(edit, " ", viewButton, " ", calloutsButton, " ", remove);
     li.append(info);
     list.append(li);
   }

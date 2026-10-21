@@ -382,7 +382,7 @@ before the snapshot, which is not built.
   what Windows said about the item ("Windows describes it as ..."), and the item's outline; a password box says only where the click was.
   What its circle is doing is said too ("Click circle: follows the project (not shown in the book).").
 - **The circle on the thumbnail.** An SVG drawn over the picture in the picture's own pixels, so it lines up at any size, and never burned into
-  the file. Next to *Capture into the selected item* are *Click circle settings* and *Show the click circle as in the* **Book** or **Quick guide**
+  the file. Next to *Capture into the selected item* are *Click circle settings* and *Show the pictures as in the* **Book** or **Quick guide** (it now also picks the zoom size, see `docs/editor.md`)
   (a preview choice for this session; the book is the starting one, where the circle is off until a picture says "always show").
 - **Click circle settings** (`highlightDialog`): for the book and for a quick guide, whether the circle shows, its size (percent of the picture's
   width, 1 to 20), its colour (six hex digits, or a ready-made colour: yellow, orange, green, blue, pink, red, white) and its see-through level
