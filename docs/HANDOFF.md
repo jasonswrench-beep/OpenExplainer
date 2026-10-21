@@ -397,8 +397,8 @@ Parts, in order:
     print preview, PDF (page numbers), Word, help site and Markdown; tests in `tests/book-index.test.ts` and `book-index-output.test.ts`; tried in the real window (scenario `index`; `word` and `pdf` extended) and in the real Word.
     Not built: the AI's first pass of index terms (Step 7 says it may draft them; the software's own first pass works without), sub-entries ("Save, as a copy") and "see also", index terms on a picture or a
     paragraph (terms are per topic), a book check rule for topics with no terms.
-17. Next, from Jason's answers 2026-10-21: the local AI (Qwen's weights are Apache 2.0, Jason confirmed) and the MCP server (Jason wants an AI assistant able to document something without a person being involved).
-    Both need a plan agreed with Jason first (see "Still open").
+17. Next: the local AI and the MCP server. The plan, with what I looked up (Qwen3.5-9B and Qwen3.8-27B are Apache-2.0; llama.cpp is MIT and has Windows x64 and ARM64 builds) and four decisions for Jason, is in
+    `docs/ai-and-mcp-plan.md`. Nothing is built yet.
 
 ## Still open (ask Jason, do not guess)
 
