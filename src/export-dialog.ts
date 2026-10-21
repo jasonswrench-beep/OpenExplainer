@@ -2,7 +2,10 @@
 // this only asks. The kinds are made by src/export/.
 import { open } from "./dialogs.ts";
 
-export type ExportKind = "help-site" | "json" | "markdown" | "word" | "guide-word";
+export type ExportKind = "help-site" | "json" | "markdown" | "word" | "pdf" | "guide-word" | "guide-pdf";
+
+/** The kinds that export one guide, chosen below the list. */
+export const GUIDE_KINDS: ExportKind[] = ["guide-word", "guide-pdf"];
 
 export interface ExportChoice {
   kind: ExportKind;
@@ -17,7 +20,9 @@ export const EXPORT_KINDS: { id: ExportKind; name: string; words: string }[] = [
   { id: "json", name: "JSON with images", words: "The whole book as one readable file, book.json (structure, text, callouts, marks, variables), with the picture files beside it, for other programs and AI assistants. It can be imported back. Saved as a zip file." },
   { id: "markdown", name: "Markdown", words: "The whole book as one plain text file, book.md, with each picture as a linked PNG file (cut to the part shown, with its marks drawn in). Saved as a zip file." },
   { id: "word", name: "Word", words: "The whole book as one Word document (.docx) that you can edit and restyle: real headings, numbered steps that start again at 1 for each procedure, callout boxes, a contents list with links, and every picture cut to the part shown with its marks drawn in and its description as alternative text." },
+  { id: "pdf", name: "PDF", words: "The whole book as a PDF made for paper: tagged so a screen reader can read it, with a bookmark for each heading, a running header, page numbers, and a contents list with page numbers. Making it takes a moment." },
   { id: "guide-word", name: "Guide (Word)", words: "One short step-by-step guide, chosen below, as a Word document you can edit: its name, each task, and each step with its heading, its picture with the step's number on the clicked spot, a close-up, and its words, in the layout the guide uses." },
+  { id: "guide-pdf", name: "Guide (PDF)", words: "One short step-by-step guide, chosen below, as a PDF made for paper, tagged for a screen reader, with a bookmark for each heading, a running header and page numbers." },
 ];
 
 /** Asks what to export. `checkFirst` opens the book check; it is offered, never required. Returns the choice, or `null` if cancelled. */
@@ -46,11 +51,11 @@ export async function exportDialog(options: { checkFirst(): void; unresolved: nu
     radio.id = `ex-kind-${kind.id}`;
     radio.checked = i === 0;
     // A guide cannot be exported when there are none: the choice is there, switched off, and says why.
-    if (kind.id === "guide-word" && options.guides.length === 0) radio.disabled = true;
+    if (GUIDE_KINDS.includes(kind.id) && options.guides.length === 0) radio.disabled = true;
     const words = document.createElement("span");
     words.className = "help";
     words.id = `ex-kind-${kind.id}-words`;
-    words.textContent = kind.id === "guide-word" && options.guides.length === 0 ? `${kind.words} There are no guides yet: choose Guides in the toolbar to make one.` : kind.words;
+    words.textContent = GUIDE_KINDS.includes(kind.id) && options.guides.length === 0 ? `${kind.words} There are no guides yet: choose Guides in the toolbar to make one.` : kind.words;
     radio.setAttribute("aria-describedby", words.id);
     label.append(radio, ` ${kind.name}`);
     p.append(label, document.createElement("br"), words);
@@ -69,14 +74,14 @@ export async function exportDialog(options: { checkFirst(): void; unresolved: nu
     guidePick.append(option);
   }
   const selected = () => (dialog.querySelector<HTMLInputElement>('input[name="ex-kind"]:checked')!.value as ExportKind);
-  const sync = () => { jsonBox.hidden = selected() !== "json"; guideBox.hidden = selected() !== "guide-word"; };
+  const sync = () => { jsonBox.hidden = selected() !== "json"; guideBox.hidden = !GUIDE_KINDS.includes(selected()); };
   dialog.querySelectorAll('input[name="ex-kind"]').forEach((r) => r.addEventListener("change", sync));
   dialog.querySelector("#ex-check")!.addEventListener("click", () => options.checkFirst());
   let result: ExportChoice | null = null;
   dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
     event.preventDefault();
     if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return dialog.close("cancel");
-    result = { kind: selected(), comments: selected() === "json" && dialog.querySelector<HTMLInputElement>("#ex-comments")!.checked, ...(selected() === "guide-word" ? { guideId: guidePick.value } : {}) };
+    result = { kind: selected(), comments: selected() === "json" && dialog.querySelector<HTMLInputElement>("#ex-comments")!.checked, ...(GUIDE_KINDS.includes(selected()) ? { guideId: guidePick.value } : {}) };
     dialog.close("ok");
   });
   sync();

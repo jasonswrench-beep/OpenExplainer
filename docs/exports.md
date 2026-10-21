@@ -89,7 +89,35 @@ Tried: the file was opened in the real Word (16.0) by automation, with a guide o
 header and the page number, and Word's own PDF of it was looked at page by page (the left layout puts the pictures left of the words, and the number on the clicked spot is large enough to read in the left column,
 which a first try showed it was not). Not tried: LibreOffice, Word on a Mac, a screen reader.
 
+## PDF (the book, and a guide)
+
+A letter-size PDF made for paper (`src/export/pdf.ts`, `pdf-css.ts`, `pdf-make.ts`, `pdf-job.ts`, and the shell's `src-tauri/src/pdf.rs`). Choose **PDF** for the book or **Guide (PDF)** for one guide in the Export
+dialog. It is made by the browser engine that already shows the app (WebView2, which is Chromium), asked to print a page, so the PDF has real text, real page breaks and:
+
+- **Tags** for a screen reader (a structure tree, headings, lists, links and figures), the **language** (English) and the **title**, and a **bookmark for each heading**. A picture's alternative text is its
+  description with its marks, as everywhere else.
+- A **running header** (the book's or guide's name) and a **page number** in the margins, written as CSS page margin boxes. A book's title page has neither. Chapters start on a new page; a guide's tasks do.
+- A **contents list with page numbers and dotted leaders** (a book). The page numbers are found by printing twice: the first printing has stand-in numbers of the same width, every contents entry links to its
+  topic, and a PDF keeps the target of each link as a named place with its page, which `anchorPages` reads (the table of where each object is, the page list, the table of names). The second printing has the real
+  numbers; if they moved anything, it prints again (at most four times). If the pages cannot be read out of the PDF, the contents is left without numbers, never with wrong ones, and the export says so.
+- The pictures are the flat pictures (cut to the part shown, marks and callouts drawn in), put beside the page in a work folder; a guide's are made for each step, with the step's number on the clicked spot and
+  a close-up, as for Word. Pictures never split across pages, and a step with a picture is kept together where there is room. Printed width follows the print size rule (`PRINT_TEXT_WIDTH`).
+- Comments and notes for the writer are never in it. The page that is printed allows no script and nothing from the network (a content security policy), and everything from the project is escaped, including the
+  header, which is written as a CSS string.
+
+**The shell part** (`src-tauri/src/pdf.rs`, the only Rust besides the capture code; Jason agreed to it on 2026-10-21). Three commands: `pdf_workspace` (a fresh folder in the PC's temporary folder, `openexplainer-pdf`),
+`print_pdf(page, pdf, options)` and `pdf_workspace_remove`. `print_pdf` opens the page in a hidden window of its own that has no permission to use any of the app's commands, waits for it to load (and for fonts and
+pictures), asks the browser engine for `Page.printToPDF` (the options are tagged PDF, a document outline, the page's own size and margins, and backgrounds), writes the file, and always closes the window. It
+refuses a page outside the work folder, a file name that does not end in `.pdf`, and options that are not a JSON object; only one PDF is made at a time and a second is told so; everything has a three minute limit
+(it runs on a background thread, so the app never freezes). The work folder is cleared away after each export and any leftover is cleared the next time. The Rust crates added are `webview2-com` (MIT) and `windows`
+(MIT or Apache-2.0), which Tauri already uses, and `base64` (MIT or Apache-2.0), also already used by Tauri; `Check Licences.bat` was run before and after.
+
+Tried in the real window: a 13-page book (three chapters, pictures with marks, a procedure, a box, 120 paragraphs) printed twice in about 1.5 seconds, every chapter and topic found on its page, the contents list
+looked at (numbers right-aligned with leaders), the PDF read for its tags, language, bookmarks, headings, figures and alternative text, and a guide with both layouts looked at page by page. Refusals and the
+one-at-a-time rule were exercised against the real shell. Not tried: a screen reader on the PDF, a desktop PDF program's accessibility checker (PAC or a desktop PDF program), a very long book, a book with unusual fonts. The fonts
+are Georgia (body) and Segoe UI (headings) as installed on the PC, falling back to Times New Roman and Arial, and the PDF embeds what it used.
+
 ## Still to come
 
-Book PDF (tagged, with a contents list, running headers and page numbers), a guide as PDF or a help site, the choice to switch a picture to a crop or zoom automatically when it would print too small,
-and the book index. See `docs/HANDOFF.md`.
+The book index, a guide as a help site, the choice to switch a picture to a crop or zoom automatically when it would print too small (the preview and the check only flag them), and the printed look matched
+more closely to the reference how-to book. See `docs/HANDOFF.md`.

@@ -21,8 +21,8 @@ function stepHtml(ctx: RenderContext, guide: Guide, item: GuideStep, where: stri
   let pictures = "";
   if (picture) {
     const focus = focusPicture(picture, guide);
-    const whole = figureHtml(ctx, picture, where, { ...options, noSmallNote: focus !== null });
-    const close = focus ? `<div class="gd-closeup">${figureHtml(ctx, focus, where, { ...options, closeUp: true })}</div>` : "";
+    const whole = figureHtml({ ...ctx, imageSrc: (p) => ctx.imageSrc(p, { stepId: step.id, closeUp: false }) }, picture, where, { ...options, noSmallNote: focus !== null });
+    const close = focus ? `<div class="gd-closeup">${figureHtml({ ...ctx, imageSrc: (p) => ctx.imageSrc(p, { stepId: step.id, closeUp: true }) }, focus, where, { ...options, closeUp: true })}</div>` : "";
     pictures = `<div class="gd-pictures">${whole}${close}</div>`;
   }
   const result = step.result && step.result.length ? `<p class="pv-result"><strong>Result:</strong> ${runsHtml(ctx, step.result)}</p>` : "";

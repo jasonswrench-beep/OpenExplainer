@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod capture;
+mod pdf;
 
 fn main() {
     tauri::Builder::default()
@@ -23,7 +24,10 @@ fn main() {
             capture::selection_finish,
             capture::clicks::watch_clicks,
             capture::clicks::stop_clicks,
-            capture::clicks::click_session_status
+            capture::clicks::click_session_status,
+            pdf::pdf_workspace,
+            pdf::pdf_workspace_remove,
+            pdf::print_pdf
         ])
         .run(tauri::generate_context!())
         .expect("OpenExplainer could not start.");

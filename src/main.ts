@@ -24,12 +24,13 @@ import { blockWords, unresolvedCount, unresolvedIn, type UnresolvedItem } from "
 import { renderPrintPreview, topicAnchor } from "./render/print.ts";
 import { drawingDialog } from "./drawing-dialog.ts";
 import { checkDialog } from "./check-dialog.ts";
-import { exportDialog, EXPORT_KINDS, type ExportChoice } from "./export-dialog.ts";
+import { exportDialog, EXPORT_KINDS, GUIDE_KINDS, type ExportChoice } from "./export-dialog.ts";
 import { flattenGuide, flattenPlaced } from "./export/pictures.ts";
 import { packJsonExport, unpackJsonExport } from "./export/json.ts";
 import { buildMarkdown } from "./export/markdown.ts";
 import { packDocx } from "./export/docx.ts";
 import { packGuideDocx } from "./export/guide-docx.ts";
+import { makeBookPdf, makeGuidePdf } from "./export/pdf-make.ts";
 import { buildHelpSite } from "./export/help-site.ts";
 import { flattenPicture } from "./render/flatten.ts";
 import { guidesDialog } from "./guides-dialog.ts";
@@ -1009,7 +1010,7 @@ async function openProject() {
 /** A safe file name for an export, such as "My Book help site.zip" (or "My Book.docx" for Word). */
 function exportFileName(kind: string, extension = "zip"): string {
   const base = projectFileName(project.name).replace(/\.openexplainer$/, "");
-  return extension === "docx" ? `${base}.docx` : `${base} ${kind}.${extension}`;
+  return extension === "zip" ? `${base} ${kind}.zip` : `${base}.${extension}`;
 }
 
 /** Makes an export of the whole book as one zip file the author chooses where to save. Nothing in the project changes. */
@@ -1022,12 +1023,12 @@ async function exportBook() {
   if (!choice) return $("b-export").focus();
   const name = EXPORT_KINDS.find((k) => k.id === choice.kind)!.name;
   try {
-    const isWord = choice.kind === "word" || choice.kind === "guide-word";
-    const guide = choice.kind === "guide-word" ? project.guides.find((g) => g.id === choice.guideId) : undefined;
-    if (choice.kind === "guide-word" && !guide) throw new Error("There is no guide to export. Choose Guides to make one.");
+    const guide = GUIDE_KINDS.includes(choice.kind) ? project.guides.find((g) => g.id === choice.guideId) : undefined;
+    if (GUIDE_KINDS.includes(choice.kind) && !guide) throw new Error("There is no guide to export. Choose Guides to make one.");
+    const extension = choice.kind === "word" || choice.kind === "guide-word" ? "docx" : choice.kind === "pdf" || choice.kind === "guide-pdf" ? "pdf" : "zip";
     const path = await chooseExportPath(
-      guide ? `${projectFileName(guide.name).replace(/\.openexplainer$/, "")}.docx` : exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown", isWord ? "docx" : "zip"),
-      isWord ? "docx" : "zip",
+      guide ? `${projectFileName(guide.name).replace(/\.openexplainer$/, "")}.${extension}` : exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown", extension),
+      extension,
     );
     if (!path) return $("b-export").focus();
     announce(`Making the ${name} export. This can take a moment.`);
@@ -1040,7 +1041,15 @@ async function exportBook() {
     } else {
       const flat = guide ? await flattenGuide(project, guide, assets, flattenPicture) : await flattenPlaced(project, assets, "book", flattenPicture);
       left.push(...flat.missing.map((m) => `The picture "${m}" is missing from the project, so it is not in the export.`), ...flat.failed.map((m) => `The picture "${m}" could not be drawn, so it is not in the export.`));
-      bytes = guide ? packGuideDocx(project, guide, flat.flat) : isWord ? packDocx(project, flat.flat) : zip(choice.kind === "help-site" ? buildHelpSite(project, flat.flat) : buildMarkdown(project, flat.flat));
+      if (choice.kind === "pdf") {
+        const made = await makeBookPdf(project, flat.flat);
+        bytes = made.bytes;
+        if (!made.numbered) left.push("The contents list has no page numbers, because the pages of the topics could not be found in the PDF.");
+      } else if (choice.kind === "guide-pdf") {
+        bytes = (await makeGuidePdf(project, guide!, flat.flat)).bytes;
+      } else {
+        bytes = guide ? packGuideDocx(project, guide, flat.flat) : choice.kind === "word" ? packDocx(project, flat.flat) : zip(choice.kind === "help-site" ? buildHelpSite(project, flat.flat) : buildMarkdown(project, flat.flat));
+      }
     }
     await writeBytes(path, bytes);
     announce(`${name} export saved to ${path}.`);

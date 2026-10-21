@@ -14,10 +14,19 @@ export interface PrintPreview {
 /** The id an anchor in the preview uses for a topic. */
 export const topicAnchor = (id: string) => `pv-topic-${id}`;
 
-function contentsHtml(tree: TreeNode[], numbers: Map<string, string>, ctx: RenderContext): string {
+/** The page numbers for the contents, as the words to print for each topic (a PDF knows them only after it has been laid out once). Without them the contents has none, as in the preview. */
+export type ContentsPages = Map<string, string>;
+
+function contentsHtml(tree: TreeNode[], numbers: Map<string, string>, ctx: RenderContext, pages?: ContentsPages): string {
   if (tree.length === 0) return "";
   const items = tree
-    .map((node) => `<li><a href="#${esc(topicAnchor(node.id))}" data-anchor="${esc(topicAnchor(node.id))}">${esc(numbers.get(node.id) ?? "")} ${esc(fillVariables(node.title, ctx.project.variables))}</a>${contentsHtml(node.children, numbers, ctx)}</li>`)
+    .map((node) => {
+      const title = `${esc(numbers.get(node.id) ?? "")} ${esc(fillVariables(node.title, ctx.project.variables))}`;
+      const page = pages?.get(node.id);
+      // With page numbers the entry is its words, a dotted leader (which a screen reader skips) and the number.
+      const inside = page === undefined ? title : `<span class="pv-toc-title">${title}</span><span class="pv-toc-leader" aria-hidden="true"></span><span class="pv-toc-page">${esc(page)}</span>`;
+      return `<li><a href="#${esc(topicAnchor(node.id))}" data-anchor="${esc(topicAnchor(node.id))}">${inside}</a>${contentsHtml(node.children, numbers, ctx, pages)}</li>`;
+    })
     .join("");
   return `<ol class="pv-toc-list">${items}</ol>`;
 }
@@ -38,7 +47,7 @@ function topicHtml(node: TreeNode, depth: number, numbers: Map<string, string>, 
 }
 
 /** Writes the whole book as it will print. */
-export function renderPrintPreview(base: RenderContext): PrintPreview {
+export function renderPrintPreview(base: RenderContext, options: { pages?: ContentsPages } = {}): PrintPreview {
   const notes: string[] = [];
   const ctx: RenderContext = { ...base, onNote: (words) => { notes.push(words); base.onNote?.(words); } };
   const project: Project = ctx.project;
@@ -47,7 +56,7 @@ export function renderPrintPreview(base: RenderContext): PrintPreview {
   const details = ["PRODUCT", "VERSION", "COMPANY"].map((key) => project.variables[key]?.trim()).filter(Boolean).map((v) => `<p>${esc(v)}</p>`).join("");
   const parts = [
     `<section class="pv-sheet pv-title-page"><h1 class="pv-book-title">${title}</h1>${details}</section>`,
-    project.tree.length ? `<section class="pv-sheet pv-toc"><h1>Contents</h1>${contentsHtml(project.tree, numbers, ctx)}</section>` : "",
+    project.tree.length ? `<section class="pv-sheet pv-toc"><h1>Contents</h1>${contentsHtml(project.tree, numbers, ctx, options.pages)}</section>` : "",
     ...project.tree.map((chapter) => topicHtml(chapter, 0, numbers, ctx)),
   ].filter(Boolean);
   const html = `<div class="pv-book">${parts.join("\n")}</div>`;

@@ -378,20 +378,22 @@ Parts, in order:
     `src/render/overlay.ts` (`overlayFor` takes a step number), `src/guides-dialog.ts`, the Guides button and the Guide preview tab in `src/main.ts`; tests in `tests/guides.test.ts` and `tests/guide-render.test.ts`;
     tried in the real window (scenario `guides`; `keyboard2` extended). Choices made without asking, for Jason to confirm: a guide is made of topics with numbered steps and takes only their steps and boxed notes
     (the book's paragraphs, headings and loose pictures stay out); each step is headed "Step N" (numbered again for each list); the step number marker is dark blue (not red, so it is not mistaken for a lettered
-    callout); close-ups are on by default and shown for whole pictures that have a click; the left layout shows two pictures (whole and close-up) because a step holds one picture. Not built: exporting a guide as PDF or a help site,
+    callout); close-ups are on by default and shown for whole pictures that have a click; the left layout shows two pictures (whole and close-up) because a step holds one picture. Not built: exporting a guide as a help site,
     the third picture of the left layout, check rules for guides.
 13. **A guide as Word (DONE 2026-10-21 while Jason was away)**: `src/export/guide-docx.ts` (shares the book's styles through `assembleDocx` in `src/export/docx.ts`), `flattenGuide` and `guideKey` in
     `src/export/pictures.ts` (a picture for each step, since it carries the step's number, and a close-up), "Guide (Word)" in the Export dialog (with a guide picker, switched off when there are no guides) and
     `exportBook` in `src/main.ts`; 3 tests in `tests/guide-export.test.ts`; tried in the real window (scenario `word` extended) and in the real Word (see `docs/exports.md`). Jason should try Export, Guide (Word) by
     hand through the Save dialog.
-14. Next, in order: the automatic crop or zoom option for print (to-do Step 6; the preview only flags small pictures now). The PDF engine and the AI model both need Jason's decision (see "Still open").
+14. **PDF (DONE 2026-10-21; Jason said yes to Rust in the shell)**: `src-tauri/src/pdf.rs` (three commands; WebView2 `Page.printToPDF` in a hidden window; one at a time; refusals; 180 s limit), `src/export/pdf.ts`
+    (the page, `anchorPages`, page numbers), `pdf-css.ts`, `pdf-make.ts` (prints twice to settle the contents), `pdf-job.ts` (the shell and the work folder), "PDF" and "Guide (PDF)" in the Export dialog and
+    `exportBook` in `src/main.ts`, a capability scope for `$TEMP/openexplainer-pdf` in `src-tauri/capabilities/default.json`; `renderPrintPreview` takes the contents' page numbers; 6 tests in `tests/pdf.test.ts`,
+    1 Rust test; tried in the real window (scenario `pdf`). `CLAUDE.md` and `NOTICE` were updated. Jason should try Export, PDF and Guide (PDF) by hand through the Save dialog, and open a PDF in a desktop PDF program or another
+    reader. Not done: a screen reader or a desktop PDF program accessibility check of the PDF, matching the the reference authoring platform look more closely, a guide as a help site.
+15. Next: the questions below (print auto crop or zoom, the AI model, the MCP server, the book index).
 
 ## Still open (ask Jason, do not guess)
 
-- PDF export (Step 6): the design wants a tagged PDF with a contents list, running headers and page numbers. The best engine is the Chromium that already shows the app (WebView2 `PrintToPdf` via a
-  small piece of Rust in the Tauri shell, which makes a tagged PDF from the same HTML as the print preview and supports CSS page margin boxes for headers and numbers). The alternative is a
-  TypeScript PDF library with my own layout, which cannot easily make a tagged PDF. CLAUDE.md says Rust only where native Windows capture needs it, so adding Rust to the shell for printing is
-  Jason's call. A contents list with real page numbers needs a second pass either way.
+- PDF export: answered 2026-10-21 (Rust in the shell, see item 14). Open: how closely the printed look should follow the reference how-to book (fonts, running headers, chapter openers).
 
 - Print layout: the design says the layout switches to a cropped or zoomed picture when a full window would be too small to read on paper. The preview only flags such a picture (a
   note for the writer) and never changes it. Should the export switch automatically, or only warn?

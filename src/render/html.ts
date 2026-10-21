@@ -17,8 +17,11 @@ export interface RenderContext {
   project: Project;
   /** Which place the pages are for: the click circle and the zoom size follow that place's settings. */
   place: HighlightKind;
-  /** Where a picture's bytes can be shown from (a blob address in a preview, a file name in an export), or `null` when the file is missing. */
-  imageSrc(picture: Picture): string | null;
+  /**
+   * Where a picture's bytes can be shown from (a blob address in a preview, a file name in an export), or `null` when the file is missing. A guide's step passes which step and
+   * whether it is the close-up, because an output that draws the marks into each picture makes one for each use.
+   */
+  imageSrc(picture: Picture, use?: { stepId: string; closeUp: boolean }): string | null;
   /** Add notes for the writer, marked as not part of the output. A preview does; an export does not. */
   notes: boolean;
   /** The pictures come already cut to the part shown, with the click circle, the marks and the callouts drawn in (see src/render/flatten.ts), so no drawing is laid over them. */

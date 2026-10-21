@@ -16,3 +16,9 @@ Libraries used by the capture helper (capture-helper/), each under a permissive 
 Each of these brings in smaller libraries of its own (35 Rust crates in all). One of them, unicode-ident, also
 carries the Unicode licence for its data tables, which is permissive. "Check Licences.bat" reads the licence of
 every one and refuses GPL and AGPL.
+
+Libraries used by the app's shell (src-tauri/) for making a PDF (src-tauri/src/pdf.rs), each already part of Tauri's own dependencies and under a permissive licence:
+
+- webview2-com (Rust bindings for Microsoft's WebView2 browser engine), MIT. https://github.com/wravery/webview2-rs
+- windows (Microsoft's Rust bindings for the Windows API), MIT OR Apache-2.0. https://github.com/microsoft/windows-rs
+- base64 (decoding the PDF the browser engine returns), MIT OR Apache-2.0. https://github.com/marshallpierce/rust-base64

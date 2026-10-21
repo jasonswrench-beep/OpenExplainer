@@ -210,7 +210,7 @@ ignore the keyboard stays on the same place in the list (or goes to Close when n
 
 ## Export and import
 
-**Export** (a toolbar button) opens a dialog: Help site, JSON with images, Markdown, Word or Guide (Word), each described in words, with a box for the working comments when JSON is chosen (off to begin with) and an optional
+**Export** (a toolbar button) opens a dialog: Help site, JSON with images, Markdown, Word, PDF, Guide (Word) or Guide (PDF), each described in words, with a box for the working comments when JSON is chosen (off to begin with) and an optional
 **Check the book first** button that opens the book check on top (the dialog says the check is optional and only advises; it also says how many unresolved comments there are). It then asks where to save a zip
 file (a .docx file for Word), makes the export without changing the project, saves it, and says what was saved and anything that could not be included (a picture file that is missing or could not be drawn). **Import an export**
 reads a JSON export back into a project (asking first if there are unsaved changes), as an unsaved project. The formats are in `docs/exports.md`; the code is in `src/export/`, with `src/render/flatten.ts`
@@ -234,8 +234,8 @@ A **guide** is a few pages for one task, or for several (the quick, step-by-step
   shown. The click circle and the zoom size follow the quick-guide settings. A **close-up** is the same picture zoomed in on the click, shown with a whole picture that has a click; a picture the author has
   cropped or zoomed, or one with no click, gets none, and the dialog can turn close-ups off for a guide. The close-up's description says it is a close-up.
 - A picture with no description of its own takes the words of its step as its description (so every picture in a guide has one), and the preview's note about a missing description is not shown for it.
-- A guide can be exported to Word: choose **Guide (Word)** in the Export dialog (see `docs/exports.md`). The step number marker is 2.5 percent of the width shown in radius, so it can be read when a picture is small on the page.
-- Not built yet: the third picture of the left layout (a step holds one picture today, so the left layout shows the picture and its close-up), exporting a guide as PDF or a help site, and book check rules for
+- A guide can be exported to Word or PDF: choose **Guide (Word)** or **Guide (PDF)** in the Export dialog (see `docs/exports.md`). The step number marker is 2.5 percent of the width shown in radius, so it can be read when a picture is small on the page.
+- Not built yet: the third picture of the left layout (a step holds one picture today, so the left layout shows the picture and its close-up), exporting a guide as a help site, and book check rules for
   guides (a task whose topic has lost its steps shows a note for the writer in the preview).
 
 ## What has been tried
@@ -278,6 +278,11 @@ A guide as Word, in the real window: the Export dialog with five kinds, the Guid
 by the real canvas (each step's picture and close-up with the step's number drawn on, checked by reading the pixel on the marker), built into a .docx, every XML part read by the browser's XML reader with no error. The real
 Word opened it with no repair message (6 pictures, 2 tables, header and page number) and its PDF was looked at; that showed the number marker too small to read in the left column, so it was made larger. The native
 Save dialog was not driven.
+
+PDF, in the real window: the Export dialog with seven kinds, the guide choices switched off with the reason when there are no guides; then a made-up 13-page book and a two-task guide with real pictures drawn
+by the real canvas, printed to PDF by the real shell, the pages drawn and looked at (title page without a header, the contents with page numbers and leaders, a chapter opener, a picture with its marks, both guide
+layouts), every chapter and topic found on its page and in order, the file read for its structure tree, language, bookmarks, headings, figures and alternative text, and the shell's refusals (a page outside the work
+folder, a name that is not .pdf, bad options, a second PDF at the same time). The native Save dialog was not driven, so saving to a chosen place is for Jason to try by hand.
 
 Word, in the real window: the Export dialog with four kinds and Word described and tied to its radio button, the Down arrow moving to Word and keeping the JSON comments box hidden; then a made-up book with two real
 pictures (one whole, one cropped) built into a .docx by the program's own code, every XML part read by the browser's own XML reader with no error, and the file saved. The real Word (16.0, in its own hidden copy, never
