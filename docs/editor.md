@@ -216,6 +216,27 @@ file (a .docx file for Word), makes the export without changing the project, sav
 reads a JSON export back into a project (asking first if there are unsaved changes), as an unsaved project. The formats are in `docs/exports.md`; the code is in `src/export/`, with `src/render/flatten.ts`
 drawing each picture's marks into a PNG on a canvas.
 
+## Guides
+
+A **guide** is a few pages for one task, or for several (the quick, step-by-step handout, as opposed to the book). **Guides** (a toolbar button) opens a dialog to make, change and delete them; **Guide preview**
+(a fourth tab next to Edit, Print preview and Help site preview, with a picker for which guide) shows one. The format and the rules are in `docs/format-spec.md` ("Short guides") and `src/project/guides.ts`.
+
+- A guide holds **no text of its own**. It is a list of topics already in the book (a task each), a layout, and a few choices, so material is written once: editing a topic changes the book and every guide
+  made from it. Deleting a guide deletes no topic and no picture. The guide takes each task's numbered steps (with their pictures and result lines) and its boxed notes, in page order; the topic's
+  paragraphs, headings and loose pictures belong to the book and are not in the guide.
+- The dialog: the guide list (with "2 tasks, 7 steps" in words), New guide, Delete this guide (asks first, and nothing is final until Save), and **Make a guide from a chapter** (the chapter's topics that have
+  numbered steps become the tasks, and the chapter's name the guide's name). For the chosen guide: its name (it needs one, said in words), the layout, whether to show a zoomed close-up, the tasks (Move up, Move
+  down, Remove, and an Add task list of the topics with steps that are not tasks yet) and, for every step, a choice between following the guide's layout and the other layout. Save keeps the changes and
+  Cancel throws them away.
+- Two layouts, per guide and per step. **Picture on top**: the picture across the page, a close-up under it, the words below. **Pictures on the left**: the picture and its close-up stacked on the left, the
+  words beside them. Each step is a heading ("Step 3", numbered again from 1 for each numbered list, as in the book), its picture, its words and its result line.
+- Each step picture has the **step's number on the clicked spot** (a dark blue numbered marker, drawn from the click when the guide is shown and never stored on the picture), where the click is in the part
+  shown. The click circle and the zoom size follow the quick-guide settings. A **close-up** is the same picture zoomed in on the click, shown with a whole picture that has a click; a picture the author has
+  cropped or zoomed, or one with no click, gets none, and the dialog can turn close-ups off for a guide. The close-up's description says it is a close-up.
+- A picture with no description of its own takes the words of its step as its description (so every picture in a guide has one), and the preview's note about a missing description is not shown for it.
+- Not built yet: the third picture of the left layout (a step holds one picture today, so the left layout shows the picture and its close-up), exporting a guide (Word, PDF, help site), and book check rules for
+  guides (a task whose topic has lost its steps shows a note for the writer in the preview).
+
 ## What has been tried
 
 In the real window (a development build driven through its debugging port, with real key presses and clicks): the three panes side by side, each a
@@ -242,6 +263,15 @@ callout's marker and outline, and the result looked at); the help site as a zip 
 descriptions and sizes, real PNG files, no comment, every link going to a file that is there); the search script run over the real index (a callout's words found and the keyboard put on the results, a
 variable's value found, no match said in words, an empty search closing the results); a JSON export read back into the same project; and the Markdown with its picture links. The native Save and Open file
 dialogs were not driven (they cannot be automated safely), so saving the zip to a chosen place is for Jason to try. By keyboard alone: Tab through the Export dialog, the arrow keys between the kinds, Escape.
+
+Guides, in the real window: a made-up book with a chapter whose first topic has three steps and a callout box, two real click pictures captured by real clicks on a stand-in window and given to the first two
+steps, a second task of one step and a topic of only words. The Guides dialog with no guides (said in words, nothing to edit, the keyboard on New guide), a guide made from the chapter (named for it, the two
+topics with steps as tasks and not the one with only words, every step listed with its words, picture on top and close-ups on to begin with), renaming as you type, the left layout, one step taking the other
+layout, Move down (the keyboard goes to the other button when the task reaches the end, found and fixed by this test), Remove and Add, an empty name refused with the reason and the keyboard put in the name
+box, Save, Cancel changing nothing, Delete asking first with the keyboard on Cancel; then the Guide preview: the picker, a title once and a sheet per task, the layouts as chosen, the step numbers
+starting again, the numbers drawn on the clicked spots, a close-up for each picture, the box with its kind in words, the book's own paragraphs left out, and (measured) the words beside the pictures in the
+left layout and below them in the top layout. A picture of the preview was looked at. By keyboard alone: Enter on Guides, Tab through the dialog with no guides and with one (no trap), the arrow keys between
+layouts, Space on the close-up box, Escape. Not tried: a screen reader.
 
 Word, in the real window: the Export dialog with four kinds and Word described and tied to its radio button, the Down arrow moving to Word and keeping the JSON comments box hidden; then a made-up book with two real
 pictures (one whole, one cropped) built into a .docx by the program's own code, every XML part read by the browser's own XML reader with no error, and the file saved. The real Word (16.0, in its own hidden copy, never

@@ -31,6 +31,9 @@ import { buildMarkdown } from "./export/markdown.ts";
 import { packDocx } from "./export/docx.ts";
 import { buildHelpSite } from "./export/help-site.ts";
 import { flattenPicture } from "./render/flatten.ts";
+import { guidesDialog } from "./guides-dialog.ts";
+import { cleanGuides, guideSummary } from "./project/guides.ts";
+import { renderGuide } from "./render/guide.ts";
 import { zip } from "./project/zip.ts";
 import { checkProject, type Issue } from "./project/checks.ts";
 import { marksSummary, setShapes } from "./project/shapes.ts";
@@ -65,6 +68,7 @@ app.innerHTML = `
       <button type="button" id="b-export">Export</button>
       <button type="button" id="b-import-export">Import an export</button>
       <button type="button" id="b-vars">Project variables</button>
+      <button type="button" id="b-guides">Guides</button>
       <button type="button" id="b-check">Check the book</button>
     </div>
     <p id="panes-help" class="help">Three panes: the chapters and topics, the page, and the properties. F6 moves to the next pane and Shift+F6 to the one before.</p>
@@ -104,6 +108,7 @@ app.innerHTML = `
           <button type="button" role="tab" id="tab-edit" aria-selected="true" aria-controls="panel-edit">Edit</button>
           <button type="button" role="tab" id="tab-print" aria-selected="false" aria-controls="panel-preview" tabindex="-1">Print preview</button>
           <button type="button" role="tab" id="tab-help" aria-selected="false" aria-controls="panel-preview" tabindex="-1">Help site preview</button>
+          <button type="button" role="tab" id="tab-guide" aria-selected="false" aria-controls="panel-preview" tabindex="-1">Guide preview</button>
         </div>
         <div id="panel-edit" role="tabpanel" aria-labelledby="tab-edit">
         <div class="toolbar"><button type="button" id="b-unresolved">Unresolved comments</button></div>
@@ -124,6 +129,7 @@ app.innerHTML = `
         </section>
         </div>
         <div id="panel-preview" role="tabpanel" aria-labelledby="tab-print" hidden>
+          <p id="guide-pick-row" class="gd-pick" hidden><label for="guide-pick">Guide to show</label> <select id="guide-pick"></select></p>
           <p id="preview-help" class="help"></p>
           <details id="preview-notes" hidden>
             <summary id="preview-notes-summary"></summary>
@@ -187,13 +193,16 @@ const pageEditor = createPageEditor({
 });
 
 // ---- The print preview and the help site preview ------------------------------------------------
-type ViewMode = "edit" | "print" | "help";
+type ViewMode = "edit" | "print" | "help" | "guide";
 let viewMode: ViewMode = "edit";
+/** Which guide the Guide preview shows (`null` means the first). */
+let previewGuideId: string | null = null;
 let previewUrls: string[] = [];
 const VIEW_TABS: { mode: ViewMode; id: string; label: string }[] = [
   { mode: "edit", id: "tab-edit", label: "Edit" },
   { mode: "print", id: "tab-print", label: "Print preview" },
   { mode: "help", id: "tab-help", label: "Help site preview" },
+  { mode: "guide", id: "tab-guide", label: "Guide preview" },
 ];
 
 /** Shows the page for editing, or the book as it will print, or a page of the help site. */
@@ -206,10 +215,10 @@ function setViewMode(mode: ViewMode, options: { focusTab?: boolean; announce?: b
   }
   $("panel-edit").hidden = mode !== "edit";
   $("panel-preview").hidden = mode === "edit";
-  $("panel-preview").setAttribute("aria-labelledby", mode === "help" ? "tab-help" : "tab-print");
+  $("panel-preview").setAttribute("aria-labelledby", VIEW_TABS.find((t) => t.mode === mode && mode !== "edit")?.id ?? "tab-print");
   if (options.focusTab) $(VIEW_TABS.find((t) => t.mode === mode)!.id).focus();
   renderPreview(true);
-  if (options.announce !== false) announce(mode === "edit" ? "Editing the page." : mode === "print" ? "Print preview. The book as it will print, approximately." : "Help site preview. One topic as a help site page.");
+  if (options.announce !== false) announce(mode === "edit" ? "Editing the page." : mode === "print" ? "Print preview. The book as it will print, approximately." : mode === "guide" ? "Guide preview. A short step-by-step guide, approximately as it will print." : "Help site preview. One topic as a help site page.");
 }
 
 for (const tab of VIEW_TABS) $(tab.id).addEventListener("click", () => setViewMode(tab.mode));
@@ -226,6 +235,7 @@ $("view-tabs").addEventListener("keydown", (event) => {
 /** Draws the preview that is showing. `scroll` also brings the selected topic into view (when the tab is shown, or the selection changes). */
 function renderPreview(scroll = false) {
   if (viewMode === "edit") return;
+  if (viewMode !== "guide") $("guide-pick-row").hidden = true;
   const content = $("preview-content");
   const urls = new Map<string, string>();
   const ctx = {
@@ -246,6 +256,19 @@ function renderPreview(scroll = false) {
     content.innerHTML = built.html;
     content.setAttribute("aria-label", "Print preview of the book");
     $("preview-help").textContent = "The book as it will print, drawn as sheets. This is an approximation: real page breaks, running headers and page numbers are made when the PDF is exported, so the contents list has no page numbers. Pictures use the book's circle and zoom settings. Comments are never printed.";
+  } else if (viewMode === "guide") {
+    const guide = project.guides.find((g) => g.id === previewGuideId) ?? project.guides[0] ?? null;
+    drawGuidePicker(guide?.id ?? null);
+    if (guide) {
+      const built = renderGuide({ ...ctx, onNote: (words) => notes.push(words) }, guide);
+      content.innerHTML = built.html;
+      content.setAttribute("aria-label", `Preview of the guide ${guide.name}`);
+      $("preview-help").textContent = "A short step-by-step guide drawn as sheets, approximately: real page breaks are made when a guide is exported. Each step has the number on the clicked spot, and the pictures use the quick-guide click circle and zoom settings. The words come from the book's own topics. Comments are never printed.";
+    } else {
+      content.innerHTML = '<p class="help">There are no guides yet. Choose Guides to make one from a chapter, or from topics that have numbered steps.</p>';
+      content.setAttribute("aria-label", "Guide preview");
+      $("preview-help").textContent = "";
+    }
   } else {
     const picked = selectedId;
     content.innerHTML = renderHelpPage({ ...ctx, notes: false }, picked);
@@ -261,6 +284,39 @@ function renderPreview(scroll = false) {
   if (scroll && viewMode === "print" && selectedId) document.getElementById(topicAnchor(selectedId))?.scrollIntoView({ block: "start" });
   else content.scrollTop = keepScroll;
 }
+
+/** Fills the Guide preview's picker, and shows it only for the Guide preview. */
+function drawGuidePicker(selected: string | null) {
+  const select = $<HTMLSelectElement>("guide-pick");
+  $("guide-pick-row").hidden = viewMode !== "guide" || project.guides.length === 0;
+  select.replaceChildren();
+  for (const guide of project.guides) {
+    const option = document.createElement("option");
+    option.value = guide.id;
+    option.textContent = `${guide.name} (${guideSummary(project, guide)})`;
+    select.append(option);
+  }
+  if (selected) select.value = selected;
+}
+
+$("guide-pick").addEventListener("change", () => {
+  previewGuideId = $<HTMLSelectElement>("guide-pick").value;
+  renderPreview();
+  announce(`Showing the guide ${project.guides.find((g) => g.id === previewGuideId)?.name ?? ""}.`);
+});
+
+/** The Guides dialog: make, change and delete guides. Nothing changes unless the author presses Save. */
+async function manageGuides() {
+  const choice = await guidesDialog({ guides: project.guides, tree: project.tree, start: previewGuideId ?? undefined });
+  if (!choice) return $("b-guides").focus();
+  project.guides = cleanGuides(choice, project.tree);
+  markDirty();
+  if (!project.guides.some((g) => g.id === previewGuideId)) previewGuideId = null;
+  if (viewMode === "guide") renderPreview();
+  announce(`Guides saved: ${project.guides.length === 0 ? "there are none" : `${project.guides.length} ${project.guides.length === 1 ? "guide" : "guides"}`}.`);
+  $("b-guides").focus();
+}
+$("b-guides").addEventListener("click", () => void manageGuides());
 
 // A link inside a preview works inside it: the help site's links open that topic, and the book's contents jump to that place.
 $("preview-content").addEventListener("click", (event) => {

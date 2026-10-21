@@ -5,11 +5,14 @@ import { markerRadius, shapesFor } from "../project/callouts.ts";
 import { bestTextColor } from "../project/contrast.ts";
 import type { Circle } from "../project/highlight.ts";
 import type { Picture } from "../project/model.ts";
-import { arrowHead, lineHeight, shapeBounds, textLines, textPadding, type Shape } from "../project/shapes.ts";
+import { arrowHead, lineHeight, shapeBounds, textLines, textPadding, type MarkerShape, type Shape } from "../project/shapes.ts";
 import { touches, type Rect } from "../project/views.ts";
 
 /** The colour of callout markers, lines and outlines. White letters on it have a contrast of about 5.6 to 1. */
 export const CALLOUT_COLOR = "#C62828";
+
+/** The colour of the numbered marker on a guide step's clicked spot (dark blue, so it is not mistaken for a lettered callout). White numbers on it have a contrast of about 8.6 to 1. */
+export const STEP_MARKER_COLOR = "#1F4E8C";
 
 /** One shape of the drawing. */
 export interface SvgPart {
@@ -90,15 +93,21 @@ export function shapeParts(shape: Shape): SvgPart[] {
  * least partly in the part shown. `null` when there is nothing to draw. Callout markers and lines are sized by the width of the part shown, so they look the same whether
  * the picture is whole or zoomed; the marks drawn by the author keep the size they were given, so they scale with the picture.
  */
-export function overlayFor(picture: Pick<Picture, "width" | "height" | "callouts" | "shapes">, circle: Circle | null, shown?: Rect): Overlay | null {
+export function overlayFor(picture: Pick<Picture, "width" | "height" | "callouts" | "shapes"> & { click?: Pick<NonNullable<Picture["click"]>, "x" | "y"> }, circle: Circle | null, shown?: Rect, step?: number): Overlay | null {
   const part = shown ?? { x: 0, y: 0, width: picture.width, height: picture.height };
   // A callout wholly outside the part that is shown is not drawn: its marker could not be seen.
   const shapes = shapesFor(picture, part.width).filter((_, i) => calloutInView(picture, i, part));
   const marks = (picture.shapes ?? []).filter((m) => touches(shapeBounds(m), part));
-  if (!circle && shapes.length === 0 && marks.length === 0) return null;
+  // A guide's step has its number on the clicked spot, if that spot is in the part shown. The marker is worked out from the click, never stored with the picture.
+  const click = step !== undefined ? picture.click : undefined;
+  const stepMarker: MarkerShape | null = click && click.x >= part.x && click.x <= part.x + part.width && click.y >= part.y && click.y <= part.y + part.height
+    ? { id: "step", kind: "marker", alt: "", at: { x: click.x, y: click.y }, label: String(step), color: STEP_MARKER_COLOR, size: Math.round(markerRadius(part.width) * 1.15) }
+    : null;
+  if (!circle && shapes.length === 0 && marks.length === 0 && !stepMarker) return null;
   const parts: SvgPart[] = [];
   if (circle) parts.push({ tag: "circle", attrs: { cx: circle.cx, cy: circle.cy, r: circle.r, fill: circle.color, "fill-opacity": circle.opacity } });
   for (const mark of marks) parts.push(...shapeParts(mark));
+  if (stepMarker) parts.push(...shapeParts(stepMarker));
   for (const shape of shapes) {
     // Lines keep the same width on the screen whatever the picture is scaled to, so they can be seen on a small thumbnail too.
     const line = { stroke: CALLOUT_COLOR, "stroke-width": 1.5, "vector-effect": "non-scaling-stroke", fill: "none" };

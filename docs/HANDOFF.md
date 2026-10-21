@@ -373,8 +373,15 @@ Parts, in order:
 11. **Word export (DONE 2026-10-21 while Jason was away)**: `src/export/docx.ts` (a `.docx` with real styles, a table of contents field, numbered steps that restart for each procedure, inline pictures with
     alternative text, callout box styles, header and page number; see `docs/exports.md`), "Word" in `src/export-dialog.ts`, and `exportBook` in `src/main.ts` (saves one `.docx`, `chooseExportPath` takes the extension).
     Two tests in `tests/export.test.ts`; scenario `word` in the real window plus a check that the real Word opens it, updates its contents and saves a PDF. Jason should try Export, Word by hand through the Save dialog.
-12. Next, in order: the short guides (a guide made from a chapter's topics, in two layouts, shown in HTML first) and the automatic crop or zoom option for print. The PDF engine and the AI model both need
-    Jason's decision (see "Still open").
+12. **Short guides, the model, the dialog and the preview (DONE 2026-10-21 while Jason was away; Step 6's first two items except export)**: format v11 (`project.guides`, commit e952bb2), `src/project/guides.ts`
+    (rules), `src/render/guide.ts` (the guide as HTML; shares `figureHtml` with the book, which gained `FigureOptions`: step number, description fallback, close-up), the step-number marker in
+    `src/render/overlay.ts` (`overlayFor` takes a step number), `src/guides-dialog.ts`, the Guides button and the Guide preview tab in `src/main.ts`; tests in `tests/guides.test.ts` and `tests/guide-render.test.ts`;
+    tried in the real window (scenario `guides`; `keyboard2` extended). Choices made without asking, for Jason to confirm: a guide is made of topics with numbered steps and takes only their steps and boxed notes
+    (the book's paragraphs, headings and loose pictures stay out); each step is headed "Step N" (numbered again for each list); the step number marker is dark blue (not red, so it is not mistaken for a lettered
+    callout); close-ups are on by default and shown for whole pictures that have a click; the left layout shows two pictures (whole and close-up) because a step holds one picture. Not built: exporting a guide,
+    the third picture of the left layout, check rules for guides.
+13. Next, in order: exporting a guide to Word (flat pictures per step, since the number marker differs for each use; the left layout needs a table), then the automatic crop or zoom option for print. The PDF engine
+    and the AI model both need Jason's decision (see "Still open").
 
 ## Still open (ask Jason, do not guess)
 

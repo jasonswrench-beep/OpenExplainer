@@ -61,29 +61,42 @@ export function runsHtml(ctx: RenderContext, runs: Run[]): string {
  * The words that say what is in a picture, for a screen reader: what the author wrote, or else its callouts, then the marks drawn on it (the words of a text box, the label of a
  * marker and the description of an arrow or a rectangle), or else nothing.
  */
-export function altTextFor(picture: Picture): string {
+export function altTextFor(picture: Picture, fallback?: string): string {
   const written = picture.altText.trim();
   const list = entries(picture).filter((e) => !e.needsName || !e.needsDescription);
-  const base = written || (list.length ? `Callouts: ${list.map(entryWords).join(" ")}` : "");
+  // In a guide a picture with no description of its own takes the words of its step.
+  const base = written || fallback?.trim() || (list.length ? `Callouts: ${list.map(entryWords).join(" ")}` : "");
   return [base, shapesDescription(picture)].filter(Boolean).join(" ");
 }
 
+/** What a picture needs beyond the usual when it is a step of a guide. */
+export interface FigureOptions {
+  /** Draw this step number as a marker on the clicked spot. */
+  stepNumber?: number;
+  /** Words for a picture that has no description of its own, such as the words of its step. */
+  altFallback?: string;
+  /** A zoomed close-up shown with the whole picture: no callout entries or notes of its own, and its description says it is a close-up. */
+  closeUp?: boolean;
+  /** Leave out the note about writing that is too small on paper (the picture has a close-up beside it). */
+  noSmallNote?: boolean;
+}
+
 /** A picture as it is shown where it is used: only the part chosen, with its click circle and callouts over it, and the callout entries under it. */
-export function figureHtml(ctx: RenderContext, picture: Picture, where?: string): string {
+export function figureHtml(ctx: RenderContext, picture: Picture, where?: string, options: FigureOptions = {}): string {
   const src = ctx.imageSrc(picture);
   if (!src) return `<p class="pv-missing">This picture file is missing from the project.</p>${noteHtml(ctx, "A picture file is missing from the project.", where)}`;
   const shown = shownPart(picture, ctx.project.zoom, ctx.place);
   const circle = circleFor(picture, ctx.project.highlight, ctx.place);
-  const overlay = overlayFor(picture, circle, shown);
-  const alt = altTextFor(picture);
+  const overlay = overlayFor(picture, circle, shown, options.stepNumber);
+  const alt = `${options.closeUp ? "Close-up of the clicked spot. " : ""}${altTextFor(picture, options.altFallback)}`.trim();
   const crop = isWhole(shown, picture) ? "" : ` style="object-view-box: xywh(${shown.x}px ${shown.y}px ${shown.width}px ${shown.height}px)"`;
-  const list = entries(picture);
+  const list = options.closeUp ? [] : entries(picture);
   const listed = list
     .map((entry, i) => ({ entry, i }))
     .filter(({ i }) => calloutInView(picture, i, shown))
     .map(({ entry }) => `<li>${esc(fillVariables(entryWords(entry), ctx.project.variables))}</li>`)
     .join("");
-  const hidden = list.length - list.filter((_, i) => calloutInView(picture, i, shown)).length;
+  const hidden = options.closeUp ? 0 : list.length - list.filter((_, i) => calloutInView(picture, i, shown)).length;
   if (ctx.flat) {
     return `<figure class="pv-figure" style="max-width: ${shown.width}px"><img src="${esc(src)}" alt="${esc(alt)}" width="${shown.width}" height="${shown.height}">`
       + (listed ? `<figcaption><ul class="pv-entries" aria-label="Callouts on this picture">${listed}</ul></figcaption>` : "")
@@ -91,11 +104,12 @@ export function figureHtml(ctx: RenderContext, picture: Picture, where?: string)
   }
   const notes: string[] = [];
   const scale = printScale(shown.width);
-  if (scale < MIN_PRINT_SCALE) notes.push(`Small on paper: the writing in this picture will print at about ${Math.round(scale * 100)} percent of its size on screen. A crop or a zoom (Picture view) would make it easier to read.`);
-  if (!picture.altText.trim()) notes.push("This picture has no description yet, so a screen reader has little to say about it.");
-  const unnamed = missingAlt(picture);
+  // A close-up has no notes of its own: the whole picture beside it carries them.
+  if (!options.closeUp && scale < MIN_PRINT_SCALE && !options.noSmallNote) notes.push(`Small on paper: the writing in this picture will print at about ${Math.round(scale * 100)} percent of its size on screen. A crop or a zoom (Picture view) would make it easier to read.`);
+  if (!options.closeUp && !picture.altText.trim() && !options.altFallback?.trim()) notes.push("This picture has no description yet, so a screen reader has little to say about it.");
+  const unnamed = options.closeUp ? 0 : missingAlt(picture);
   if (unnamed > 0) notes.push(`${unnamed} ${unnamed === 1 ? "mark (an arrow or a rectangle) has" : "marks (arrows or rectangles) have"} no alternative text yet, so a screen reader cannot say what ${unnamed === 1 ? "it points" : "they point"} at.`);
-  for (const mark of picture.shapes ?? []) {
+  for (const mark of options.closeUp ? [] : picture.shapes ?? []) {
     for (const bad of failing(shapeChecks(mark))) notes.push(`${kindName(mark.kind)}: ${bad.words}${mark.keptLowContrast ? " (The colours were kept on purpose.)" : ""}`);
   }
   if (hidden > 0) notes.push(`${hidden} ${hidden === 1 ? "callout is" : "callouts are"} outside the part of the picture that is shown, so ${hidden === 1 ? "it is" : "they are"} left out of the list and the drawing.`);
