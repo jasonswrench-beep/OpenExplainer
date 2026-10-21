@@ -98,10 +98,10 @@ export function overlayFor(picture: Pick<Picture, "width" | "height" | "callouts
   // A callout wholly outside the part that is shown is not drawn: its marker could not be seen.
   const shapes = shapesFor(picture, part.width).filter((_, i) => calloutInView(picture, i, part));
   const marks = (picture.shapes ?? []).filter((m) => touches(shapeBounds(m), part));
-  // A guide's step has its number on the clicked spot, if that spot is in the part shown. The marker is worked out from the click, never stored with the picture.
+  // A guide's step has its number on the clicked spot, if that spot is in the part shown. The marker is worked out from the click, never stored with the picture. It is 2.5 percent of the width shown (at least 12 pixels) in radius, so the number can still be read when the picture is small on the page.
   const click = step !== undefined ? picture.click : undefined;
   const stepMarker: MarkerShape | null = click && click.x >= part.x && click.x <= part.x + part.width && click.y >= part.y && click.y <= part.y + part.height
-    ? { id: "step", kind: "marker", alt: "", at: { x: click.x, y: click.y }, label: String(step), color: STEP_MARKER_COLOR, size: Math.round(markerRadius(part.width) * 1.15) }
+    ? { id: "step", kind: "marker", alt: "", at: { x: click.x, y: click.y }, label: String(step), color: STEP_MARKER_COLOR, size: Math.max(12, Math.round(part.width * 0.025)) }
     : null;
   if (!circle && shapes.length === 0 && marks.length === 0 && !stepMarker) return null;
   const parts: SvgPart[] = [];

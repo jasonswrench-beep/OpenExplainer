@@ -25,10 +25,10 @@ export function xml(text: string): string {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-const run = (text: string, props = "") => `<w:r>${props ? `<w:rPr>${props}</w:rPr>` : ""}<w:t xml:space="preserve">${xml(text)}</w:t></w:r>`;
-const para = (style: string, inner: string, extra = "") => `<w:p><w:pPr><w:pStyle w:val="${style}"/>${extra}</w:pPr>${inner}</w:p>`;
+export const run = (text: string, props = "") => `<w:r>${props ? `<w:rPr>${props}</w:rPr>` : ""}<w:t xml:space="preserve">${xml(text)}</w:t></w:r>`;
+export const para = (style: string, inner: string, extra = "") => `<w:p><w:pPr><w:pStyle w:val="${style}"/>${extra}</w:pPr>${inner}</w:p>`;
 
-function runsXml(runs: Run[], variables: Record<string, string>): string {
+export function runsXml(runs: Run[], variables: Record<string, string>): string {
   return runs
     .map((r) => {
       const text = fillVariables(r.text, variables);
@@ -40,7 +40,7 @@ function runsXml(runs: Run[], variables: Record<string, string>): string {
     .join("");
 }
 
-interface Context {
+export interface Context {
   project: Project;
   flat: Map<string, FlatPicture>;
   /** The pictures put in the document, in order, so each gets a relationship and a file. */
@@ -54,15 +54,16 @@ interface Context {
 /** A step's picture is indented half an inch (48 pixels at 96 to the inch), so it is narrower to stay inside the margins. */
 const STEP_INDENT_PIXELS = 48;
 
-function drawing(ctx: Context, picture: Picture, made: FlatPicture, indent: boolean): string {
+/** A picture as an inline drawing, no wider than `maxWidthPx` (it keeps its shape), with `alt` as its alternative text. */
+export function drawing(ctx: Context, made: FlatPicture, alt: string, maxWidthPx: number): string {
   let index = ctx.images.findIndex((i) => i.path === made.path);
   if (index < 0) { ctx.images.push({ id: `rIdImg${ctx.images.length + 1}`, path: made.path }); index = ctx.images.length - 1; }
   const rel = ctx.images[index].id;
-  const widthPx = Math.min(made.width, PRINT_TEXT_WIDTH - (indent ? STEP_INDENT_PIXELS : 0));
+  const widthPx = Math.min(made.width, maxWidthPx);
   const cx = Math.round(widthPx * EMU_PER_PIXEL);
   const cy = Math.round((widthPx * made.height * EMU_PER_PIXEL) / made.width);
   const id = ++ctx.drawingId;
-  const alt = xml(altTextFor(picture));
+  alt = xml(alt);
   return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Picture ${id}" descr="${alt}"/>`
     + `<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>`
     + `<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">`
@@ -82,7 +83,7 @@ function pictureXml(ctx: Context, picture: Picture, indent: boolean): string {
     .map((entry, i) => ({ entry, i }))
     .filter(({ i }) => calloutInView(picture, i, shown))
     .map(({ entry }) => para(indent ? "StepContinued" : "Caption", run(fillVariables(entryWords(entry), ctx.project.variables))));
-  return para(style, drawing(ctx, picture, made, indent), '<w:keepNext/>') + lines.join("");
+  return para(style, drawing(ctx, made, altTextFor(picture), PRINT_TEXT_WIDTH - (indent ? STEP_INDENT_PIXELS : 0)), '<w:keepNext/>') + lines.join("");
 }
 
 function blockXml(ctx: Context, node: TreeNode, block: Block, level: number): string {
@@ -154,9 +155,9 @@ function contentsXml(ctx: Context, nodes: TreeNode[], numbers: Map<string, strin
 
 // ---- The fixed parts -----------------------------------------------------------------------------------
 
-const BOX_COLOURS: Record<string, string> = { "design-tip": "1F4E8C", caution: "A31515", "bright-idea": "8A6D00", "power-tip": "5A2A82", "time-saver": "1B6B2F", "new-feature": "00606B" };
+export const BOX_COLOURS: Record<string, string> = { "design-tip": "1F4E8C", caution: "A31515", "bright-idea": "8A6D00", "power-tip": "5A2A82", "time-saver": "1B6B2F", "new-feature": "00606B" };
 
-function stylesXml(): string {
+function stylesXml(guide: boolean): string {
   const heading = (n: number, size: number, before: number) =>
     `<w:style w:type="paragraph" w:styleId="Heading${n}"><w:name w:val="heading ${n}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="9"/><w:qFormat/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="${before}" w:after="80"/><w:outlineLvl w:val="${n - 1}"/></w:pPr><w:rPr><w:b/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr></w:style>`;
   const box = CALLOUT_KINDS.map((k, i) =>
@@ -166,7 +167,7 @@ function stylesXml(): string {
 <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
 <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
 <w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/></w:style>
-<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="10"/><w:qFormat/><w:pPr><w:spacing w:before="2400" w:after="240"/><w:jc w:val="center"/></w:pPr><w:rPr><w:b/><w:sz w:val="56"/><w:szCs w:val="56"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="10"/><w:qFormat/>${guide ? '<w:pPr><w:spacing w:before="0" w:after="200"/></w:pPr><w:rPr><w:b/><w:sz w:val="48"/><w:szCs w:val="48"/></w:rPr>' : '<w:pPr><w:spacing w:before="2400" w:after="240"/><w:jc w:val="center"/></w:pPr><w:rPr><w:b/><w:sz w:val="56"/><w:szCs w:val="56"/></w:rPr>'}</w:style>
 <w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="11"/><w:qFormat/><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style>
 ${heading(1, 40, 360)}${heading(2, 32, 280)}${heading(3, 28, 240)}${heading(4, 26, 200)}${heading(5, 24, 200)}${heading(6, 22, 200)}
 <w:style w:type="paragraph" w:customStyle="1" w:styleId="ContentsHeading"><w:name w:val="Contents heading"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="160"/></w:pPr><w:rPr><w:b/><w:sz w:val="36"/><w:szCs w:val="36"/></w:rPr></w:style>
@@ -193,18 +194,13 @@ function numberingXml(lists: number): string {
 </w:numbering>`;
 }
 
-/** The files of a Word export, by their path inside the .docx. */
-export function buildDocxParts(project: Project, flat: Map<string, FlatPicture>, options: { now?: string } = {}): Record<string, Uint8Array> {
-  const numbers = numbering(project.tree);
-  const ctx: Context = { project, flat, images: [], lists: 0, bookmarks: new Map(), drawingId: 0 };
-  const title = fillVariables(project.name, project.variables);
-  const details = ["PRODUCT", "VERSION", "COMPANY"].map((k) => project.variables[k]?.trim()).filter(Boolean);
-  // The headings are made first so the contents can link to them; the contents then goes in front of them.
-  const body = project.tree.map((chapter) => topicXml(ctx, chapter, 0, numbers)).join("");
-  const front = para("Title", run(title)) + details.map((d) => para("Subtitle", run(d))).join("");
-  const contents = project.tree.length > 0 ? para("ContentsHeading", run("Contents"), '<w:pageBreakBefore/>') + contentsXml(ctx, project.tree, numbers) : "";
+/**
+ * Puts the parts of a .docx together around a body: the document, its relationships, styles, numbering, header, footer and properties, and the picture files the body used.
+ * `title` is the name in the running header and the document's properties. A guide's title is left aligned at the top of its first page instead of being a cover.
+ */
+export function assembleDocx(ctx: Context, title: string, body: string, options: { now?: string; guide?: boolean } = {}): Record<string, Uint8Array> {
   const document = `${XML_HEAD}<w:document xmlns:w="${NS_W}" xmlns:r="${NS_R}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
-<w:body>${front}${contents}${body}<w:sectPr><w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body>
+<w:body>${body}<w:sectPr><w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body>
 </w:document>`;
   const rels = [
     `<Relationship Id="rIdStyles" Type="${NS_R}/styles" Target="styles.xml"/>`,
@@ -222,7 +218,7 @@ export function buildDocxParts(project: Project, flat: Map<string, FlatPicture>,
     "_rels/.rels": `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${NS_R}/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`,
     "word/document.xml": document,
     "word/_rels/document.xml.rels": `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels}</Relationships>`,
-    "word/styles.xml": stylesXml(),
+    "word/styles.xml": stylesXml(options.guide === true),
     "word/numbering.xml": numberingXml(ctx.lists),
     "word/header1.xml": `${XML_HEAD}<w:hdr xmlns:w="${NS_W}" xmlns:r="${NS_R}">${para("Header", run(title))}</w:hdr>`,
     "word/footer1.xml": `${XML_HEAD}<w:ftr xmlns:w="${NS_W}" xmlns:r="${NS_R}"><w:p><w:pPr><w:pStyle w:val="Footer"/></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`,
@@ -231,10 +227,23 @@ export function buildDocxParts(project: Project, flat: Map<string, FlatPicture>,
   const out: Record<string, Uint8Array> = {};
   for (const [path, text] of Object.entries(files)) out[path] = encoder.encode(text);
   for (const image of ctx.images) {
-    const made = [...flat.values()].find((f) => f.path === image.path);
+    const made = [...ctx.flat.values()].find((f) => f.path === image.path);
     if (made) out[`word/media/${image.path.replace("images/", "")}`] = made.bytes;
   }
   return out;
+}
+
+/** The files of a Word export, by their path inside the .docx. */
+export function buildDocxParts(project: Project, flat: Map<string, FlatPicture>, options: { now?: string } = {}): Record<string, Uint8Array> {
+  const numbers = numbering(project.tree);
+  const ctx: Context = { project, flat, images: [], lists: 0, bookmarks: new Map(), drawingId: 0 };
+  const title = fillVariables(project.name, project.variables);
+  const details = ["PRODUCT", "VERSION", "COMPANY"].map((k) => project.variables[k]?.trim()).filter(Boolean);
+  // The headings are made first so the contents can link to them; the contents then goes in front of them.
+  const body = project.tree.map((chapter) => topicXml(ctx, chapter, 0, numbers)).join("");
+  const front = para("Title", run(title)) + details.map((d) => para("Subtitle", run(d))).join("");
+  const contents = project.tree.length > 0 ? para("ContentsHeading", run("Contents"), '<w:pageBreakBefore/>') + contentsXml(ctx, project.tree, numbers) : "";
+  return assembleDocx(ctx, title, `${front}${contents}${body}`, options);
 }
 
 /** The book as the bytes of a .docx file. */

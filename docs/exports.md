@@ -71,7 +71,25 @@ Tried: the file was opened in the real Word (16.0) by automation, in its own hid
 numbered 1, 2, 3 and then 1, 2, the pictures had their sizes and alternative text, the contents field was recognised and Word's own Update Field added the page numbers, and Word saved it to a PDF that was looked at.
 Not tried yet: LibreOffice, Word on a Mac, Word's own accessibility checker, and a screen reader on the result.
 
+## Guide (Word)
+
+One short guide (chosen in the Export dialog; the choice is switched off, with the reason, when the project has no guides) as a single `.docx` file (`src/export/guide-docx.ts`). It shares the book's Word styles
+(Title, Heading 1 and 2, Caption, the callout box styles, Control name), so a publisher can restyle both the same way, but it has no cover, no contents and no chapters:
+
+- The guide's name is the Title at the top of the first page. Each task (a topic) is a Heading 1, and every task after the first starts a new page. Each step is a Heading 2 ("Step 3", numbered again from 1 for
+  each numbered list, as in the book), then its picture, close-up and words in the step's layout. Boxed notes keep their kind in words and their coloured edge. Comments are never included.
+- **Picture on top**: the picture across the page (6.5 inches at most), its callout entries as captions, the close-up centred under it (55 percent of the width), then the words and the result line.
+- **Pictures on the left**: a table with two columns and no borders, the picture, its captions and its close-up stacked in the left one (2.7 inches) and the words in the right one. The table is kept in one
+  piece, has a name ("Step 2") and says in its description that it is only layout. A step with no picture has no table.
+- The pictures are made for this guide (`flattenGuide` in `src/export/pictures.ts`): one for each step, because it carries the step's number on the clicked spot (a dark blue marker, 2.5 percent of the width shown in radius so
+  it can still be read in the left column), and a close-up where the guide has one. They follow the quick-guide settings for the click circle and the zoom size. The description of a picture is its own, else the
+  words of its step, and a close-up says it is a close-up. A picture whose file is missing or cannot be drawn is named after the export and is replaced by a sentence saying so.
+
+Tried: the file was opened in the real Word (16.0) by automation, with a guide of two tasks, one step in each layout: it opened with no repair message, 6 pictures with their sizes and descriptions, 2 tables, the
+header and the page number, and Word's own PDF of it was looked at page by page (the left layout puts the pictures left of the words, and the number on the clicked spot is large enough to read in the left column,
+which a first try showed it was not). Not tried: LibreOffice, Word on a Mac, a screen reader.
+
 ## Still to come
 
-Book PDF (tagged, with a contents list, running headers and page numbers), the short guides, the choice to switch a picture to a crop or zoom automatically when it would print too small,
+Book PDF (tagged, with a contents list, running headers and page numbers), a guide as PDF or a help site, the choice to switch a picture to a crop or zoom automatically when it would print too small,
 and the book index. See `docs/HANDOFF.md`.

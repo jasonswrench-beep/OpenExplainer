@@ -378,10 +378,13 @@ Parts, in order:
     `src/render/overlay.ts` (`overlayFor` takes a step number), `src/guides-dialog.ts`, the Guides button and the Guide preview tab in `src/main.ts`; tests in `tests/guides.test.ts` and `tests/guide-render.test.ts`;
     tried in the real window (scenario `guides`; `keyboard2` extended). Choices made without asking, for Jason to confirm: a guide is made of topics with numbered steps and takes only their steps and boxed notes
     (the book's paragraphs, headings and loose pictures stay out); each step is headed "Step N" (numbered again for each list); the step number marker is dark blue (not red, so it is not mistaken for a lettered
-    callout); close-ups are on by default and shown for whole pictures that have a click; the left layout shows two pictures (whole and close-up) because a step holds one picture. Not built: exporting a guide,
+    callout); close-ups are on by default and shown for whole pictures that have a click; the left layout shows two pictures (whole and close-up) because a step holds one picture. Not built: exporting a guide as PDF or a help site,
     the third picture of the left layout, check rules for guides.
-13. Next, in order: exporting a guide to Word (flat pictures per step, since the number marker differs for each use; the left layout needs a table), then the automatic crop or zoom option for print. The PDF engine
-    and the AI model both need Jason's decision (see "Still open").
+13. **A guide as Word (DONE 2026-10-21 while Jason was away)**: `src/export/guide-docx.ts` (shares the book's styles through `assembleDocx` in `src/export/docx.ts`), `flattenGuide` and `guideKey` in
+    `src/export/pictures.ts` (a picture for each step, since it carries the step's number, and a close-up), "Guide (Word)" in the Export dialog (with a guide picker, switched off when there are no guides) and
+    `exportBook` in `src/main.ts`; 3 tests in `tests/guide-export.test.ts`; tried in the real window (scenario `word` extended) and in the real Word (see `docs/exports.md`). Jason should try Export, Guide (Word) by
+    hand through the Save dialog.
+14. Next, in order: the automatic crop or zoom option for print (to-do Step 6; the preview only flags small pictures now). The PDF engine and the AI model both need Jason's decision (see "Still open").
 
 ## Still open (ask Jason, do not guess)
 

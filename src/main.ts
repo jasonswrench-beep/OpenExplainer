@@ -25,10 +25,11 @@ import { renderPrintPreview, topicAnchor } from "./render/print.ts";
 import { drawingDialog } from "./drawing-dialog.ts";
 import { checkDialog } from "./check-dialog.ts";
 import { exportDialog, EXPORT_KINDS, type ExportChoice } from "./export-dialog.ts";
-import { flattenPlaced } from "./export/pictures.ts";
+import { flattenGuide, flattenPlaced } from "./export/pictures.ts";
 import { packJsonExport, unpackJsonExport } from "./export/json.ts";
 import { buildMarkdown } from "./export/markdown.ts";
 import { packDocx } from "./export/docx.ts";
+import { packGuideDocx } from "./export/guide-docx.ts";
 import { buildHelpSite } from "./export/help-site.ts";
 import { flattenPicture } from "./render/flatten.ts";
 import { guidesDialog } from "./guides-dialog.ts";
@@ -1016,13 +1017,16 @@ async function exportBook() {
   const choice: ExportChoice | null = await exportDialog({
     checkFirst: () => void $("b-check").click(),
     unresolved: unresolvedCount(project.tree),
+    guides: project.guides.map((g) => ({ id: g.id, name: g.name })),
   });
   if (!choice) return $("b-export").focus();
   const name = EXPORT_KINDS.find((k) => k.id === choice.kind)!.name;
   try {
-    const isWord = choice.kind === "word";
+    const isWord = choice.kind === "word" || choice.kind === "guide-word";
+    const guide = choice.kind === "guide-word" ? project.guides.find((g) => g.id === choice.guideId) : undefined;
+    if (choice.kind === "guide-word" && !guide) throw new Error("There is no guide to export. Choose Guides to make one.");
     const path = await chooseExportPath(
-      exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown", isWord ? "docx" : "zip"),
+      guide ? `${projectFileName(guide.name).replace(/\.openexplainer$/, "")}.docx` : exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown", isWord ? "docx" : "zip"),
       isWord ? "docx" : "zip",
     );
     if (!path) return $("b-export").focus();
@@ -1034,9 +1038,9 @@ async function exportBook() {
       bytes = made.bytes;
       left.push(...made.missing.map((file) => `The picture file ${file} is missing from the project, so it is not in the export.`));
     } else {
-      const flat = await flattenPlaced(project, assets, "book", flattenPicture);
+      const flat = guide ? await flattenGuide(project, guide, assets, flattenPicture) : await flattenPlaced(project, assets, "book", flattenPicture);
       left.push(...flat.missing.map((m) => `The picture "${m}" is missing from the project, so it is not in the export.`), ...flat.failed.map((m) => `The picture "${m}" could not be drawn, so it is not in the export.`));
-      bytes = isWord ? packDocx(project, flat.flat) : zip(choice.kind === "help-site" ? buildHelpSite(project, flat.flat) : buildMarkdown(project, flat.flat));
+      bytes = guide ? packGuideDocx(project, guide, flat.flat) : isWord ? packDocx(project, flat.flat) : zip(choice.kind === "help-site" ? buildHelpSite(project, flat.flat) : buildMarkdown(project, flat.flat));
     }
     await writeBytes(path, bytes);
     announce(`${name} export saved to ${path}.`);
