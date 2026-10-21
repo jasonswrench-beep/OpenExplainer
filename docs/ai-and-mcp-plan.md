@@ -19,6 +19,8 @@ Sources: [Qwen3.5-9B model card](https://huggingface.co/Qwen/Qwen3.5-9B), [Qwen3
 
 ## The local AI (Step 7)
 
+The detailed plan, with the licence check on the exact model and runtime files, is in `docs/local-ai-plan.md`. What follows is the first outline.
+
 1. **One connector, three ways to fill it**: the built-in local model, the author's own ChatGPT, Claude or Gemini key, or none. Keys are kept on the PC, protected with Windows' own key storage (DPAPI), and never sent anywhere except the service they are for.
 2. **The local runtime**: `llama-server` from llama.cpp, started by the app on a private local port only when a draft is asked for and stopped afterwards. Bundled in the installer (about 15 to 30 MB for the CPU builds, one for x64 and one for ARM64) so only the model is downloaded.
 3. **The model**: downloaded the first time AI is turned on, not at install. A dialog says the size and where it comes from, with a progress bar, **Pause and Resume** (HTTP range requests, so a broken connection continues), **Cancel**, a check of the file's SHA-256, and a button to delete it. Stored in the app's data folder.

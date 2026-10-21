@@ -404,8 +404,9 @@ Parts, in order:
     to it (Jason should try: MCP access, copy the lines, ask the assistant to document something), the check that an assistant's own click-through of a real program works (the tests used made-up windows). Tried in a **release** build with its pages inside it
     (`cargo build --release --features tauri/custom-protocol`; a plain `cargo build --release` still loads its pages from the dev server): `--mcp` works there too (a release program is a GUI program and still gets the pipes).
     `OPENEXPLAINER_EXE=<path> node tools/mcp-e2e.mjs` tries one (it saves and restores the real MCP settings).
-18. Next: the **local AI** (Step 7), as in `docs/ai-and-mcp-plan.md`: the connector and settings, the model download (Qwen 3.5 4B, Apache 2.0, with progress, resume and cancel), the llama.cpp runtime, drafting and a review
-    screen that keeps drafts apart from accepted text. Then the MCP draft tool can use it.
+18. Next: the **local AI** (Step 7). **Plan and licence check on the exact files written 2026-10-21: `docs/local-ai-plan.md`** (nothing downloaded, no code yet). Proposed file: Unsloth's `Qwen3.5-4B-Q4_K_M.gguf`
+    (2,740,937,888 bytes, pinned by commit and SHA-256; Apache 2.0 all the way down), runtime llama.cpp `llama-server` (MIT, CPU zips for x64 and ARM64). Eight parts, each tried and committed alone; the first real 2.7 GB
+    download waits for Jason's yes. Waiting for Jason to confirm the four points in section 7 of that plan before part 1.
 
 ## Still open (ask Jason, do not guess)
 
@@ -414,8 +415,8 @@ Parts, in order:
 - Short guides (built 2026-10-21): please confirm the choices I made without asking (HANDOFF item 12): a guide takes only the numbered steps and boxed notes of its topics; each step is headed "Step N"; close-ups
   are on by default; the left layout shows the picture and a close-up because a step holds one picture (the design says up to three: should a step be able to hold more, such as a result picture?); the step
   number marker is dark blue and 2.5 percent of the width in radius. Also the Step 5 defaults: a named style is applied by copy, a marker's label is typed, and a mark saved with low contrast keeps a record.
-- Qwen 3.5 (Jason, 2026-10-21: Apache 2.0 is fine; default Qwen 3.5 at 4B): I still read the licence of the exact GGUF files before downloading, as CLAUDE.md says. Open: the llama.cpp runtime bundled in the installer
-  (about 15 to 30 MB for each of x64 and ARM64) or downloaded with the model.
+- Qwen 3.5 (Jason, 2026-10-21: Apache 2.0 is fine; default Qwen 3.5 at 4B): the licence of the exact files is read and written up in `docs/local-ai-plan.md` section 5 (all permissive). Open, for Jason to confirm (plan section 7):
+  which file, runtime inside the installer or downloaded with the model, when the model downloads (first time AI is turned on, not during install), and drafts stored in the project (format v14).
 - MCP server: built (item 17). Open: try it with a real assistant; whether an assistant should also be able to click and type in the program itself (now it does that with its own tools); the log's place and a way to see it in the app.
 - The book index: built (item 16). Open: whether it needs sub-entries and "see also", and a rule in the book check for topics with no terms.
 - Which the reference authoring platform page styles to copy exactly versus only resemble; how much detail per feature in the OpenStage book.
