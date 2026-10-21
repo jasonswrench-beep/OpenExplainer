@@ -1,0 +1,138 @@
+// The pieces of a page as HTML text: its text with marks, a picture with its callouts and their entries, a numbered procedure, a callout box. The print preview, the help
+// site preview and (later) the exports all build their pages from these, so a topic reads the same wherever it is shown. Nothing here needs a screen: it makes text.
+// Everything that comes from the project (titles, words, variables) is escaped, so nothing a person types can add markup to a page.
+import { entries, entryWords } from "../project/callouts.ts";
+import { circleFor, type HighlightKind } from "../project/highlight.ts";
+import type { Picture, Project, TreeNode } from "../project/model.ts";
+import { calloutLabel, type Block, type CalloutKind, type Step } from "../project/page.ts";
+import type { Run } from "../project/text.ts";
+import { isWhole, shownPart } from "../project/views.ts";
+import { calloutInView, overlayFor, overlaySvg } from "./overlay.ts";
+
+/** What a page needs to know to be written out. */
+export interface RenderContext {
+  project: Project;
+  /** Which place the pages are for: the click circle and the zoom size follow that place's settings. */
+  place: HighlightKind;
+  /** Where a picture's bytes can be shown from (a blob address in a preview, a file name in an export), or `null` when the file is missing. */
+  imageSrc(picture: Picture): string | null;
+  /** Add notes for the writer, marked as not part of the output. A preview does; an export does not. */
+  notes: boolean;
+  /** Told each note as it is written (with where it is, when known), so a preview can list them all. */
+  onNote?(words: string): void;
+}
+
+/** Text made safe to put in HTML. */
+export function esc(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/** Variables such as {{PRODUCT}} filled in from the project. One with no value yet stays as it is, so it can be seen and fixed. */
+export function fillVariables(text: string, variables: Record<string, string>): string {
+  return text.replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (whole, name: string) => (variables[name] && variables[name].trim() ? variables[name] : whole));
+}
+
+/** A note for the writer, in a preview only. `where` says which topic it is in, for the list of notes. */
+export function noteHtml(ctx: RenderContext, words: string, where?: string): string {
+  if (!ctx.notes) return "";
+  ctx.onNote?.(where ? `${where}: ${words}` : words);
+  return `<p class="pv-note" data-preview-only="true"><strong>Note for the writer:</strong> ${esc(words)}</p>`;
+}
+
+/** Text with marks as HTML: bold, italic, and a control name (the label of a button or menu, in bold). */
+export function runsHtml(ctx: RenderContext, runs: Run[]): string {
+  return runs
+    .map((run) => {
+      const words = esc(fillVariables(run.text, ctx.project.variables));
+      if (run.mark === "bold") return `<strong>${words}</strong>`;
+      if (run.mark === "italic") return `<em>${words}</em>`;
+      if (run.mark === "control") return `<strong class="control-name">${words}</strong>`;
+      return words;
+    })
+    .join("");
+}
+
+/** The width of the text on a printed page, in pixels at 96 to the inch (6.5 inches). */
+export const PRINT_TEXT_WIDTH = 624;
+/** Below this share of its size on screen, the writing in a picture is too small to read on paper. */
+export const MIN_PRINT_SCALE = 0.5;
+
+/** How big a picture's writing is on paper compared with the screen it came from, when the part shown is set across the text width (never bigger than life). */
+export function printScale(shownWidth: number): number {
+  return Math.min(1, PRINT_TEXT_WIDTH / Math.max(1, shownWidth));
+}
+
+/** The words that say what is in a picture, for a screen reader: what the author wrote, or else its callouts, or else nothing. */
+export function altTextFor(picture: Picture): string {
+  const written = picture.altText.trim();
+  if (written) return written;
+  const list = entries(picture).filter((e) => !e.needsName || !e.needsDescription);
+  return list.length ? `Callouts: ${list.map(entryWords).join(" ")}` : "";
+}
+
+/** A picture as it is shown where it is used: only the part chosen, with its click circle and callouts over it, and the callout entries under it. */
+export function figureHtml(ctx: RenderContext, picture: Picture, where?: string): string {
+  const src = ctx.imageSrc(picture);
+  if (!src) return `<p class="pv-missing">This picture file is missing from the project.</p>${noteHtml(ctx, "A picture file is missing from the project.", where)}`;
+  const shown = shownPart(picture, ctx.project.zoom, ctx.place);
+  const circle = circleFor(picture, ctx.project.highlight, ctx.place);
+  const overlay = overlayFor(picture, circle, shown);
+  const alt = altTextFor(picture);
+  const crop = isWhole(shown, picture) ? "" : ` style="object-view-box: xywh(${shown.x}px ${shown.y}px ${shown.width}px ${shown.height}px)"`;
+  const list = entries(picture);
+  const listed = list
+    .map((entry, i) => ({ entry, i }))
+    .filter(({ i }) => calloutInView(picture, i, shown))
+    .map(({ entry }) => `<li>${esc(fillVariables(entryWords(entry), ctx.project.variables))}</li>`)
+    .join("");
+  const hidden = list.length - list.filter((_, i) => calloutInView(picture, i, shown)).length;
+  const notes: string[] = [];
+  const scale = printScale(shown.width);
+  if (scale < MIN_PRINT_SCALE) notes.push(`Small on paper: the writing in this picture will print at about ${Math.round(scale * 100)} percent of its size on screen. A crop or a zoom (Picture view) would make it easier to read.`);
+  if (!picture.altText.trim()) notes.push("This picture has no description yet, so a screen reader has little to say about it.");
+  if (hidden > 0) notes.push(`${hidden} ${hidden === 1 ? "callout is" : "callouts are"} outside the part of the picture that is shown, so ${hidden === 1 ? "it is" : "they are"} left out of the list and the drawing.`);
+  return `<figure class="pv-figure" style="max-width: ${Math.min(shown.width, PRINT_TEXT_WIDTH)}px">`
+    + `<div class="pv-shot" style="aspect-ratio: ${shown.width} / ${shown.height}"><img src="${esc(src)}" alt="${esc(alt)}"${crop}>${overlay ? overlaySvg(overlay, "pv-marks") : ""}</div>`
+    + (listed ? `<figcaption><ul class="pv-entries" aria-label="Callouts on this picture">${listed}</ul></figcaption>` : "")
+    + `</figure>${notes.map((n) => noteHtml(ctx, n, where)).join("")}`;
+}
+
+const BOX_SYMBOLS: Record<CalloutKind, string> = {
+  "design-tip": "✎", caution: "⚠", "bright-idea": "☀", "power-tip": "↯", "time-saver": "⏲", "new-feature": "★",
+};
+
+/** A callout box: a symbol, its label in words and its text, so the kind is never shown by colour alone. */
+export function boxHtml(ctx: RenderContext, kind: CalloutKind, text: Run[]): string {
+  const label = calloutLabel(kind);
+  return `<aside class="pv-box pv-box-${esc(kind)}" aria-label="${esc(label)}"><p class="pv-box-label"><span aria-hidden="true">${BOX_SYMBOLS[kind]}</span> ${esc(label)}</p><p>${runsHtml(ctx, text)}</p></aside>`;
+}
+
+function stepHtml(ctx: RenderContext, node: TreeNode, step: Step, where?: string): string {
+  const picture = step.pictureId ? node.pictures.find((p) => p.id === step.pictureId) : undefined;
+  const result = step.result && step.result.length ? `<p class="pv-result"><strong>Result:</strong> ${runsHtml(ctx, step.result)}</p>` : "";
+  return `<li><p>${runsHtml(ctx, step.text)}</p>${picture ? figureHtml(ctx, picture, where) : ""}${result}</li>`;
+}
+
+/** A numbered procedure. The numbers are worked out from the order, never stored. */
+export function procedureHtml(ctx: RenderContext, node: TreeNode, steps: Step[], where?: string): string {
+  return `<ol class="pv-steps">${steps.map((s) => stepHtml(ctx, node, s, where)).join("")}</ol>`;
+}
+
+/** The blocks of a topic's page, each as HTML. `level` is the heading level of the topic's own title; a heading block goes one below it. `where` names the topic for the notes. */
+export function blocksHtml(ctx: RenderContext, node: TreeNode, level: number, where?: string): string {
+  const headingLevel = Math.min(6, level + 1);
+  return (node.page?.blocks ?? [])
+    .map((block: Block) => {
+      switch (block.type) {
+        case "paragraph": return `<p>${runsHtml(ctx, block.text)}</p>`;
+        case "heading": return block.text.trim() ? `<h${headingLevel}>${esc(fillVariables(block.text, ctx.project.variables))}</h${headingLevel}>` : "";
+        case "picture": {
+          const picture = node.pictures.find((p) => p.id === block.pictureId);
+          return picture ? figureHtml(ctx, picture, where) : "";
+        }
+        case "procedure": return procedureHtml(ctx, node, block.steps, where);
+        case "callout": return boxHtml(ctx, block.kind, block.text);
+      }
+    })
+    .join("\n");
+}

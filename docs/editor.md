@@ -4,7 +4,7 @@ The editor window has three panes: the chapters and topics on the left, the page
 rules about what a page is are in `docs/format-spec.md` ("The page"); this file says what the editor does and what has been tried.
 
 Status: the three panes, the block editor, the lettered callouts on pictures, the picture views and pointing at a picture with the mouse and the arrow keys are built
-(Step 4, parts 2 to 7), and comments on blocks. The check tool and the print and help site previews are not built yet. See `docs/HANDOFF.md`.
+(Step 4, parts 2 to 7), comments on blocks, and the print and help site previews. The check tool is not built yet. See `docs/HANDOFF.md`.
 
 ## The panes
 
@@ -132,6 +132,33 @@ block of a page: it is never put in a preview or an export. What the editor does
 - **Deleting a block** that has comments asks first, even if the block is empty, and says "Its 1 comment is deleted with it." Deleting an empty block with no comments still
   does not ask.
 
+## The print preview and the help site preview
+
+The middle pane has three tabs: **Edit**, **Print preview** and **Help site preview**. They are a tab list (the chosen tab is the only one in the Tab order; the Left and
+Right arrows, Home and End move between them, wrapping round, choose the tab and keep the keyboard on it, and the change is announced). The preview shows in a panel named by
+its tab, and the page is hidden while it shows (and drawn again, as it was, when Edit is chosen). The preview is real page content, not a picture, so a screen reader reads it,
+and its region can be reached and scrolled by keyboard.
+
+The pages are written as HTML text by `src/render/` (`html.ts` for the pieces, `print.ts` for the book, `help.ts` for a help page, `overlay.ts` for the drawing over a picture),
+with no screen needed, so the preview and the exports (not built yet) are made by the same code and cannot drift apart. Everything from the project is escaped. A variable such as
+`{{PRODUCT}}` is filled in from the project's variables, and stays visible when it has no value yet. Comments are never part of either preview. Pictures use the book's click circle
+and zoom settings.
+
+- **Print preview.** The whole book as sheets: a title page, a contents list (no page numbers, because those are made with the PDF), and each chapter on its own sheet with its
+  number and an **In This Chapter** list, then the topics with numbered headings (a heading block is one level below its topic's), paragraphs with bold, italic and
+  control names, numbered procedures with result lines and step pictures, callout boxes that say their kind in words and with a symbol, and pictures shown through their view with the
+  circle and callouts over them and the callout entries under them (a callout wholly outside the part shown is left out of both, as in the editor). It is an approximation: real page
+  breaks, running headers and page numbers wait for the PDF export, and the panel says so. A contents link jumps to that place and puts the keyboard there. The selected topic is
+  scrolled into view when the preview is shown.
+- **Notes for the writer.** Things to look at are listed above the preview ("2 notes for the writer (these are not part of the book)") and sit next to the picture they are about,
+  marked as preview only (`data-preview-only`), each saying which topic: a picture whose writing will print too small ("about 33 percent of its size on screen"; the rule is that
+  the writing in a picture shown across the 6.5 inch text width should stay above 50 percent, and a crop or zoom fixes it), a picture with no description, a callout that is
+  outside the part shown, and a missing picture file. The design says the print layout switches to a crop or zoom when a full window would be too small; the preview only says so and
+  leaves the choice to the writer. An export has no notes.
+- **Help site preview.** One topic as a help page: the contents tree (the current topic marked with `aria-current`, in bold and underlined, and the tree named), breadcrumbs ending with
+  the topic, the topic's title and blocks, a list of its topics when it has any, and Previous and Next links in reading order. A link opens that topic here (the tree follows) and puts
+  the keyboard on the page that opened. Search, the index and the collapsible FAQ come with the export.
+
 ## What has been tried
 
 In the real window (a development build driven through its debugging port, with real key presses and clicks): the three panes side by side, each a
@@ -150,6 +177,16 @@ open; Add a callout, Move up and Move down (letters following the position and t
 the click button being off with its reason; Save updating the entry under the picture and on the page, being announced and returning the keyboard to the
 button; Cancel and Escape changing nothing; deleting all callouts and making one again from the click; and a project with callouts packed, unpacked and read
 by another program (the .NET zip reader) with no letters in the file.
+
+The previews, in the real window with a chapter, a topic with a heading, a procedure, a callout box and a click picture with a callout, and a comment: three tabs with only the chosen one
+in the Tab order; the Right arrow choosing Print preview and keeping the keyboard on the tab, the panel named by its tab, and it announced; the preview being a named region the
+keyboard can reach; the approximation said in words; the title page, the contents (chapter and topic by number), the chapter opener with its number and In This Chapter list, the
+chapter's own paragraph with a control name in bold and an unfilled variable left visible, the topic's numbered heading and a heading block one level below, a numbered procedure, a
+callout box saying "Design Tip", and the picture loaded with its marker (hidden from a screen reader) and its entry under it (a second stray "A." found and fixed from the first look at it);
+the notes listed with where they are and also next to the picture; the comment's words not in the preview; a contents link jumping and focusing; a zoom set in Picture view being used
+by the preview (half the width, no small-on-paper note); words typed in Edit being in the preview when it is shown again; the Right arrow moving on to Help site preview; the tree marking
+the current topic and the breadcrumbs ending with it; the Previous link opening the chapter (the tree followed, the keyboard on the page, announced) and a link in its section list
+opening the topic; and Home and the Left arrow going back to Edit and wrapping round. The pictures were looked at.
 
 Comments, in the real window: every block with a Comments button named for its block; the dialog saying which block, an empty comment explained with the box marked, adding
 two comments (the box emptied, the keyboard kept there, the count said in words and announced), resolving one (it goes below the open ones, says "resolved" in words and the
@@ -179,5 +216,5 @@ settings and Callouts dialogs, the arrow keys moving through the three view choi
 and fixed a real fault: the four region boxes were still on the screen and in the Tab order while "whole picture" was chosen (a style rule overrode the hidden
 attribute), so `[hidden]` now always hides.
 
-Not tried: picture views and callouts with a screen reader, a view on a very small or very large picture by eye, and a callout on a very small or very large picture by eye; saving a project with pages through the app's own Save and Open (the format has unit tests, including packing and unpacking and every way a page file
+Not tried: the previews, picture views and callouts with a screen reader, a book of 200 topics in the print preview (it draws the whole book each time), a view on a very small or very large picture by eye, and a callout on a very small or very large picture by eye; saving a project with pages through the app's own Save and Open (the format has unit tests, including packing and unpacking and every way a page file
 can be wrong); a screen reader; keyboard-only use start to finish by a person; many blocks (a page of 200); and print or help site output, which is not built.

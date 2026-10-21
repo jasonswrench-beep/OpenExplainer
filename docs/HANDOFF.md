@@ -336,9 +336,20 @@ Parts, in order:
    book's unresolved list, a block in words), `commentsDialog` and `unresolvedDialog` in `src/dialogs.ts`, the Comments button on every block in `src/page-editor.ts` and
    the Unresolved comments button and properties line in `src/main.ts`; 12 tests; `docs/format-spec.md` ("Comments"), `docs/editor.md` ("Comments"); tried in the real
    window (scenarios `comments`, and `keyboard2` extended). Comments are never put in a preview or an export. No replies and no author names (Jason's defaults).
-7. Then the print and help site previews (Step 4's last item), the check tool (in the design spec, not on Jason's To-Do List), then Step 5.
+7. **The print and help site previews (DONE 2026-10-21; Step 4's last item)**: `src/render/overlay.ts` (the drawing over a picture as plain data, also written as SVG text; the editor's
+   `marksOverlay` now uses it), `src/render/html.ts` (text with marks, figures with callouts and entries, procedures, callout boxes, the notes for the writer, variables filled in,
+   everything escaped), `src/render/print.ts` (the book as sheets, contents, chapter openers), `src/render/help.ts` (a help page with tree, breadcrumbs, Previous and Next); 15 tests; the
+   three tabs and the preview panel in `src/main.ts` (`setViewMode`, `renderPreview`) and `src/style.css`; written up in `docs/editor.md` ("The print preview and the help site
+   preview"); tried in the real window (scenario `previews`). **The exports (Step 6) must reuse `src/render/`** with `notes: false` and `imageSrc` returning file names; the crop
+   uses CSS `object-view-box`, which an export for other browsers will need to replace with a cropped picture file. Jason's default: the preview flags pictures too small on paper and does
+   not switch them to a crop or zoom by itself (the design says the layout switches; ask him if he wants it automatic). Not built: real page breaks and page numbers (they come with the
+   PDF), search, the index and the FAQ of the help site, a quick guide preview.
+8. Then the check tool (in the design spec, not on Jason's To-Do List), then Step 5 (drawing shapes, named styles, the contrast checker), then Step 6 (export).
 
 ## Still open (ask Jason, do not guess)
+
+- Print layout: the design says the layout switches to a cropped or zoomed picture when a full window would be too small to read on paper. The preview only flags such a picture (a
+  note for the writer) and never changes it. Should the export switch automatically, or only warn?
 
 - Qwen 3.5: which size, and what its weights licence allows (audit before downloading or bundling).
 - MCP server: which actions to offer first.

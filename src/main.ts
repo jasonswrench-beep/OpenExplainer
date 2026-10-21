@@ -20,6 +20,8 @@ import { entryList, pictureBox } from "./picture-marks.ts";
 import { shownPart, viewWords } from "./project/views.ts";
 import { commentsOn, commentsWords, commentTotals, openCount, replaceBlockComments, setResolved } from "./project/comments.ts";
 import { blockWords, unresolvedCount, unresolvedIn, type UnresolvedItem } from "./project/comment-list.ts";
+import { renderPrintPreview, topicAnchor } from "./render/print.ts";
+import { renderHelpPage } from "./render/help.ts";
 import { addCalloutFromClick, setCallouts } from "./project/callouts.ts";
 import { blockLabel, calloutLabel, type Block } from "./project/page.ts";
 import { plainText } from "./project/text.ts";
@@ -82,6 +84,12 @@ app.innerHTML = `
       </section>
       <section id="pane-page" class="pane" aria-labelledby="page-heading" tabindex="-1">
         <h3 id="page-heading">Page</h3>
+        <div role="tablist" aria-label="How to see the page" id="view-tabs" class="tabs">
+          <button type="button" role="tab" id="tab-edit" aria-selected="true" aria-controls="panel-edit">Edit</button>
+          <button type="button" role="tab" id="tab-print" aria-selected="false" aria-controls="panel-preview" tabindex="-1">Print preview</button>
+          <button type="button" role="tab" id="tab-help" aria-selected="false" aria-controls="panel-preview" tabindex="-1">Help site preview</button>
+        </div>
+        <div id="panel-edit" role="tabpanel" aria-labelledby="tab-edit">
         <div class="toolbar"><button type="button" id="b-unresolved">Unresolved comments</button></div>
         <div id="page-editor"></div>
         <section id="pictures-section" aria-labelledby="pictures-heading">
@@ -98,6 +106,15 @@ app.innerHTML = `
           <p id="pictures-empty" class="help"></p>
           <ul id="pictures" class="pictures" aria-label="Pictures in the selected item"></ul>
         </section>
+        </div>
+        <div id="panel-preview" role="tabpanel" aria-labelledby="tab-print" hidden>
+          <p id="preview-help" class="help"></p>
+          <details id="preview-notes" hidden>
+            <summary id="preview-notes-summary"></summary>
+            <ul id="preview-notes-list"></ul>
+          </details>
+          <div id="preview-content" class="preview-content" role="region" tabindex="0"></div>
+        </div>
       </section>
       <section id="pane-props" class="pane" aria-labelledby="props-heading" tabindex="-1">
         <h3 id="props-heading">Properties</h3>
@@ -153,6 +170,102 @@ const pageEditor = createPageEditor({
   selectionChanged: () => renderProperties(),
 });
 
+// ---- The print preview and the help site preview ------------------------------------------------
+type ViewMode = "edit" | "print" | "help";
+let viewMode: ViewMode = "edit";
+let previewUrls: string[] = [];
+const VIEW_TABS: { mode: ViewMode; id: string; label: string }[] = [
+  { mode: "edit", id: "tab-edit", label: "Edit" },
+  { mode: "print", id: "tab-print", label: "Print preview" },
+  { mode: "help", id: "tab-help", label: "Help site preview" },
+];
+
+/** Shows the page for editing, or the book as it will print, or a page of the help site. */
+function setViewMode(mode: ViewMode, options: { focusTab?: boolean; announce?: boolean } = {}) {
+  viewMode = mode;
+  for (const tab of VIEW_TABS) {
+    const el = $(tab.id);
+    el.setAttribute("aria-selected", String(tab.mode === mode));
+    el.tabIndex = tab.mode === mode ? 0 : -1;
+  }
+  $("panel-edit").hidden = mode !== "edit";
+  $("panel-preview").hidden = mode === "edit";
+  $("panel-preview").setAttribute("aria-labelledby", mode === "help" ? "tab-help" : "tab-print");
+  if (options.focusTab) $(VIEW_TABS.find((t) => t.mode === mode)!.id).focus();
+  renderPreview(true);
+  if (options.announce !== false) announce(mode === "edit" ? "Editing the page." : mode === "print" ? "Print preview. The book as it will print, approximately." : "Help site preview. One topic as a help site page.");
+}
+
+for (const tab of VIEW_TABS) $(tab.id).addEventListener("click", () => setViewMode(tab.mode));
+$("view-tabs").addEventListener("keydown", (event) => {
+  const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+  if (!keys.includes((event as KeyboardEvent).key)) return;
+  const e = event as KeyboardEvent;
+  const at = VIEW_TABS.findIndex((t) => t.mode === viewMode);
+  const next = e.key === "Home" ? 0 : e.key === "End" ? VIEW_TABS.length - 1 : (at + (e.key === "ArrowRight" ? 1 : -1) + VIEW_TABS.length) % VIEW_TABS.length;
+  e.preventDefault();
+  setViewMode(VIEW_TABS[next].mode, { focusTab: true });
+});
+
+/** Draws the preview that is showing. `scroll` also brings the selected topic into view (when the tab is shown, or the selection changes). */
+function renderPreview(scroll = false) {
+  if (viewMode === "edit") return;
+  const content = $("preview-content");
+  const urls = new Map<string, string>();
+  const ctx = {
+    project,
+    place: "book" as const,
+    notes: true,
+    imageSrc: (picture: Picture) => {
+      const bytes = assets.get(picture.file);
+      if (!bytes) return null;
+      if (!urls.has(picture.file)) urls.set(picture.file, URL.createObjectURL(new Blob([bytes as BlobPart], { type: picture.file.endsWith(".png") ? "image/png" : "image/jpeg" })));
+      return urls.get(picture.file)!;
+    },
+  };
+  const notes: string[] = [];
+  const keepScroll = content.scrollTop;
+  if (viewMode === "print") {
+    const built = renderPrintPreview({ ...ctx, onNote: (words) => notes.push(words) });
+    content.innerHTML = built.html;
+    content.setAttribute("aria-label", "Print preview of the book");
+    $("preview-help").textContent = "The book as it will print, drawn as sheets. This is an approximation: real page breaks, running headers and page numbers are made when the PDF is exported, so the contents list has no page numbers. Pictures use the book's circle and zoom settings. Comments are never printed.";
+  } else {
+    const picked = selectedId;
+    content.innerHTML = renderHelpPage({ ...ctx, notes: false }, picked);
+    content.setAttribute("aria-label", "Help site preview of the selected topic");
+    $("preview-help").textContent = "One topic as a page of the help site, with the contents tree, breadcrumbs and links to the previous and next topic. Search, the index and the collapsible FAQ come with the export. Pictures use the book's settings. Comments are never shown.";
+  }
+  const box = $<HTMLDetailsElement>("preview-notes");
+  box.hidden = notes.length === 0;
+  $("preview-notes-summary").textContent = `${notes.length} ${notes.length === 1 ? "note" : "notes"} for the writer (these are not part of the book)`;
+  $("preview-notes-list").replaceChildren(...notes.map((n) => { const li = document.createElement("li"); li.textContent = n; return li; }));
+  previewUrls.forEach((u) => URL.revokeObjectURL(u));
+  previewUrls = [...urls.values()];
+  if (scroll && viewMode === "print" && selectedId) document.getElementById(topicAnchor(selectedId))?.scrollIntoView({ block: "start" });
+  else content.scrollTop = keepScroll;
+}
+
+// A link inside a preview works inside it: the help site's links open that topic, and the book's contents jump to that place.
+$("preview-content").addEventListener("click", (event) => {
+  const link = (event.target as HTMLElement).closest<HTMLElement>("a[data-topic], a[data-anchor]");
+  if (!link) return;
+  event.preventDefault();
+  if (link.dataset.topic) {
+    select(link.dataset.topic);
+    // select() puts the keyboard in the tree; in a preview it belongs in the page that was opened.
+    $("preview-content").focus();
+    announce(`Showing ${findNode(project.tree, link.dataset.topic)?.title ?? "the topic"}.`);
+  } else if (link.dataset.anchor) {
+    const target = document.getElementById(link.dataset.anchor);
+    if (target) {
+      target.tabIndex = -1;
+      target.scrollIntoView({ block: "start" });
+      target.focus();
+    }
+  }
+});
+
 /** The Comments dialog for one block. Nothing changes unless the author presses Save. */
 async function editBlockComments(block: Block) {
   const node = selected();
@@ -185,6 +298,8 @@ $("b-unresolved").addEventListener("click", async () => {
 
 /** Takes the author to the block a comment is on. */
 function goToComment(item: UnresolvedItem) {
+  // The comment is on the page being edited, so the page is shown for editing if a preview was showing.
+  if (viewMode !== "edit") setViewMode("edit", { announce: false });
   select(item.nodeId);
   pageEditor.focusBlockControl(item.blockId, "comments");
   announce(`Went to block ${item.blockPosition} of ${item.nodeTitle}.`);
@@ -394,6 +509,7 @@ $("b-highlight").addEventListener("click", async () => {
 function renderPictures() {
   pageEditor.refresh();
   renderProperties();
+  renderPreview();
   blobUrls.forEach((url) => URL.revokeObjectURL(url));
   blobUrls = [];
   const list = $<HTMLUListElement>("pictures");

@@ -1,0 +1,55 @@
+// The book as it will print, as HTML: a title page, the contents, and each chapter with its opener ("In This Chapter"), numbered headings, procedures, callout boxes and
+// pictures with their callouts. It is an approximation drawn as sheets: real page breaks, running headers and page numbers are made when the PDF is exported, so
+// the contents here has no page numbers. Comments are never part of it. Nothing here needs a screen.
+import { numbering, type Project, type TreeNode } from "../project/model.ts";
+import { blocksHtml, esc, fillVariables, type RenderContext } from "./html.ts";
+
+/** The whole book as HTML, and the notes for the writer that the preview collected (also in the HTML, next to what they are about, as preview-only notes). */
+export interface PrintPreview {
+  html: string;
+  /** What the writer should look at, in words. */
+  notes: string[];
+}
+
+/** The id an anchor in the preview uses for a topic. */
+export const topicAnchor = (id: string) => `pv-topic-${id}`;
+
+function contentsHtml(tree: TreeNode[], numbers: Map<string, string>, ctx: RenderContext): string {
+  if (tree.length === 0) return "";
+  const items = tree
+    .map((node) => `<li><a href="#${esc(topicAnchor(node.id))}" data-anchor="${esc(topicAnchor(node.id))}">${esc(numbers.get(node.id) ?? "")} ${esc(fillVariables(node.title, ctx.project.variables))}</a>${contentsHtml(node.children, numbers, ctx)}</li>`)
+    .join("");
+  return `<ol class="pv-toc-list">${items}</ol>`;
+}
+
+function topicHtml(node: TreeNode, depth: number, numbers: Map<string, string>, ctx: RenderContext): string {
+  const level = Math.min(6, depth + 1);
+  const number = numbers.get(node.id) ?? "";
+  const title = esc(fillVariables(node.title, ctx.project.variables));
+  const children = node.children.map((child) => topicHtml(child, depth + 1, numbers, ctx)).join("\n");
+  if (depth === 0) {
+    // A chapter starts a new sheet, with an opener that lists the topics in it.
+    const inside = node.children.length
+      ? `<div class="pv-in-chapter"><h2 class="pv-in-chapter-title">In This Chapter</h2><ul>${node.children.map((c) => `<li><a href="#${esc(topicAnchor(c.id))}" data-anchor="${esc(topicAnchor(c.id))}">${esc(fillVariables(c.title, ctx.project.variables))}</a></li>`).join("")}</ul></div>`
+      : "";
+    return `<section class="pv-sheet pv-chapter" id="${esc(topicAnchor(node.id))}"><header class="pv-opener"><p class="pv-chapter-number">Chapter ${esc(number)}</p><h1>${title}</h1>${inside}</header>\n${blocksHtml(ctx, node, 1, `${number} ${node.title}`)}\n${children}</section>`;
+  }
+  return `<article class="pv-topic" id="${esc(topicAnchor(node.id))}"><h${level}><span class="pv-number">${esc(number)}</span> ${title}</h${level}>\n${blocksHtml(ctx, node, level, `${number} ${node.title}`)}\n${children}</article>`;
+}
+
+/** Writes the whole book as it will print. */
+export function renderPrintPreview(base: RenderContext): PrintPreview {
+  const notes: string[] = [];
+  const ctx: RenderContext = { ...base, onNote: (words) => { notes.push(words); base.onNote?.(words); } };
+  const project: Project = ctx.project;
+  const numbers = numbering(project.tree);
+  const title = esc(fillVariables(project.name, project.variables));
+  const details = ["PRODUCT", "VERSION", "COMPANY"].map((key) => project.variables[key]?.trim()).filter(Boolean).map((v) => `<p>${esc(v)}</p>`).join("");
+  const parts = [
+    `<section class="pv-sheet pv-title-page"><h1 class="pv-book-title">${title}</h1>${details}</section>`,
+    project.tree.length ? `<section class="pv-sheet pv-toc"><h1>Contents</h1>${contentsHtml(project.tree, numbers, ctx)}</section>` : "",
+    ...project.tree.map((chapter) => topicHtml(chapter, 0, numbers, ctx)),
+  ].filter(Boolean);
+  const html = `<div class="pv-book">${parts.join("\n")}</div>`;
+  return { html, notes };
+}
