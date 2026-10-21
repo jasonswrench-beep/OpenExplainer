@@ -10,10 +10,11 @@ import type { Shape } from "./shapes.ts";
 import type { NamedStyle } from "./styles.ts";
 import { emptyCheckSettings, type CheckSettings } from "./checks.ts";
 import type { Guide } from "./guides.ts";
+import type { TopicIndex } from "./book-index.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 12;
+export const CURRENT_VERSION = 13;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -89,6 +90,8 @@ export interface TreeNode {
   pictures: Picture[];
   /** What the reader sees under the topic's title (format version 5). Left out until something is written. */
   page?: Page;
+  /** The topic's index terms (format version 13). Left out until it has some. */
+  index?: TopicIndex;
   children: TreeNode[];
 }
 

@@ -9,7 +9,7 @@ A saved project is ONE file named after the project, such as `Test1.openexplaine
 `src/project/package.ts`. Any zip program can open it for inspection. Inside it, format version 6 holds two files, a page file for each topic that has a page, and a picture folder:
 
 - `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others), `highlight` (the look of the click circle, see "The click highlight"), `zoom`, `styles`, `checks`, `guides` (see "Short guides") and `paper` (see "Paper settings").
-- `structure.json`: `version` and `tree`, the chapters and topics.
+- `structure.json`: `version` and `tree`, the chapters and topics (each with its status, pictures and, if it has any, its index terms, see "The book index").
 - `topics/<topic id>.json`: the page of a topic, only for a topic that has something on its page (see "The page").
 - `images/`: one file per picture, named `images/<picture id>.png` or `.jpg`. Only pictures a topic still uses are saved.
 
@@ -186,6 +186,21 @@ as `picture-alt:<picture id>`, `empty-topic:<topic id>`, `callout-description:<p
 adds the keys of the things of that kind found at that moment; a new one found later still shows. Cleaned when a project is opened and saved: only keys that are text, once each. The things the
 check finds are worked out from the project every time (`src/project/checks.ts`), never stored.
 
+## The book index
+
+A topic can have `index: { terms, removed? }` in `structure.json` (format version 13), left out until it has something. `terms` is a list of `{ text, by }`: `text` is the term as it is printed (tidy spaces, no full stop, comma
+or colon on the end, 2 to 60 letters with at least one letter in it, no unfilled `{{VARIABLE}}`) and `by` is `"software"` (the first pass or an update proposed it and the author has not changed it) or `"author"` (the author
+added or retyped it). `removed` is a list of keys (lower case, one space between words) of software terms the author took out, so an update does not bring them back. The **index of the book is never stored**: it is
+worked out from every topic's terms (`buildBookIndex` in `src/project/book-index.ts`). The same term (by its key, capitals and spacing aside) in two topics is one entry listing both topics in book order, each once;
+the author's spelling wins over the software's, else the first one found; entries are in alphabetical order (a collator for English, ignoring capitals and accents) under a heading for each letter A to Z, with
+"Symbols and numbers" first.
+
+The **first pass** is worked out from the book with no AI (`suggestedTerms`): for a topic with something on its page, its title, the headings on its page, every control name written in its text (paragraphs, steps, step
+results and boxed notes), and the name of every callout on the pictures that are on its page. An **update** (`updateTopicIndex`) keeps the author's terms, does not bring back what the author took out, keeps software
+terms the book still supports, drops software terms it no longer supports and adds new suggestions; the first pass for a topic is the same call. Editing a topic's terms as lines of text (`setTermLines`) keeps a
+line the author left alone as the software's, makes any other line the author's, and remembers a software term whose line was deleted in `removed`; writing it again makes it the author's. Cleaned when a project is opened
+and saved (`cleanTreeIndex`): terms that are text and usable, each key once, `by` known (else the software's), and `removed` keys that are text and not terms.
+
 ## Paper settings
 
 `project.json` has `paper: { autoZoom }` (format version 12), choices about the printed book. `autoZoom` is `false` to begin with (and for any older project), so nothing changes until the author turns it on in
@@ -248,6 +263,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 13: a topic can have index terms (`index`), and the index of the book is worked out from them. A version 12 project upgrades with none. A copy of OpenExplainer that only knows version 12 refuses a version 13 project, so it can never open one and save it without the terms.
 - Version 12: the project keeps choices about the printed book (`paper`), with an automatic zoom for pictures that would print too small, off to begin with. A version 11 project upgrades with it off. A copy of OpenExplainer that only knows version 11 refuses a version 12 project, so it can never open one and save it without the choice.
 - Version 11: the project can hold short step-by-step guides made from topics (`guides`). A version 10 project upgrades with none. A copy of OpenExplainer that only knows version 10 refuses a version 11 project, so it can never open one and save it without the guides.
 - Version 10: the project keeps what the author chose to ignore in the book check (`checks`). A version 9 project upgrades ignoring nothing. A copy of OpenExplainer that only knows version 9 refuses a version 10 project, so it can never open one and save it without those choices.

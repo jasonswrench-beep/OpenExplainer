@@ -9,6 +9,7 @@ import { cleanTreeShapes } from "./shapes.ts";
 import { cleanStyles } from "./styles.ts";
 import { cleanChecks } from "./checks.ts";
 import { cleanGuides } from "./guides.ts";
+import { cleanTreeIndex } from "./book-index.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -47,6 +48,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   10: (raw) => ({ ...raw, version: 11, guides: [] }),
   // Version 11 to 12: the project keeps choices about the printed book. An older project has the zoom for print switched off.
   11: (raw) => ({ ...raw, version: 12, paper: { autoZoom: false } }),
+  // Version 12 to 13: a topic can have index terms. An older project has none; the first pass is made when the author asks.
+  12: (raw) => ({ ...raw, version: 13 }),
 };
 
 export function migrate(input: unknown): Project {
@@ -63,7 +66,7 @@ export function migrate(input: unknown): Project {
   }
   // A click note and the circle's settings are checked every time a project is opened, whatever version it was saved as.
   const project = raw as unknown as Project;
-  if (Array.isArray(project.tree)) project.tree = cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(project.tree as TreeNode[])))));
+  if (Array.isArray(project.tree)) project.tree = cleanTreeIndex(cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(project.tree as TreeNode[]))))));
   project.highlight = cleanHighlight(project.highlight);
   project.zoom = cleanZoom(project.zoom);
   project.styles = cleanStyles(project.styles);

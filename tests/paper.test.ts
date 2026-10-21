@@ -63,13 +63,13 @@ test("the paper setting is cleaned, saved with the project, and an older project
   assert.deepEqual(cleanPaper(undefined), { autoZoom: false });
   assert.deepEqual(cleanPaper({ autoZoom: "yes" }), { autoZoom: false }, "only true turns it on");
   assert.deepEqual(cleanPaper({ autoZoom: true, other: 1 }), { autoZoom: true });
-  assert.equal(CURRENT_VERSION, 12);
+  assert.ok(CURRENT_VERSION >= 12, "the paper settings arrived in format 12");
   assert.deepEqual(createProject("x").paper, { autoZoom: false });
   const { project } = book(true);
   assert.deepEqual(fromFiles(toFiles(project)).paper, { autoZoom: true }, "it comes back as it was saved");
-  assert.equal(JSON.parse(toFiles(project)["project.json"]).version, 12);
+  assert.equal(JSON.parse(toFiles(project)["project.json"]).version, CURRENT_VERSION);
   const old = migrate({ version: 11, name: "Old", template: "empty", variables: {}, guides: [], tree: [] });
-  assert.deepEqual([old.version, old.paper], [12, { autoZoom: false }]);
+  assert.deepEqual([old.version, old.paper], [CURRENT_VERSION, { autoZoom: false }]);
   assert.deepEqual(migrate({ version: 12, name: "Odd", template: "empty", variables: {}, paper: 5, tree: [] }).paper, { autoZoom: false });
 });
 

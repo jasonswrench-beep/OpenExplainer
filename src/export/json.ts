@@ -29,6 +29,8 @@ interface ExportNode {
   title: string;
   status: string;
   page?: unknown;
+  /** The topic's index terms, if it has any. */
+  index?: unknown;
   pictures: unknown[];
   children: ExportNode[];
 }
@@ -36,7 +38,7 @@ interface ExportNode {
 function exportNodes(nodes: TreeNode[], numbers: Map<string, string>, comments: boolean): ExportNode[] {
   return nodes.map((node) => {
     const page = node.page && node.page.blocks.length > 0 ? { blocks: node.page.blocks, ...(comments && node.page.comments ? { comments: node.page.comments } : {}) } : undefined;
-    return { id: node.id, number: numbers.get(node.id) ?? "", title: node.title, status: node.status, ...(page ? { page } : {}), pictures: node.pictures, children: exportNodes(node.children, numbers, comments) };
+    return { id: node.id, number: numbers.get(node.id) ?? "", title: node.title, status: node.status, ...(page ? { page } : {}), ...(node.index ? { index: node.index } : {}), pictures: node.pictures, children: exportNodes(node.children, numbers, comments) };
   });
 }
 
