@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod ai;
 mod capture;
+mod config;
 mod mcp;
 mod pdf;
 
@@ -44,7 +46,9 @@ fn main() {
             mcp::mcp_reply,
             mcp::mcp_settings_get,
             mcp::mcp_exe_path,
-            mcp::mcp_settings_set
+            mcp::mcp_settings_set,
+            ai::ai_settings_get,
+            ai::ai_settings_set
         ])
         .run(tauri::generate_context!())
         .expect("OpenExplainer could not start.");

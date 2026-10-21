@@ -32,18 +32,9 @@ struct Inner {
     pending: Vec<String>,
 }
 
-/// Where the settings are kept: the app's config folder. In a development build a test can point it somewhere else.
+/// Where the settings are kept: the app's config folder (see `config.rs`).
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let folder = if cfg!(debug_assertions) {
-        std::env::var_os("OPENEXPLAINER_CONFIG_DIR").map(PathBuf::from)
-    } else {
-        None
-    };
-    let folder = match folder {
-        Some(f) => f,
-        None => app.path().app_config_dir().map_err(|e| format!("The settings folder could not be found: {e}"))?,
-    };
-    Ok(folder.join("mcp.json"))
+    Ok(crate::config::config_folder(app)?.join("mcp.json"))
 }
 
 /// The starting settings: off, no folder, no whole-screen capture.
@@ -84,12 +75,8 @@ pub fn mcp_settings_set(app: AppHandle, settings: Value) -> Result<(), String> {
     if enabled && !PathBuf::from(&folder).is_dir() {
         return Err("Choose a folder that exists before turning MCP on. An assistant can only open and save projects inside it.".into());
     }
-    let path = settings_path(&app)?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("The settings folder could not be made: {e}"))?;
-    }
     let text = serde_json::to_string_pretty(&json!({ "enabled": enabled, "folder": folder, "allowFullScreen": full })).map_err(|e| e.to_string())?;
-    std::fs::write(&path, text + "\n").map_err(|e| format!("The settings could not be saved: {e}"))
+    crate::config::write_settings_file(&settings_path(&app)?, &text)
 }
 
 /// Hands a line from the assistant to the hidden page, or keeps it until the page is listening.

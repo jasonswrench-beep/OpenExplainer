@@ -404,9 +404,11 @@ Parts, in order:
     to it (Jason should try: MCP access, copy the lines, ask the assistant to document something), the check that an assistant's own click-through of a real program works (the tests used made-up windows). Tried in a **release** build with its pages inside it
     (`cargo build --release --features tauri/custom-protocol`; a plain `cargo build --release` still loads its pages from the dev server): `--mcp` works there too (a release program is a GUI program and still gets the pipes).
     `OPENEXPLAINER_EXE=<path> node tools/mcp-e2e.mjs` tries one (it saves and restores the real MCP settings).
-18. Next: the **local AI** (Step 7). **Plan and licence check on the exact files written 2026-10-21: `docs/local-ai-plan.md`** (nothing downloaded, no code yet). Proposed file: Unsloth's `Qwen3.5-4B-Q4_K_M.gguf`
-    (2,740,937,888 bytes, pinned by commit and SHA-256; Apache 2.0 all the way down), runtime llama.cpp `llama-server` (MIT, CPU zips for x64 and ARM64). Eight parts, each tried and committed alone; the first real 2.7 GB
-    download waits for Jason's yes. Waiting for Jason to confirm the four points in section 7 of that plan before part 1.
+18. The **local AI** (Step 7), plan and licence check in `docs/local-ai-plan.md`. Jason confirmed on 2026-10-21: Unsloth's `Qwen3.5-4B-Q4_K_M.gguf` (2,740,937,888 bytes, pinned by commit and SHA-256; Apache 2.0 all the way down),
+    the runtime (llama.cpp `llama-server`, MIT) inside the installer, the model downloading the first time the built-in model is turned on, drafts and writing-style notes stored in the project (format v14, part 4).
+    **Part 1 DONE 2026-10-21** (settings and the connector, no download): `src/ai/` (`settings.ts`, `model-info.ts`, `types.ts`, `local.ts`, `connector.ts`, `model-state.ts`), `src/ai-dialog.ts` (the **AI help** button),
+    `src-tauri/src/ai.rs` + `config.rs`, `tests/ai.test.ts` + `tests/fake-llama.ts`, scenario `ai`. Next: part 2, the model download (progress, pause, resume, cancel, disk and memory checks, SHA-256 check, delete, licence text);
+    **ask Jason before the first real 2.7 GB download.**
 
 ## Still open (ask Jason, do not guess)
 
@@ -415,8 +417,7 @@ Parts, in order:
 - Short guides (built 2026-10-21): please confirm the choices I made without asking (HANDOFF item 12): a guide takes only the numbered steps and boxed notes of its topics; each step is headed "Step N"; close-ups
   are on by default; the left layout shows the picture and a close-up because a step holds one picture (the design says up to three: should a step be able to hold more, such as a result picture?); the step
   number marker is dark blue and 2.5 percent of the width in radius. Also the Step 5 defaults: a named style is applied by copy, a marker's label is typed, and a mark saved with low contrast keeps a record.
-- Qwen 3.5 (Jason, 2026-10-21: Apache 2.0 is fine; default Qwen 3.5 at 4B): the licence of the exact files is read and written up in `docs/local-ai-plan.md` section 5 (all permissive). Open, for Jason to confirm (plan section 7):
-  which file, runtime inside the installer or downloaded with the model, when the model downloads (first time AI is turned on, not during install), and drafts stored in the project (format v14).
+- Qwen 3.5 (Jason, 2026-10-21: Apache 2.0 is fine; default Qwen 3.5 at 4B): the licence of the exact files is read and written up in `docs/local-ai-plan.md` section 5 (all permissive). The four points in plan section 7 were confirmed by Jason on 2026-10-21 (item 18).
 - MCP server: built (item 17). Open: try it with a real assistant; whether an assistant should also be able to click and type in the program itself (now it does that with its own tools); the log's place and a way to see it in the app.
 - The book index: built (item 16). Open: whether it needs sub-entries and "see also", and a rule in the book check for topics with no terms.
 - Which the reference authoring platform page styles to copy exactly versus only resemble; how much detail per feature in the OpenStage book.

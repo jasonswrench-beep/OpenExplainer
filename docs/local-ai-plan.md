@@ -1,7 +1,40 @@
 # Plan: the local AI (Step 7)
 
 Written 2026-10-21, before any download and before any code. Jason said to begin with the plan in plain words and the
-licence check on the exact files. Nothing here is built. Section 7 lists what Jason needs to confirm.
+licence check on the exact files.
+
+## Status
+
+**Confirmed by Jason, 2026-10-21 (section 7):** Unsloth's Q4_K_M file; the runtime travels inside the installer; the model
+downloads the first time the author turns the built-in model on; drafts and writing-style notes are stored in the project
+(format version 14, part 4).
+
+| Part | State |
+| --- | --- |
+| 1. Settings and the connector | **Built 2026-10-21.** See below. |
+| 2. The model download | Not started. Waits for Jason's yes before the first real 2.7 GB download. |
+| 3. The runtime and Test the AI | Not started. |
+| 4 to 8 | Not started. |
+
+### What part 1 is
+
+- `src/ai/settings.ts`: the choice (`none`, `builtin`, `key`), which starts at `none`, and the sentence that says where AI help stands.
+- `src/ai/model-info.ts`: the one pinned model (repository, commit, file, size, SHA-256, licence and its pinned text). A test checks that this table and
+  section 5 of this plan name the same file, so they cannot drift apart.
+- `src/ai/types.ts`, `local.ts`, `connector.ts`: one question ("ask") with the answer, or an error in words with a code. The built-in
+  answerer talks to `llama-server` in its "chat completions" language, turns thinking off, takes thinking out of an answer, says when an
+  answer was cut short, has a time limit and a cancel, and **refuses any address that is not this PC** (the "local stays local" guard).
+- `src-tauri/src/ai.rs` and `config.rs`: the choice is kept in `ai.json` in the app's config folder (not in a project); an unknown choice is refused.
+- `src/ai-dialog.ts` and the **AI help** toolbar button: the dialog with the three choices (your own key is switched off and says "Not built yet"),
+  the model's facts in words, and its state ("Not downloaded."). Keyboard operable, Escape closes without keeping anything, status in words.
+- Tests: `tests/ai.test.ts` (12) against `tests/fake-llama.ts`, a stand-in for `llama-server` that can misbehave on purpose; Rust test for the settings file;
+  scenario `ai` in the real window.
+
+### To check against the real `llama-server` in part 3 (the fake cannot prove these)
+
+- That the app's page may call `http://127.0.0.1:<port>` from the webview (browser rules about which pages may call which addresses). If not, the call goes through the shell instead.
+- That `chat_template_kwargs` with `enable_thinking: false`, `top_k` and `presence_penalty` are accepted as sent.
+- What the real server answers while the model loads (the code treats 503 as "still loading").
 
 The rules this follows: everything in the app works by hand with no AI (design spec section 7); the AI drafts and the
 author decides; nothing leaves the PC unless the author chose a cloud service; open model weights are audited file by

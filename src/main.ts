@@ -31,6 +31,9 @@ import { flattenPicture } from "./render/flatten.ts";
 import { guidesDialog } from "./guides-dialog.ts";
 import { indexDialog } from "./index-dialog.ts";
 import { mcpDialog } from "./mcp-dialog.ts";
+import { aiDialog } from "./ai-dialog.ts";
+import { aiStatusWords } from "./ai/settings.ts";
+import { modelState } from "./ai/model-state.ts";
 import { buildBookIndex, indexSummary, setTermLines, termLines, updateBookIndex, updateTopicIndex } from "./project/book-index.ts";
 import { cleanGuides, guideSummary } from "./project/guides.ts";
 import { renderGuide } from "./render/guide.ts";
@@ -69,6 +72,7 @@ app.innerHTML = `
       <button type="button" id="b-vars">Project variables</button>
       <button type="button" id="b-guides">Guides</button>
       <button type="button" id="b-index">Index</button>
+      <button type="button" id="b-ai">AI help</button>
       <button type="button" id="b-mcp">MCP access</button>
       <button type="button" id="b-check">Check the book</button>
     </div>
@@ -383,6 +387,17 @@ async function manageIndex() {
   } else $("b-index").focus();
 }
 $("b-index").addEventListener("click", () => void manageIndex());
+
+// ---- AI help: who drafts text for the author ---------------------------------------------------------------------
+$("b-ai").addEventListener("click", async () => {
+  try {
+    const saved = await aiDialog();
+    if (saved) announce(aiStatusWords(saved, await modelState()));
+  } catch (error) {
+    await messageDialog("AI help", `The AI help choices could not be shown. ${error instanceof Error ? error.message : String(error)}`);
+  }
+  $("b-ai").focus();
+});
 
 // ---- MCP access: whether an AI assistant may use the app --------------------------------------------------------
 $("b-mcp").addEventListener("click", async () => {
