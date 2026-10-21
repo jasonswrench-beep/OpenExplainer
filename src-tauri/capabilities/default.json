@@ -8,6 +8,9 @@
     "dialog:default",
     "fs:allow-read-file",
     "fs:allow-write-file",
+    "fs:allow-mkdir",
+    "fs:allow-read-dir",
+    "fs:allow-exists",
     {
       "identifier": "fs:scope",
       "allow": [{ "path": "$TEMP/openexplainer-pdf" }, { "path": "$TEMP/openexplainer-pdf/**" }]

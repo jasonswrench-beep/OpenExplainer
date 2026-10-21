@@ -218,7 +218,10 @@ impl Choreography {
     fn with_bar(app: &AppHandle, bar: WebviewWindow) -> Self {
         let mut hid_main = false;
         if let Some(main) = app.get_webview_window("main") {
-            hid_main = main.hide().is_ok();
+            // A window that is not showing (the hidden page of MCP mode) is left as it is, so it is not shown when the capture ends.
+            if main.is_visible().unwrap_or(true) {
+                hid_main = main.hide().is_ok();
+            }
         }
         Choreography { app: app.clone(), bar: Some(bar), hid_main }
     }

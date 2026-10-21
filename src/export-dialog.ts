@@ -2,10 +2,10 @@
 // this only asks. The kinds are made by src/export/.
 import { open } from "./dialogs.ts";
 
-export type ExportKind = "help-site" | "json" | "markdown" | "word" | "pdf" | "guide-word" | "guide-pdf";
+import { GUIDE_KINDS, type ExportKind } from "./export/make.ts";
 
-/** The kinds that export one guide, chosen below the list. */
-export const GUIDE_KINDS: ExportKind[] = ["guide-word", "guide-pdf"];
+export { GUIDE_KINDS };
+export type { ExportKind };
 
 export interface ExportChoice {
   kind: ExportKind;

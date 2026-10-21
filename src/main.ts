@@ -25,20 +25,14 @@ import { renderPrintPreview, topicAnchor } from "./render/print.ts";
 import { drawingDialog } from "./drawing-dialog.ts";
 import { checkDialog } from "./check-dialog.ts";
 import { exportDialog, EXPORT_KINDS, GUIDE_KINDS, type ExportChoice } from "./export-dialog.ts";
-import { flattenGuide, flattenPlaced } from "./export/pictures.ts";
-import { packJsonExport, unpackJsonExport } from "./export/json.ts";
-import { buildMarkdown } from "./export/markdown.ts";
-import { packDocx } from "./export/docx.ts";
-import { packGuideDocx } from "./export/guide-docx.ts";
-import { makeBookPdf, makeGuidePdf } from "./export/pdf-make.ts";
-import { buildHelpSite } from "./export/help-site.ts";
+import { unpackJsonExport } from "./export/json.ts";
+import { EXPORT_EXTENSION, makeExport } from "./export/make.ts";
 import { flattenPicture } from "./render/flatten.ts";
 import { guidesDialog } from "./guides-dialog.ts";
 import { indexDialog } from "./index-dialog.ts";
 import { buildBookIndex, indexSummary, setTermLines, termLines, updateBookIndex, updateTopicIndex } from "./project/book-index.ts";
 import { cleanGuides, guideSummary } from "./project/guides.ts";
 import { renderGuide } from "./render/guide.ts";
-import { zip } from "./project/zip.ts";
 import { checkProject, type Issue } from "./project/checks.ts";
 import { marksSummary, setShapes } from "./project/shapes.ts";
 import { renderHelpPage } from "./render/help.ts";
@@ -1119,33 +1113,16 @@ async function exportBook() {
   try {
     const guide = GUIDE_KINDS.includes(choice.kind) ? project.guides.find((g) => g.id === choice.guideId) : undefined;
     if (GUIDE_KINDS.includes(choice.kind) && !guide) throw new Error("There is no guide to export. Choose Guides to make one.");
-    const extension = choice.kind === "word" || choice.kind === "guide-word" ? "docx" : choice.kind === "pdf" || choice.kind === "guide-pdf" ? "pdf" : "zip";
+    const extension = EXPORT_EXTENSION[choice.kind];
     const path = await chooseExportPath(
       guide ? `${projectFileName(guide.name).replace(/\.openexplainer$/, "")}.${extension}` : exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown", extension),
       extension,
     );
     if (!path) return $("b-export").focus();
     announce(`Making the ${name} export. This can take a moment.`);
-    let bytes: Uint8Array;
-    const left: string[] = [];
-    if (choice.kind === "json") {
-      const made = packJsonExport(project, assets, { comments: choice.comments, now: new Date().toISOString() });
-      bytes = made.bytes;
-      left.push(...made.missing.map((file) => `The picture file ${file} is missing from the project, so it is not in the export.`));
-    } else {
-      // The printed outputs (Word and PDF) may zoom in on a picture that would print too small; the help site and Markdown are not for paper.
-      const flat = guide ? await flattenGuide(project, guide, assets, flattenPicture) : await flattenPlaced(project, assets, "book", flattenPicture, { paper: choice.kind === "word" || choice.kind === "pdf" });
-      left.push(...flat.missing.map((m) => `The picture "${m}" is missing from the project, so it is not in the export.`), ...flat.failed.map((m) => `The picture "${m}" could not be drawn, so it is not in the export.`));
-      if (choice.kind === "pdf") {
-        const made = await makeBookPdf(project, flat.flat);
-        bytes = made.bytes;
-        if (!made.numbered) left.push("The contents list has no page numbers, because the pages of the topics could not be found in the PDF.");
-      } else if (choice.kind === "guide-pdf") {
-        bytes = (await makeGuidePdf(project, guide!, flat.flat)).bytes;
-      } else {
-        bytes = guide ? packGuideDocx(project, guide, flat.flat) : choice.kind === "word" ? packDocx(project, flat.flat) : zip(choice.kind === "help-site" ? buildHelpSite(project, flat.flat) : buildMarkdown(project, flat.flat));
-      }
-    }
+    const made = await makeExport(project, assets, choice.kind, { guideId: choice.guideId, comments: choice.comments, flatten: flattenPicture, now: new Date().toISOString() });
+    const bytes = made.bytes;
+    const left = made.notes;
     await writeBytes(path, bytes);
     announce(`${name} export saved to ${path}.`);
     await messageDialog("Export saved", `The ${name} export was saved to ${path}.${left.length ? `\n\nNot everything could be included:\n${left.join("\n")}` : ""}`);
