@@ -30,6 +30,8 @@ export interface ClickShot {
   extension: "png" | "jpg";
   /** Something worth knowing about how this click was captured (Windows did not say what was clicked, and so on). */
   note?: string;
+  /** Where the picture's screen is on the whole desktop, when the helper said (so a window's place can be found in the picture). */
+  screen?: { x: number; y: number; width: number; height: number };
 }
 
 export interface ClickSession {
@@ -77,7 +79,9 @@ export async function collectSession(files: PictureFiles, outcome: SessionOutcom
     const info = readImageInfo(bytes);
     if (!info) { unusable++; continue; }
     const note = typeof line.note === "string" && line.note.trim() ? line.note.trim() : undefined;
-    shots.push({ n: typeof line.n === "number" ? line.n : shots.length + 1, click, bytes, width: info.width, height: info.height, extension: info.extension, ...(note ? { note } : {}) });
+    const s = (typeof line.screen === "object" && line.screen !== null ? line.screen : {}) as Record<string, unknown>;
+    const screen = [s.x, s.y, s.width, s.height].every((v) => typeof v === "number" && Number.isFinite(v)) ? { x: s.x as number, y: s.y as number, width: s.width as number, height: s.height as number } : undefined;
+    shots.push({ n: typeof line.n === "number" ? line.n : shots.length + 1, click, bytes, width: info.width, height: info.height, extension: info.extension, ...(note ? { note } : {}), ...(screen ? { screen } : {}) });
   }
   const ended = ENDED.includes(outcome.ended as SessionEnded) ? (outcome.ended as SessionEnded) : "stopped";
   return { shots, skipped: Math.max(0, Math.round(outcome.skipped) || 0), unusable, ended };

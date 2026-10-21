@@ -4,10 +4,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { exists, mkdir, readDir, readFile, writeFile } from "@tauri-apps/plugin-fs";
+import { createCaptureClient } from "../capture/client.ts";
+import { captureTimeoutMs, tauriShell } from "../capture/tauri.ts";
+import type { Done } from "../capture/outcome.ts";
 import { makeExport } from "../export/make.ts";
-import { flattenPicture } from "../render/flatten.ts";
+import { flattenPicture, scaleToWidth } from "../render/flatten.ts";
 import { isInside } from "./paths.ts";
+import { LOG_FILE, withLog } from "./log.ts";
 import { createServer } from "./protocol.ts";
+import { createCaptureTools, type CaptureDeps, type ClickResult } from "./capture-tools.ts";
 import { Session, type McpFiles, type McpSettings } from "./session.ts";
 import { createTools, INSTRUCTIONS } from "./tools.ts";
 
@@ -27,6 +32,7 @@ const files: McpFiles = {
   exists: (path) => exists(guard(path)),
   list: async (folder) => (await readDir(guard(folder))).map((e) => ({ name: e.name, isDirectory: e.isDirectory })),
   makeFolder: (path) => mkdir(guard(path), { recursive: true }),
+  append: (path, words) => writeFile(guard(path), new TextEncoder().encode(words), { append: true }),
 };
 
 const session = new Session(settings, files);
@@ -40,12 +46,63 @@ async function gate(): Promise<string | null> {
   return null;
 }
 
-const tools = createTools({
-  session,
-  exporter: (kind, options) => makeExport(session.require(), session.assets, kind, { ...options, flatten: flattenPicture, now: new Date().toISOString() }),
-});
+// Capture goes through the same helper and shell the app's own Capture dialog uses.
+const client = createCaptureClient(tauriShell, captureTimeoutMs);
+const sure = <T>(done: Done<T>): T => {
+  if (!done.ok) throw new Error(done.message);
+  return done.value;
+};
+/** The click session that is running, so it can be stopped and its pictures collected. */
+let clickSession: ReturnType<typeof client.watchClicks> | null = null;
 
-const server = createServer({ name: "OpenExplainer", version: VERSION, instructions: INSTRUCTIONS, tools, gate });
+const capture: CaptureDeps = {
+  listWindows: async () => sure(await client.listWindows()),
+  captureWindow: async (window, options) => {
+    const picture = sure(await client.captureWindow(window, { bringToFront: options.bringToFront }));
+    return { bytes: picture.bytes, width: picture.width, height: picture.height, extension: picture.extension };
+  },
+  captureRegion: async (region) => {
+    const picture = sure(await client.captureRegion(region));
+    return { bytes: picture.bytes, width: picture.width, height: picture.height, extension: picture.extension };
+  },
+  startClicks: async (options) => {
+    const started = client.watchClicks(options);
+    clickSession = started;
+    // A session that cannot start (another capture is running, or the helper is missing) answers almost at once with the reason.
+    const early = await Promise.race([started, new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200))]);
+    if (early) {
+      clickSession = null;
+      if (!early.ok) throw new Error(early.message);
+    }
+  },
+  stopClicks: async (): Promise<ClickResult> => {
+    const session = clickSession;
+    clickSession = null;
+    await invoke("stop_clicks");
+    if (!session) throw new Error("No click capture is running.");
+    const ended = sure(await session);
+    return { shots: ended.shots, skipped: ended.skipped, unusable: ended.unusable, ended: ended.ended };
+  },
+  clickCount: async () => (await invoke<{ count: number }>("click_session_status")).count,
+  crop: async (picture, part) => {
+    const bytes = await flattenPicture(picture.bytes, `picture.${picture.extension}`, part, null);
+    return { bytes, width: part.width, height: part.height, extension: "png" };
+  },
+  forAssistant: (bytes, maxWidth) => scaleToWidth(bytes, "picture.png", maxWidth),
+};
+
+const tools = [
+  ...createTools({
+    session,
+    exporter: (kind, options) => makeExport(session.require(), session.assets, kind, { ...options, flatten: flattenPicture, now: new Date().toISOString() }),
+  }),
+  ...createCaptureTools(session, capture),
+];
+
+// Every use of a tool is written to a plain log beside the projects, so the author can read afterwards what happened while nobody was watching.
+const logged = withLog(tools, (line) => files.append(`${settings.folder}\\${LOG_FILE}`, `${line}\n`));
+
+const server = createServer({ name: "OpenExplainer", version: VERSION, instructions: INSTRUCTIONS, tools: logged, gate });
 
 await listen<string>("mcp-request", async (event) => {
   let answer: string | null;

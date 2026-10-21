@@ -30,6 +30,7 @@ import { EXPORT_EXTENSION, makeExport } from "./export/make.ts";
 import { flattenPicture } from "./render/flatten.ts";
 import { guidesDialog } from "./guides-dialog.ts";
 import { indexDialog } from "./index-dialog.ts";
+import { mcpDialog } from "./mcp-dialog.ts";
 import { buildBookIndex, indexSummary, setTermLines, termLines, updateBookIndex, updateTopicIndex } from "./project/book-index.ts";
 import { cleanGuides, guideSummary } from "./project/guides.ts";
 import { renderGuide } from "./render/guide.ts";
@@ -68,6 +69,7 @@ app.innerHTML = `
       <button type="button" id="b-vars">Project variables</button>
       <button type="button" id="b-guides">Guides</button>
       <button type="button" id="b-index">Index</button>
+      <button type="button" id="b-mcp">MCP access</button>
       <button type="button" id="b-check">Check the book</button>
     </div>
     <p id="panes-help" class="help">Three panes: the chapters and topics, the page, and the properties. F6 moves to the next pane and Shift+F6 to the one before.</p>
@@ -381,6 +383,17 @@ async function manageIndex() {
   } else $("b-index").focus();
 }
 $("b-index").addEventListener("click", () => void manageIndex());
+
+// ---- MCP access: whether an AI assistant may use the app --------------------------------------------------------
+$("b-mcp").addEventListener("click", async () => {
+  try {
+    const saved = await mcpDialog();
+    if (saved) announce(saved.enabled ? `MCP access is on. An assistant can use the folder ${saved.folder}${saved.allowFullScreen ? " and capture a whole screen" : ", one window at a time"}.` : "MCP access is off.");
+  } catch (error) {
+    await messageDialog("MCP access", `The settings could not be shown. ${error instanceof Error ? error.message : String(error)}`);
+  }
+  $("b-mcp").focus();
+});
 
 // A link inside a preview works inside it: the help site's links open that topic, and the book's contents jump to that place.
 $("preview-content").addEventListener("click", (event) => {

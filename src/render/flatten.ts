@@ -97,3 +97,23 @@ export async function flattenPicture(bytes: Uint8Array, file: string, shown: Rec
     bitmap.close();
   }
 }
+
+/** A picture no wider than `maxWidth`, as PNG bytes (a picture that is narrower is only re-saved as a PNG). Used to show a picture to an AI assistant without sending all of it. */
+export async function scaleToWidth(bytes: Uint8Array, file: string, maxWidth: number): Promise<Uint8Array> {
+  const bitmap = await createImageBitmap(new Blob([bytes as BlobPart], { type: mimeFor(file) }));
+  try {
+    const scale = Math.min(1, maxWidth / bitmap.width);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("The picture could not be drawn.");
+    context.imageSmoothingQuality = "high";
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("The picture could not be saved as a PNG.");
+    return new Uint8Array(await blob.arrayBuffer());
+  } finally {
+    bitmap.close();
+  }
+}

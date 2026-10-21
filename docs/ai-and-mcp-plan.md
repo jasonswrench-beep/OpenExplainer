@@ -1,6 +1,6 @@
 # Plan: the local AI and the MCP server
 
-Written 2026-10-21 from Jason's answers. Nothing here is built yet. The decisions that need Jason are at the end.
+Written 2026-10-21 from Jason's answers. **The MCP server is built (see `docs/mcp.md`); the local AI is not.** Jason's decisions (2026-10-21) are at the end.
 
 ## What Jason asked for
 
@@ -57,9 +57,9 @@ Sources: [Qwen3.5-9B model card](https://huggingface.co/Qwen/Qwen3.5-9B), [Qwen3
 1. The MCP server first: it mostly connects what already exists, and it is the thing Jason wants soonest.
 2. The local AI second: it is bigger (a runtime, a multi-gigabyte download, the review screen), and once it exists the MCP's draft tool can use it.
 
-## Decisions for Jason
+## Decisions (Jason, 2026-10-21)
 
-1. **How the MCP server runs**: the app with no window (recommended, because exports and PDF then work unchanged) or a separate small Node program (simpler to start, but it cannot draw marks onto pictures or make a PDF).
-2. **The MCP safety defaults** above: off until turned on, capture by window only, Stop window always visible. Anything to change?
-3. **The default Qwen model**: Qwen 3.5 at 4B (about 2.5 GB, quick on a laptop, recommended), 9B (about 5.5 GB, better writing, slower), or a newer Qwen 3.8 size (the design spec named 3.5).
-4. **Which to build first**: MCP then AI (recommended), or AI then MCP.
+1. **How the MCP server runs**: the app with no window (`openexplainer.exe --mcp`). Built.
+2. **The MCP safety defaults**: off until turned on, capture by window only, the Stop window always visible, every action logged. Built.
+3. **The default Qwen model**: Qwen 3.5 at 4B (about 2.5 GB, Apache 2.0). Not built.
+4. **Build order**: MCP first, then the local AI. MCP is done; the local AI is next.

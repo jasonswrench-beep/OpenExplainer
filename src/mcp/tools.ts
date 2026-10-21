@@ -24,6 +24,8 @@ type Args = Record<string, unknown>;
 export const INSTRUCTIONS =
   "OpenExplainer makes still-image tutorials and how-to books from screen captures. Work like this: create_project (or open_project), add_topic for each chapter and topic, then fill each topic with set_page. " +
   "Text uses **bold**, *italic* and [[Control name]] for the label of a button or menu exactly as it appears on screen. Numbered procedures hold steps; each step may have one of the topic's pictures and a result line. " +
+  "To document a program: list_windows, capture_window for a screen, or start_click_capture (naming the window), then use the program yourself, then stop_click_capture. Each click becomes a picture with a note of what was clicked; " +
+  "view_picture shows you a picture and get_topic lists them. Capture is one window at a time. " +
   "Name and describe the callouts on a picture with describe_picture, and give every picture a plain description (alt_text) for readers who cannot see it. Never write about a control that is not in the capture. " +
   "Every change is saved as it is made. When the book is ready, run check_book, update_index, and export_book (help-site, json, markdown, word, pdf, guide-word, guide-pdf). " +
   "You can only use files inside the folder the author chose for MCP.";

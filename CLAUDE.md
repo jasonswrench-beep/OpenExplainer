@@ -52,7 +52,8 @@ No code, assets or proprietary specifics are copied from a step-by-step screen c
 
 - Optional. Built-in local Qwen 3.5 by default, downloaded during first install with progress, resume and cancel.
 - Or the author's own ChatGPT, Claude or Gemini key. Keys are stored locally and never sent anywhere else.
-- The MCP server lets an AI assistant read a project, add topics, draft text and run exports.
+- The MCP server (`openexplainer.exe --mcp`, the app with no window) lets an AI assistant make a project, capture windows and clicks, write pages, build the index and run exports with nobody at the keyboard. It is off until the
+  author turns it on, works only inside the folder the author names, and captures one window at a time unless the author allows more (`docs/mcp.md`).
 
 ## Working style
 

@@ -397,8 +397,15 @@ Parts, in order:
     print preview, PDF (page numbers), Word, help site and Markdown; tests in `tests/book-index.test.ts` and `book-index-output.test.ts`; tried in the real window (scenario `index`; `word` and `pdf` extended) and in the real Word.
     Not built: the AI's first pass of index terms (Step 7 says it may draft them; the software's own first pass works without), sub-entries ("Save, as a copy") and "see also", index terms on a picture or a
     paragraph (terms are per topic), a book check rule for topics with no terms.
-17. Next: the local AI and the MCP server. The plan, with what I looked up (Qwen3.5-9B and Qwen3.8-27B are Apache-2.0; llama.cpp is MIT and has Windows x64 and ARM64 builds) and four decisions for Jason, is in
-    `docs/ai-and-mcp-plan.md`. Nothing is built yet.
+17. **The MCP server (DONE 2026-10-21; Jason chose the app with no window, safe defaults, MCP first)**: `openexplainer.exe --mcp` (`src-tauri/src/mcp.rs`, `mcp.html`, `src/mcp/`: `protocol.ts`, `paths.ts`, `session.ts`, `blocks.ts`,
+    `tools.ts`, `capture-tools.ts`, `log.ts`, `connect.ts`, `main.ts`), `src/export/make.ts` (the export maker the Export dialog and MCP share), the **MCP access** dialog (`src/mcp-dialog.ts`, off by default, a folder, whole
+    screens off by default, the lines for Claude Desktop and Claude Code), a plain log, `Test MCP.bat` (`tools/mcp-e2e.mjs`). Tested: unit tests (`tests/mcp*.test.ts`), the end-to-end test against the real app, the capture
+    tools with made-up windows and real injected clicks (scratch `mcp_capture_e2e.mjs`), and the dialog in the real window (scenario `mcp`). See `docs/mcp.md`. Not done: a real assistant (Claude Desktop or Claude Code) connecting
+    to it (Jason should try: MCP access, copy the lines, ask the assistant to document something), the check that an assistant's own click-through of a real program works (the tests used made-up windows). Tried in a **release** build with its pages inside it
+    (`cargo build --release --features tauri/custom-protocol`; a plain `cargo build --release` still loads its pages from the dev server): `--mcp` works there too (a release program is a GUI program and still gets the pipes).
+    `OPENEXPLAINER_EXE=<path> node tools/mcp-e2e.mjs` tries one (it saves and restores the real MCP settings).
+18. Next: the **local AI** (Step 7), as in `docs/ai-and-mcp-plan.md`: the connector and settings, the model download (Qwen 3.5 4B, Apache 2.0, with progress, resume and cancel), the llama.cpp runtime, drafting and a review
+    screen that keeps drafts apart from accepted text. Then the MCP draft tool can use it.
 
 ## Still open (ask Jason, do not guess)
 
@@ -407,11 +414,9 @@ Parts, in order:
 - Short guides (built 2026-10-21): please confirm the choices I made without asking (HANDOFF item 12): a guide takes only the numbered steps and boxed notes of its topics; each step is headed "Step N"; close-ups
   are on by default; the left layout shows the picture and a close-up because a step holds one picture (the design says up to three: should a step be able to hold more, such as a result picture?); the step
   number marker is dark blue and 2.5 percent of the width in radius. Also the Step 5 defaults: a named style is applied by copy, a marker's label is typed, and a mark saved with low contrast keeps a record.
-- Qwen 3.5 (Jason, 2026-10-21: the weights are Apache 2.0, so the licence works; I still read the licence of the exact files before downloading, as CLAUDE.md says): which size is the default, and how the
-  model runs without Python (a separate llama.cpp program downloaded with the model, or a library in the shell). To decide with Jason before building Step 7.
-- MCP server (Jason, 2026-10-21: he wants an AI assistant to be able to use OpenExplainer to document something **without a person being actively involved**, so capture is in, not only read and write): the design
-  question is where it runs. An export needs a canvas to draw the marks (src/render/flatten.ts) and the PDF needs the browser engine, so the choice is the running app doing the work (the MCP program talks to the
-  app, which can run hidden) or a separate program with its own drawing. To decide with Jason before building it.
+- Qwen 3.5 (Jason, 2026-10-21: Apache 2.0 is fine; default Qwen 3.5 at 4B): I still read the licence of the exact GGUF files before downloading, as CLAUDE.md says. Open: the llama.cpp runtime bundled in the installer
+  (about 15 to 30 MB for each of x64 and ARM64) or downloaded with the model.
+- MCP server: built (item 17). Open: try it with a real assistant; whether an assistant should also be able to click and type in the program itself (now it does that with its own tools); the log's place and a way to see it in the app.
 - The book index: built (item 16). Open: whether it needs sub-entries and "see also", and a rule in the book check for topics with no terms.
 - Which the reference authoring platform page styles to copy exactly versus only resemble; how much detail per feature in the OpenStage book.
 - The name "OpenExplainer" has not been checked for conflicts on GitHub and elsewhere.

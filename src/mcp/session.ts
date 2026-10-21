@@ -25,6 +25,8 @@ export interface McpFiles {
   exists(path: string): Promise<boolean>;
   list(folder: string): Promise<FileEntry[]>;
   makeFolder(path: string): Promise<void>;
+  /** Adds text to the end of a text file, making it if it is not there. */
+  append(path: string, words: string): Promise<void>;
 }
 
 export class Session {

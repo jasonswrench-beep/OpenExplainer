@@ -43,6 +43,7 @@ fn main() {
             mcp::mcp_ready,
             mcp::mcp_reply,
             mcp::mcp_settings_get,
+            mcp::mcp_exe_path,
             mcp::mcp_settings_set
         ])
         .run(tauri::generate_context!())

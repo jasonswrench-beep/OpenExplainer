@@ -69,6 +69,12 @@ pub fn mcp_settings_get(app: AppHandle) -> Result<Value, String> {
     Ok(read_settings(&settings_path(&app)?))
 }
 
+/// Where this program is, so the settings dialog can give an assistant the exact command to start it.
+#[tauri::command]
+pub fn mcp_exe_path() -> Result<String, String> {
+    std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).map_err(|e| format!("The program's place could not be found: {e}"))
+}
+
 /// Keeps the MCP settings. Turning MCP on needs a folder that exists.
 #[tauri::command]
 pub fn mcp_settings_set(app: AppHandle, settings: Value) -> Result<(), String> {

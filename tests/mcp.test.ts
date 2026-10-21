@@ -130,6 +130,7 @@ function memory(): McpFiles & { has(path: string): boolean; size(path: string): 
       return [...names].map(([name, isDirectory]) => ({ name, isDirectory }));
     },
     makeFolder: async () => {},
+    append: async (p, words) => { const old = map.get(key(p)); map.set(key(p), new TextEncoder().encode((old ? new TextDecoder().decode(old) : "") + words)); original.set(key(p), normalizePath(p)); },
   };
 }
 

@@ -8,22 +8,26 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..").split(path.sep).join("/");
-const EXE = `${ROOT}/src-tauri/target/debug/openexplainer.exe`;
+// By default the debug program is tried (it loads its pages from the dev server). Give OPENEXPLAINER_EXE to try a release program instead: it has its pages inside it, and keeps its MCP
+// settings in the real config folder, so this test saves what was there and puts it back at the end.
+const RELEASE = !!process.env.OPENEXPLAINER_EXE;
+const EXE = process.env.OPENEXPLAINER_EXE ?? `${ROOT}/src-tauri/target/debug/openexplainer.exe`;
 let failures = 0;
 const check = (ok, what) => { console.log(`${ok ? "  PASS" : "  FAIL"}  ${what}`); if (!ok) failures++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function viteUp() { try { return (await fetch("http://localhost:1420/mcp.html")).ok; } catch { return false; } }
 let vite = null;
-if (!(await viteUp())) {
+if (!RELEASE && !(await viteUp())) {
   vite = spawn("npm.cmd", ["run", "dev"], { cwd: ROOT, stdio: "ignore", shell: true });
   for (let i = 0; i < 60 && !(await viteUp()); i++) await sleep(1000);
 }
-check(await viteUp(), "the dev server is serving the hidden page");
+check(RELEASE || (await viteUp()), RELEASE ? "(testing a release program, which needs no dev server)" : "the dev server is serving the hidden page");
 
 const work = fs.mkdtempSync(path.join(os.tmpdir(), "oe-mcp-e2e-"));
 const folder = path.join(work, "projects");
-const config = path.join(work, "config");
+const config = RELEASE ? path.join(process.env.APPDATA, "org.openexplainer.app") : path.join(work, "config");
+const savedSettings = RELEASE && fs.existsSync(path.join(config, "mcp.json")) ? fs.readFileSync(path.join(config, "mcp.json")) : null;
 const profile = path.join(work, "webview");
 fs.mkdirSync(folder, { recursive: true });
 fs.mkdirSync(config, { recursive: true });
@@ -31,7 +35,7 @@ fs.mkdirSync(config, { recursive: true });
 /** One run of the app as an MCP server. */
 function start(settings) {
   fs.writeFileSync(path.join(config, "mcp.json"), JSON.stringify(settings));
-  const child = spawn(EXE, ["--mcp"], { env: { ...process.env, OPENEXPLAINER_CONFIG_DIR: config, WEBVIEW2_USER_DATA_FOLDER: profile, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: "" }, stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn(EXE, ["--mcp"], { env: { ...process.env, ...(RELEASE ? {} : { OPENEXPLAINER_CONFIG_DIR: config }), WEBVIEW2_USER_DATA_FOLDER: profile, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: "" }, stdio: ["pipe", "pipe", "pipe"] });
   const waiting = new Map();
   const stderr = [];
   let id = 0;
@@ -117,6 +121,10 @@ check(r.isError && /not inside the folder/.test(r.text), "an export outside the 
 // a second assistant session opens the same project from the file
 r = await s.call("open_project", { file: "Acme Draw guide" });
 check(/Opened "Acme Draw guide" \(2 topics\)/.test(r.text), `the saved project opens again: ${r.text}`);
+const logFile = path.join(folder, "OpenExplainer MCP log.txt");
+const log = fs.existsSync(logFile) ? fs.readFileSync(logFile, "utf8") : "";
+check(/create_project  OK  Created and opened/.test(log) && /create_project  REFUSED  That file name is not inside the folder/.test(log) && /export_book  OK  Made the pdf export/.test(log), `a plain log was kept beside the projects: ${log.split("\n").filter(Boolean).length} lines`);
+check(!log.includes("Save before you close") && !log.includes("keep your work"), "and what was written on the pages is not in it");
 check(!s.stderr.some((l) => l.startsWith("NOT JSON")), "nothing but protocol was written to standard output");
 s.child.stdin.end();
 check((await Promise.race([s.exited, sleep(20000).then(() => "stuck")])) === 0, "closing the line ends the program");
@@ -125,5 +133,6 @@ check(gone, "and it is gone");
 
 if (vite) { try { execSync(`taskkill /F /T /PID ${vite.pid}`, { stdio: "ignore" }); } catch {} }
 try { fs.rmSync(work, { recursive: true, force: true }); } catch {}
+if (RELEASE) { try { if (savedSettings) fs.writeFileSync(path.join(config, "mcp.json"), savedSettings); else fs.rmSync(path.join(config, "mcp.json")); } catch {} }
 console.log(failures ? `\n${failures} check(s) FAILED` : "\nAll checks passed");
 process.exit(failures ? 1 : 0);
