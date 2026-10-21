@@ -5,10 +5,11 @@ import { cleanPictureHighlight, defaultHighlight, type HighlightSettings, type P
 import { newId } from "./ids.ts";
 import { emptyPage, forgetPicture, type Page } from "./page.ts";
 import type { Callout } from "./callouts.ts";
+import { cleanPictureView, defaultZoom, type PictureView, type ZoomSettings } from "./views.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 6;
+export const CURRENT_VERSION = 7;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -71,6 +72,8 @@ export interface Picture {
   highlight?: PictureHighlight;
   /** Lettered callouts on this picture, in order (format version 6). The letters are worked out from the order, never stored. */
   callouts?: Callout[];
+  /** The part of the picture that is shown where it is used (format version 7): cropped to a region, or zoomed in on the click. Without it the whole picture is shown. */
+  view?: PictureView;
 }
 
 export interface TreeNode {
@@ -90,6 +93,8 @@ export interface Project {
   variables: Record<string, string>;
   /** The look of the click circle where pictures are used, and whether it is drawn (format version 4). */
   highlight: HighlightSettings;
+  /** How much a zoomed picture shows, for the book and for a quick guide (format version 7). */
+  zoom: ZoomSettings;
   tree: TreeNode[];
 }
 
@@ -104,6 +109,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     template,
     variables: { PRODUCT: "", VERSION: "", COMPANY: "" },
     highlight: defaultHighlight(),
+    zoom: defaultZoom(),
     tree: [],
   };
   if (template === "openstage-how-to-book") {
@@ -314,6 +320,15 @@ export function setPictureHighlight(tree: TreeNode[], nodeId: string, pictureId:
   const clean = highlight === null ? null : cleanPictureHighlight(highlight);
   if (clean) picture.highlight = clean;
   else delete picture.highlight;
+}
+
+/** Sets a picture's own view (cropped, or zoomed on the click), or takes it off (so the whole picture is shown) when `view` is `null`. */
+export function setPictureView(tree: TreeNode[], nodeId: string, pictureId: string, view: PictureView | null): void {
+  const picture = findNode(tree, nodeId)?.pictures.find((p) => p.id === pictureId);
+  if (!picture) return;
+  const clean = view === null ? null : cleanPictureView(view, picture);
+  if (clean) picture.view = clean;
+  else delete picture.view;
 }
 
 /** Every picture file the project uses, so unused files are left out when saving. */

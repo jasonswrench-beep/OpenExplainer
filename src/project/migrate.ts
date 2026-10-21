@@ -4,6 +4,7 @@ import { CURRENT_VERSION, type Project, type TreeNode } from "./model.ts";
 import { cleanClicks } from "./clicks.ts";
 import { cleanHighlight, cleanTreeHighlights, defaultHighlight } from "./highlight.ts";
 import { cleanTreeCallouts } from "./callouts.ts";
+import { cleanTreeViews, cleanZoom, defaultZoom } from "./views.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -30,6 +31,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   4: (raw) => ({ ...raw, version: 5 }),
   // Version 5 to 6: a picture can have lettered callouts. An older project has none.
   5: (raw) => ({ ...raw, version: 6 }),
+  // Version 6 to 7: the project keeps how much a zoomed picture shows, and a picture can have a view. An older project gets the starting sizes and no views.
+  6: (raw) => ({ ...raw, version: 7, zoom: defaultZoom() }),
 };
 
 export function migrate(input: unknown): Project {
@@ -46,7 +49,8 @@ export function migrate(input: unknown): Project {
   }
   // A click note and the circle's settings are checked every time a project is opened, whatever version it was saved as.
   const project = raw as unknown as Project;
-  if (Array.isArray(project.tree)) project.tree = cleanTreeCallouts(cleanTreeHighlights(cleanClicks(project.tree as TreeNode[])));
+  if (Array.isArray(project.tree)) project.tree = cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(project.tree as TreeNode[]))));
   project.highlight = cleanHighlight(project.highlight);
+  project.zoom = cleanZoom(project.zoom);
   return project;
 }

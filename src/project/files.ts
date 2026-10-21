@@ -6,6 +6,7 @@ import { cleanClicks } from "./clicks.ts";
 import { cleanHighlight, cleanTreeHighlights } from "./highlight.ts";
 import { cleanPage, hasContent } from "./page.ts";
 import { cleanTreeCallouts } from "./callouts.ts";
+import { cleanTreeViews, cleanZoom } from "./views.ts";
 
 export const PROJECT_FILE = "project.json";
 export const STRUCTURE_FILE = "structure.json";
@@ -55,9 +56,9 @@ function attachPages(tree: TreeNode[], files: Record<string, string>, version: n
 export function toFiles(project: Project): Record<string, string> {
   const { tree: rawTree, ...header } = project;
   // Click notes are checked on the way out too, so a password box can never be written to a file.
-  const tree = cleanTreeCallouts(cleanTreeHighlights(cleanClicks(rawTree)));
+  const tree = cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(rawTree))));
   const files: Record<string, string> = {
-    [PROJECT_FILE]: JSON.stringify({ ...header, highlight: cleanHighlight(header.highlight) }, null, 2) + "\n",
+    [PROJECT_FILE]: JSON.stringify({ ...header, highlight: cleanHighlight(header.highlight), zoom: cleanZoom(header.zoom) }, null, 2) + "\n",
     [STRUCTURE_FILE]: JSON.stringify({ version: project.version, tree: withoutPages(tree) }, null, 2) + "\n",
   };
   pageFiles(tree, project.version, files);

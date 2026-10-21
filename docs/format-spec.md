@@ -25,7 +25,7 @@ All of these carry the same `version`. If they differ, the project is refused, b
 
 ## Pictures
 
-Each node holds a list of pictures: `{ id, file, width, height, altText, source }`, and a picture may also have `click` (a click-by-click capture, see "Click notes") `highlight` (its own choices about the click circle, see "The click highlight") and `callouts` (see "Lettered callouts").
+Each node holds a list of pictures: `{ id, file, width, height, altText, source }`, and a picture may also have `click` (a click-by-click capture, see "Click notes") `highlight` (its own choices about the click circle, see "The click highlight") `callouts` (see "Lettered callouts") and `view` (see "Picture views").
 
 - `file` is the path inside the package. `width` and `height` are in pixels.
 - `altText` says what the picture shows. It is always asked for and never filled in silently. Empty means it still needs one, and the app shows it as "Needs a description".
@@ -111,6 +111,23 @@ The leader line runs from the edge of the marker to the nearest part of the item
 Cleaned when a project is opened and saved: a callout with no usable outline or marker, or whose outline is wholly off the picture, is dropped; a repeated id
 gets a new one; and a picture with none has no `callouts`.
 
+## Picture views
+
+A picture can be shown **whole** (the default), **cropped** to a region the author chose, or **zoomed in on the click**. The picture file is never cut: the view is
+kept beside it, so it can be changed or taken off at any time, and it is never burned in. `view` is on the picture, and is left out for a picture shown whole:
+
+- `{ "kind": "crop", "x", "y", "width", "height" }`: the region, in picture pixels from the top left corner, cut to the picture when saved and opened.
+- `{ "kind": "zoom" }`: the part around the click (the click note's `x` and `y`). It is as wide as the **zoom size** for where the picture is used says, keeps the
+  picture's shape, is centred on the click, and slides along an edge rather than shrinking so it never shows beyond the picture. A zoom on a picture with no
+  click shows the whole picture.
+
+**The zoom sizes, for each place a picture is used.** `project.json` has `zoom: { book, guide }`, each `{ size }`: the width of the part shown, as a percent of the
+picture's width (10 to 100; 100 shows the whole picture). Starting sizes: 50 for the book and 40 for a quick guide. They are project settings, like the circle's.
+
+`shownPart` in `src/project/views.ts` is the ONE place that decides which part of the picture is shown for a place; the editor and every export must use it.
+Callouts and the click circle stay in the whole picture's pixels whatever the view, so they line up in every view; a callout whose item is wholly outside the
+shown part is still in the list and is said to be outside it.
+
 ## The click highlight
 
 A transparent circle can be drawn on the spot of a click, so the reader sees where to click. It is never burned into a picture: it is drawn from the
@@ -147,6 +164,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 7: a picture can have a view (cropped, or zoomed on the click), and the project keeps the zoom sizes (`zoom`). A version 6 project upgrades with the starting sizes and no views. A copy of OpenExplainer that only knows version 6 refuses a version 7 project, so it can never open one and save it without the views.
 - Version 6: a picture can have lettered callouts. A version 5 project upgrades with none. A copy of OpenExplainer that only knows version 5 refuses a version 6 project, so it can never open one and save it without the callouts.
 - Version 5: a topic can have a page, saved in its own file under `topics/`. A version 4 project upgrades with no pages. A copy of OpenExplainer that only knows version 4 refuses a version 5 project, so it can never open one and save it without the pages.
 - Version 4: the project keeps the look of the click circle (`highlight`), and a picture can have its own choices about it. A version 3 project upgrades with the starting look. A copy of OpenExplainer that only knows version 3 refuses a version 4 project, so it can never open one and save it without the circle settings.

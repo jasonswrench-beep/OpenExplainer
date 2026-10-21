@@ -215,6 +215,24 @@ test("callouts are saved with their picture and come back, and a picture with no
   assert.ok(CURRENT_VERSION >= 6);
 });
 
+test("there is no limit on how many callouts a picture has: 300 are kept, lettered without repeats and each marker is on the picture", () => {
+  const p = createProject("Book");
+  const topic = addNode(p.tree, null, "Topic");
+  const pic = picture({ click: undefined });
+  addPicture(p.tree, topic.id, pic);
+  for (let i = 0; i < 300; i++) {
+    const target = { x: 20 + (i % 40) * 45, y: 20 + Math.floor(i / 40) * 100, width: 40, height: 30 };
+    addCallout(pic, { id: `c${i}`, name: `Item ${i + 1}`, description: `About item ${i + 1}.`, target, marker: placeMarker(target, size, (pic.callouts ?? []).map((c) => c.marker)) });
+  }
+  const back = fromFiles(toFiles(p)).tree[0].pictures[0];
+  assert.equal(back.callouts!.length, 300, "none dropped on saving and opening");
+  const list = entries(back);
+  assert.equal(new Set(list.map((e) => e.letter)).size, 300, "every callout has its own letter");
+  assert.equal(list[299].letter, letterFor(299));
+  assert.equal(shapesFor(back).length, 300);
+  assert.ok(back.callouts!.every((c) => c.marker.x >= 0 && c.marker.y >= 0 && c.marker.x <= size.width && c.marker.y <= size.height), "every marker is on the picture");
+});
+
 test("a version 5 project opens with no callouts, and bad callouts in a file are put right on opening", () => {
   const v5 = { version: 5, name: "Old", template: "empty", variables: {}, tree: [{ id: "a", title: "A", status: "captured", children: [], pictures: [{ ...picture(), callouts: undefined }] }] };
   const up = migrate(JSON.parse(JSON.stringify(v5)));
