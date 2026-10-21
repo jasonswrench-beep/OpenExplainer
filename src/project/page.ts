@@ -147,6 +147,13 @@ export function picturesOf(block: Block): string[] {
   return [];
 }
 
+/** Every picture a page shows: a picture block, or a step's picture. A picture that is only in the topic's list, and not on its page, is not in the book. */
+export function placedPictureIds(page: Page | undefined): Set<string> {
+  const ids = new Set<string>();
+  for (const block of page?.blocks ?? []) for (const id of picturesOf(block)) ids.add(id);
+  return ids;
+}
+
 /** A picture was removed from the topic: take it off the page. A picture block goes, and a step just loses its picture. */
 export function forgetPicture(page: Page, pictureId: string): void {
   page.blocks = page.blocks.filter((b) => !(b.type === "picture" && b.pictureId === pictureId));

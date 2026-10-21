@@ -21,6 +21,8 @@ export interface RenderContext {
   imageSrc(picture: Picture): string | null;
   /** Add notes for the writer, marked as not part of the output. A preview does; an export does not. */
   notes: boolean;
+  /** The pictures come already cut to the part shown, with the click circle, the marks and the callouts drawn in (see src/render/flatten.ts), so no drawing is laid over them. */
+  flat?: boolean;
   /** Told each note as it is written (with where it is, when known), so a preview can list them all. */
   onNote?(words: string): void;
 }
@@ -82,6 +84,11 @@ export function figureHtml(ctx: RenderContext, picture: Picture, where?: string)
     .map(({ entry }) => `<li>${esc(fillVariables(entryWords(entry), ctx.project.variables))}</li>`)
     .join("");
   const hidden = list.length - list.filter((_, i) => calloutInView(picture, i, shown)).length;
+  if (ctx.flat) {
+    return `<figure class="pv-figure" style="max-width: ${shown.width}px"><img src="${esc(src)}" alt="${esc(alt)}" width="${shown.width}" height="${shown.height}">`
+      + (listed ? `<figcaption><ul class="pv-entries" aria-label="Callouts on this picture">${listed}</ul></figcaption>` : "")
+      + "</figure>";
+  }
   const notes: string[] = [];
   const scale = printScale(shown.width);
   if (scale < MIN_PRINT_SCALE) notes.push(`Small on paper: the writing in this picture will print at about ${Math.round(scale * 100)} percent of its size on screen. A crop or a zoom (Picture view) would make it easier to read.`);

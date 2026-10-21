@@ -364,7 +364,14 @@ Parts, in order:
    `src/main.ts`; the print size rule moved into `src/project/views.ts` (`printScale`, `MIN_PRINT_SCALE`) so the check and the preview share it; 12 tests; `docs/editor.md` ("The book check"),
    `docs/format-spec.md` ("The book check"); tried in the real window (scenarios `check`, `keyboard2` extended). Not checked because the book cannot have them yet: skipped heading levels, links, tables
    with no header row. The export should offer to run this check first, and should never require it.
-10. Then Step 6 (short guides, PDF, Word, picture sizing that switches to a crop or zoom) and Step 8 (help site, JSON, Markdown, import). The PDF engine needs Jason's decision (see "Still open").
+10. **Exports, the first part of Steps 6 and 8 (DONE 2026-10-21 while Jason was away; the parts that needed no decision)**: `src/render/flatten.ts` (a picture cut to the part shown with its marks drawn in,
+    as a PNG, on a canvas), `src/export/pictures.ts` (the flat pictures for a book), `src/export/json.ts` (JSON with images, and reading it back), `src/export/markdown.ts`, `src/export/help-site.ts` and
+    `site-assets.ts` (the help site with search), `src/export-dialog.ts`, and the Export and Import an export buttons and `exportBook` and `importExport` in `src/main.ts`; `docs/exports.md`; 10 tests in
+    `tests/export.test.ts`; tried in the real window (scenario `exports`, with pixel checks of the drawn pictures, the search script run for real and an import round trip; `keyboard2` extended). Each export is saved as
+    one zip through the native Save dialog, which no test can drive: Jason should try Export and Import an export by hand. Not built: the book PDF and Word (`.docx`), the short guides, the automatic crop or zoom for
+    pictures that would print too small (the to-do list asks for it in Step 6; the preview only flags them), the book index and the collapsible FAQ of the help site, an installer.
+11. Next, in order: Word export (a `.docx` is a zip of XML and can be written in TypeScript with the flat pictures), the short guides (a guide made from a chapter's topics, in two layouts, shown in HTML first),
+    and the automatic crop or zoom option for print. The PDF engine and the AI model both need Jason's decision (see "Still open").
 
 ## Still open (ask Jason, do not guess)
 

@@ -4,7 +4,7 @@
 // contrast of an arrow against the picture behind it, is checked in the Drawing dialog; the check lists the marks whose colours were kept on purpose.
 import { failing, kindName, needsAlt, shapeChecks } from "./shapes.ts";
 import { numbering, type Picture, type Project, type TreeNode } from "./model.ts";
-import { calloutLabel, type Block, type Step } from "./page.ts";
+import { calloutLabel, placedPictureIds, type Block, type Step } from "./page.ts";
 import { plainText } from "./text.ts";
 import { MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
 
@@ -70,16 +70,6 @@ const VARIABLE = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
 
 const pictureLabel = (picture: Picture) => picture.altText.trim() || picture.source.originalName || picture.file;
 
-/** Every picture a topic's page shows: a picture block, or a step's picture. */
-function placedPictureIds(node: TreeNode): Set<string> {
-  const ids = new Set<string>();
-  for (const block of node.page?.blocks ?? []) {
-    if (block.type === "picture" && block.pictureId) ids.add(block.pictureId);
-    if (block.type === "procedure") for (const step of block.steps) if (step.pictureId) ids.add(step.pictureId);
-  }
-  return ids;
-}
-
 const blockIsEmpty = (block: Block): boolean => {
   switch (block.type) {
     case "paragraph": case "callout": return plainText(block.text).trim() === "";
@@ -122,7 +112,7 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
     for (const node of nodes) {
       const where = `${numbers.get(node.id) ?? ""} ${node.title}`.trim();
       const base = { nodeId: node.id, where };
-      const placed = placedPictureIds(node);
+      const placed = placedPictureIds(node.page);
       const blocks = node.page?.blocks ?? [];
       const nothingOnPage = blocks.every(blockIsEmpty);
 

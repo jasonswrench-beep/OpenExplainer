@@ -22,40 +22,45 @@ export function placedTopics(tree: TreeNode[]): Placed[] {
   return out;
 }
 
-function treeHtml(tree: TreeNode[], numbers: Map<string, string>, currentId: string | null, ctx: RenderContext): string {
+/** How a link to a topic is written: in the app a topic is opened by script; in the help site it is a file. */
+export type LinkFor = (nodeId: string) => string;
+
+const topicLink = (links: LinkFor | undefined, id: string) => (links ? `href="${esc(links(id))}"` : `href="#" data-topic="${esc(id)}"`);
+
+function treeHtml(tree: TreeNode[], numbers: Map<string, string>, currentId: string | null, ctx: RenderContext, links?: LinkFor): string {
   if (tree.length === 0) return "";
   const items = tree
     .map((node) => {
       const here = node.id === currentId;
-      return `<li><a href="#" data-topic="${esc(node.id)}"${here ? ' aria-current="page"' : ""}>${esc(numbers.get(node.id) ?? "")} ${esc(fillVariables(node.title, ctx.project.variables))}</a>${treeHtml(node.children, numbers, currentId, ctx)}</li>`;
+      return `<li><a ${topicLink(links, node.id)}${here ? ' aria-current="page"' : ""}>${esc(numbers.get(node.id) ?? "")} ${esc(fillVariables(node.title, ctx.project.variables))}</a>${treeHtml(node.children, numbers, currentId, ctx, links)}</li>`;
     })
     .join("");
   return `<ul class="hs-tree-list">${items}</ul>`;
 }
 
 /** Writes one page of the help site, with its contents tree. `currentId` is the topic shown; with none, the page says so. */
-export function renderHelpPage(ctx: RenderContext, currentId: string | null): string {
+export function renderHelpPage(ctx: RenderContext, currentId: string | null, links?: LinkFor): string {
   const project: Project = ctx.project;
   const numbers = numbering(project.tree);
   const all = placedTopics(project.tree);
   const at = all.findIndex((p) => p.node.id === currentId);
   const book = esc(fillVariables(project.name, project.variables));
-  const nav = `<nav class="hs-tree" aria-label="Contents of ${book}">${treeHtml(project.tree, numbers, currentId, ctx)}</nav>`;
-  if (at < 0) return `<div class="hs">${nav}<main class="hs-page"><p>Select a chapter or topic to see its page.</p></main></div>`;
+  const nav = `<nav class="hs-tree" aria-label="Contents of ${book}">${treeHtml(project.tree, numbers, currentId, ctx, links)}</nav>`;
+  if (at < 0) return `<div class="hs">${nav}<main class="hs-page" id="topic-main"><p>Select a chapter or topic to see its page.</p></main></div>`;
   const { node, parents } = all[at];
   const link = (p: Placed | undefined, word: string, arrow: string, flip: boolean) =>
     p
-      ? `<a href="#" data-topic="${esc(p.node.id)}" class="hs-${word.toLowerCase()}">${flip ? `${arrow} ` : ""}${word}: ${esc(numbers.get(p.node.id) ?? "")} ${esc(fillVariables(p.node.title, project.variables))}${flip ? "" : ` ${arrow}`}</a>`
+      ? `<a ${topicLink(links, p.node.id)} class="hs-${word.toLowerCase()}">${flip ? `${arrow} ` : ""}${word}: ${esc(numbers.get(p.node.id) ?? "")} ${esc(fillVariables(p.node.title, project.variables))}${flip ? "" : ` ${arrow}`}</a>`
       : "";
   const crumbs = [
-    `<li><a href="#" data-topic="${esc(all[0].node.id)}">${book}</a></li>`,
-    ...parents.map((p) => `<li><a href="#" data-topic="${esc(p.id)}">${esc(fillVariables(p.title, project.variables))}</a></li>`),
+    `<li><a ${topicLink(links, all[0].node.id)}>${book}</a></li>`,
+    ...parents.map((p) => `<li><a ${topicLink(links, p.id)}>${esc(fillVariables(p.title, project.variables))}</a></li>`),
     `<li aria-current="page">${esc(fillVariables(node.title, project.variables))}</li>`,
   ].join("");
   // A topic that holds other topics lists them, as the chapter opener does in the book.
   const inside = node.children.length
-    ? `<section class="hs-inside"><h2>In this section</h2><ul>${node.children.map((c) => `<li><a href="#" data-topic="${esc(c.id)}">${esc(fillVariables(c.title, project.variables))}</a></li>`).join("")}</ul></section>`
+    ? `<section class="hs-inside"><h2>In this section</h2><ul>${node.children.map((c) => `<li><a ${topicLink(links, c.id)}>${esc(fillVariables(c.title, project.variables))}</a></li>`).join("")}</ul></section>`
     : "";
   const pager = `<nav class="hs-pager" aria-label="Previous and next topic">${link(all[at - 1], "Previous", "←", true)}${link(all[at + 1], "Next", "→", false)}</nav>`;
-  return `<div class="hs">${nav}<main class="hs-page"><nav class="hs-crumbs" aria-label="Breadcrumb"><ol>${crumbs}</ol></nav><article><h1>${esc(numbers.get(node.id) ?? "")} ${esc(fillVariables(node.title, project.variables))}</h1>\n${blocksHtml(ctx, node, 1)}\n${inside}</article>${pager}</main></div>`;
+  return `<div class="hs">${nav}<main class="hs-page" id="topic-main"><nav class="hs-crumbs" aria-label="Breadcrumb"><ol>${crumbs}</ol></nav><article><h1>${esc(numbers.get(node.id) ?? "")} ${esc(fillVariables(node.title, project.variables))}</h1>\n${blocksHtml(ctx, node, 1)}\n${inside}</article>${pager}</main></div>`;
 }

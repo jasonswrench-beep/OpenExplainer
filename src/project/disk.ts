@@ -39,3 +39,26 @@ export async function chooseImages(): Promise<{ name: string; bytes: Uint8Array 
   for (const path of paths) out.push({ name: path.split(/[\\/]/).pop() ?? path, bytes: await readFile(path) });
   return out;
 }
+
+const zipFilters = [{ name: "Zip file", extensions: ["zip"] }];
+
+/** Asks where to save an export (a zip file). `null` if cancelled. */
+export async function chooseExportPath(suggestedName: string): Promise<string | null> {
+  const picked = await save({ title: "Save the export", defaultPath: suggestedName, filters: zipFilters });
+  if (!picked) return null;
+  return picked.toLowerCase().endsWith(".zip") ? picked : `${picked}.zip`;
+}
+
+/** Asks which export (a zip file) to import. `null` if cancelled. */
+export async function chooseImportPath(): Promise<string | null> {
+  const picked = await open({ title: "Import an export", multiple: false, directory: false, filters: zipFilters });
+  return typeof picked === "string" ? picked : null;
+}
+
+export async function writeBytes(path: string, bytes: Uint8Array): Promise<void> {
+  await writeFile(path, bytes);
+}
+
+export async function readBytes(path: string): Promise<Uint8Array> {
+  return readFile(path);
+}

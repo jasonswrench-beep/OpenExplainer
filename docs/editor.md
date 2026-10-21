@@ -208,6 +208,14 @@ variables dialog); **Ignore this**; and, when a kind has several things, **Ignor
 project (format version 10, `docs/format-spec.md` "The book check"). The summary says in words how many things there are to fix and how many are notes, and how many are ignored. After an
 ignore the keyboard stays on the same place in the list (or goes to Close when none are left), and each change is announced.
 
+## Export and import
+
+**Export** (a toolbar button) opens a dialog: Help site, JSON with images or Markdown, each described in words, with a box for the working comments when JSON is chosen (off to begin with) and an optional
+**Check the book first** button that opens the book check on top (the dialog says the check is optional and only advises; it also says how many unresolved comments there are). It then asks where to save a zip
+file, makes the export without changing the project, saves it, and says what was saved and anything that could not be included (a picture file that is missing or could not be drawn). **Import an export**
+reads a JSON export back into a project (asking first if there are unsaved changes), as an unsaved project. The formats are in `docs/exports.md`; the code is in `src/export/`, with `src/render/flatten.ts`
+drawing each picture's marks into a PNG on a canvas.
+
 ## What has been tried
 
 In the real window (a development build driven through its debugging port, with real key presses and clicks): the three panes side by side, each a
@@ -226,6 +234,14 @@ open; Add a callout, Move up and Move down (letters following the position and t
 the click button being off with its reason; Save updating the entry under the picture and on the page, being announced and returning the keyboard to the
 button; Cancel and Escape changing nothing; deleting all callouts and making one again from the click; and a project with callouts packed, unpacked and read
 by another program (the .NET zip reader) with no letters in the file.
+
+Exports, in the real window: the Export dialog (three kinds each described, the keyboard on the first, the comments box only for JSON and off, the optional check opening on top and closing back to the dialog,
+Cancel returning the keyboard); then, with a made-up book and a real picture, the canvas drawing both pictures (a whole picture at its own size and a cropped one cut to the part shown, the project's own file
+untouched, the picture's pixels kept, a numbered marker with a white letter, a red text box with white words, a see-through yellow fill letting the block under it show, an arrow with its head and the
+callout's marker and outline, and the result looked at); the help site as a zip (pages, assets and pictures, each page with a title, language, heading, its place in the tree, landmarks, pictures with
+descriptions and sizes, real PNG files, no comment, every link going to a file that is there); the search script run over the real index (a callout's words found and the keyboard put on the results, a
+variable's value found, no match said in words, an empty search closing the results); a JSON export read back into the same project; and the Markdown with its picture links. The native Save and Open file
+dialogs were not driven (they cannot be automated safely), so saving the zip to a chosen place is for Jason to try. By keyboard alone: Tab through the Export dialog, the arrow keys between the kinds, Escape.
 
 The book check, in the real window with a chapter holding an empty topic and a topic with an empty heading, an empty callout box, a variable with no value and a click picture with a callout and
 no description: the check opened by its button, saying it is optional and only advises; an Accessibility part and a Book part; the summary in words; an empty topic, an empty heading block, a

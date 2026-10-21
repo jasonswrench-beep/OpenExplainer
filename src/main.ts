@@ -4,7 +4,8 @@ import {
   outdent, removeNode, renameNode, setStatus, visibleNodes, findNodes, replaceInTitles,
   addPicture, removePicture, setAltText, setPictureHighlight, setPictureView, newId, type Picture, type Project, type Status, type TreeNode,
 } from "./project/model.ts";
-import { chooseImages, chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
+import { chooseExportPath, chooseImages, chooseImportPath, chooseOpenPath, chooseSavePath, loadProject, readBytes, saveProject, writeBytes } from "./project/disk.ts";
+import { fileNameFor as projectFileName } from "./project/package.ts";
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
 import { calloutsDialog, captureDialog, commentsDialog, confirmDialog, highlightDialog, messageDialog, moveCircleDialog, newProjectDialog, pictureViewDialog, promptText, reviewClicksDialog, unresolvedDialog, variablesDialog, zoomSettingsDialog } from "./dialogs.ts";
@@ -23,6 +24,13 @@ import { blockWords, unresolvedCount, unresolvedIn, type UnresolvedItem } from "
 import { renderPrintPreview, topicAnchor } from "./render/print.ts";
 import { drawingDialog } from "./drawing-dialog.ts";
 import { checkDialog } from "./check-dialog.ts";
+import { exportDialog, EXPORT_KINDS, type ExportChoice } from "./export-dialog.ts";
+import { flattenPlaced } from "./export/pictures.ts";
+import { packJsonExport, unpackJsonExport } from "./export/json.ts";
+import { buildMarkdown } from "./export/markdown.ts";
+import { buildHelpSite } from "./export/help-site.ts";
+import { flattenPicture } from "./render/flatten.ts";
+import { zip } from "./project/zip.ts";
 import { checkProject, type Issue } from "./project/checks.ts";
 import { marksSummary, setShapes } from "./project/shapes.ts";
 import { renderHelpPage } from "./render/help.ts";
@@ -53,6 +61,8 @@ app.innerHTML = `
       <button type="button" id="b-open">Open project</button>
       <button type="button" id="b-save">Save (Ctrl+S)</button>
       <button type="button" id="b-saveas">Save as</button>
+      <button type="button" id="b-export">Export</button>
+      <button type="button" id="b-import-export">Import an export</button>
       <button type="button" id="b-vars">Project variables</button>
       <button type="button" id="b-check">Check the book</button>
     </div>
@@ -937,6 +947,71 @@ async function openProject() {
     await messageDialog("Could not open the project", error instanceof Error ? error.message : String(error));
   }
 }
+
+/** A safe file name for an export, such as "My Book help site.zip". */
+function exportFileName(kind: string): string {
+  const base = projectFileName(project.name).replace(/\.openexplainer$/, "");
+  return `${base} ${kind}.zip`;
+}
+
+/** Makes an export of the whole book as one zip file the author chooses where to save. Nothing in the project changes. */
+async function exportBook() {
+  const choice: ExportChoice | null = await exportDialog({
+    checkFirst: () => void $("b-check").click(),
+    unresolved: unresolvedCount(project.tree),
+  });
+  if (!choice) return $("b-export").focus();
+  const name = EXPORT_KINDS.find((k) => k.id === choice.kind)!.name;
+  try {
+    const path = await chooseExportPath(exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown"));
+    if (!path) return $("b-export").focus();
+    announce(`Making the ${name} export. This can take a moment.`);
+    let bytes: Uint8Array;
+    const left: string[] = [];
+    if (choice.kind === "json") {
+      const made = packJsonExport(project, assets, { comments: choice.comments, now: new Date().toISOString() });
+      bytes = made.bytes;
+      left.push(...made.missing.map((file) => `The picture file ${file} is missing from the project, so it is not in the export.`));
+    } else {
+      const flat = await flattenPlaced(project, assets, "book", flattenPicture);
+      left.push(...flat.missing.map((m) => `The picture "${m}" is missing from the project, so it is not in the export.`), ...flat.failed.map((m) => `The picture "${m}" could not be drawn, so it is not in the export.`));
+      bytes = zip(choice.kind === "help-site" ? buildHelpSite(project, flat.flat) : buildMarkdown(project, flat.flat));
+    }
+    await writeBytes(path, bytes);
+    announce(`${name} export saved to ${path}.`);
+    await messageDialog("Export saved", `The ${name} export was saved to ${path}.${left.length ? `\n\nNot everything could be included:\n${left.join("\n")}` : ""}`);
+  } catch (error) {
+    await messageDialog("Could not make the export", `${error instanceof Error ? error.message : String(error)} Your project was not changed.`);
+  } finally {
+    $("b-export").focus();
+  }
+}
+
+/** Reads a JSON export (a zip) into a new project, replacing the one that is open once the author agrees. */
+async function importExport() {
+  if (!(await guardUnsaved())) return;
+  const picked = await chooseImportPath();
+  if (!picked) return;
+  try {
+    const loaded = await unpackJsonExport(await readBytes(picked));
+    project = loaded.project;
+    assets = loaded.assets;
+    filePath = null;
+    // It has not been saved as a project yet, so it counts as unsaved.
+    dirty = true;
+    selectedId = null;
+    collapsed.clear();
+    render(true);
+    renderHeading();
+    announce(`Imported ${project.name}. Save it to keep it.`);
+    if (loaded.missing.length) await messageDialog("Some picture files are missing", `${loaded.missing.length} picture file(s) listed in this export were not in it. They show as missing, and you can remove or re-import them.`);
+  } catch (error) {
+    await messageDialog("Could not import the export", `${error instanceof Error ? error.message : String(error)} Your project was not changed.`);
+  }
+}
+
+$("b-export").addEventListener("click", () => void exportBook());
+$("b-import-export").addEventListener("click", () => void importExport());
 
 async function save(asNew = false) {
   try {
