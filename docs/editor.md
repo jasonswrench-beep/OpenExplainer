@@ -210,9 +210,9 @@ ignore the keyboard stays on the same place in the list (or goes to Close when n
 
 ## Export and import
 
-**Export** (a toolbar button) opens a dialog: Help site, JSON with images or Markdown, each described in words, with a box for the working comments when JSON is chosen (off to begin with) and an optional
+**Export** (a toolbar button) opens a dialog: Help site, JSON with images, Markdown or Word, each described in words, with a box for the working comments when JSON is chosen (off to begin with) and an optional
 **Check the book first** button that opens the book check on top (the dialog says the check is optional and only advises; it also says how many unresolved comments there are). It then asks where to save a zip
-file, makes the export without changing the project, saves it, and says what was saved and anything that could not be included (a picture file that is missing or could not be drawn). **Import an export**
+file (a .docx file for Word), makes the export without changing the project, saves it, and says what was saved and anything that could not be included (a picture file that is missing or could not be drawn). **Import an export**
 reads a JSON export back into a project (asking first if there are unsaved changes), as an unsaved project. The formats are in `docs/exports.md`; the code is in `src/export/`, with `src/render/flatten.ts`
 drawing each picture's marks into a PNG on a canvas.
 
@@ -242,6 +242,12 @@ callout's marker and outline, and the result looked at); the help site as a zip 
 descriptions and sizes, real PNG files, no comment, every link going to a file that is there); the search script run over the real index (a callout's words found and the keyboard put on the results, a
 variable's value found, no match said in words, an empty search closing the results); a JSON export read back into the same project; and the Markdown with its picture links. The native Save and Open file
 dialogs were not driven (they cannot be automated safely), so saving the zip to a chosen place is for Jason to try. By keyboard alone: Tab through the Export dialog, the arrow keys between the kinds, Escape.
+
+Word, in the real window: the Export dialog with four kinds and Word described and tied to its radio button, the Down arrow moving to Word and keeping the JSON comments box hidden; then a made-up book with two real
+pictures (one whole, one cropped) built into a .docx by the program's own code, every XML part read by the browser's own XML reader with no error, and the file saved. The real Word (16.0, in its own hidden copy, never
+touching Jason's windows) opened it with no repair message, recognised the styles, numbered the steps 1, 2, 3 and then 1, 2, kept both pictures with their sizes and alternative text, found the table of contents field
+and filled in page numbers when it updated it; the PDF Word saved from it was looked at page by page. That showed a step's words left alone on one page with its picture on the next, so a step with a picture now stays with
+it. The native Save dialog was not driven, so saving the .docx to a chosen place is for Jason to try by hand.
 
 The book check, in the real window with a chapter holding an empty topic and a topic with an empty heading, an empty callout box, a variable with no value and a click picture with a callout and
 no description: the check opened by its button, saying it is optional and only advises; an Accessibility part and a Book part; the summary in words; an empty topic, an empty heading block, a

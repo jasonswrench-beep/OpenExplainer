@@ -5,6 +5,8 @@ import { BOOK_FILE, buildJsonExport, EXPORT_FORMAT, EXPORT_VERSION, packJsonExpo
 import { bookMarkdown, buildMarkdown, escapeInline, escapeMarkdown, MARKDOWN_FILE } from "../src/export/markdown.ts";
 import { buildHelpSite, buildHelpSiteText, pageFile, slugOf } from "../src/export/help-site.ts";
 import { SITE_CSS, SITE_JS } from "../src/export/site-assets.ts";
+import { buildDocxParts, packDocx, xml } from "../src/export/docx.ts";
+import { unzip } from "../src/project/zip.ts";
 import { addNode, addPicture, createProject, CURRENT_VERSION, ensurePage, type Picture, type Project } from "../src/project/model.ts";
 import { addBlock, makeBlock } from "../src/project/page.ts";
 import { addComment } from "../src/project/comments.ts";
@@ -257,4 +259,109 @@ test("an empty book makes a page that says so, and a title cannot add markup to 
   assert.ok(!bookMarkdown(project, new Map()).includes("<script>"));
   const bytes = buildHelpSite(project, new Map());
   assert.ok(bytes["index.html"] instanceof Uint8Array);
+});
+
+/** Whether an XML part is well formed: every tag closed in order, attributes quoted, only the five escapes. Returns what is wrong, or null. */
+function xmlProblem(text: string): string | null {
+  const body = text.replace(/^<\?xml[^>]*\?>\s*/, "");
+  const stack: string[] = [];
+  const tag = /<(\/?)([A-Za-z_][\w:.-]*)((?:\s+[\w:.-]+="[^"<]*")*)\s*(\/?)>/g;
+  let at = 0;
+  for (let m = tag.exec(body); m; m = tag.exec(body)) {
+    const between = body.slice(at, m.index);
+    if (/[<>]/.test(between)) return `stray angle bracket near "${between.slice(0, 40)}"`;
+    if (/&(?!(amp|lt|gt|quot|apos);)/.test(between)) return `unescaped ampersand near "${between.slice(0, 40)}"`;
+    at = tag.lastIndex;
+    if (m[1]) { if (stack.pop() !== m[2]) return `closing ${m[2]} does not match`; }
+    else if (!m[4]) stack.push(m[2]);
+    if (!m[1] && /&(?!(amp|lt|gt|quot|apos);)/.test(m[3])) return `unescaped ampersand in ${m[2]}`;
+  }
+  if (/[<>]/.test(body.slice(at))) return "stray angle bracket at the end";
+  return stack.length ? `${stack.pop()} is never closed` : body.trim() ? null : "empty";
+}
+
+test("the Word export is a zip of well formed parts with real styles, numbered steps that restart for each procedure, pictures with their descriptions, and no comments", async () => {
+  const { project, assets } = book();
+  const steps2 = makeBlock("procedure"); (steps2 as { steps: unknown }).steps = [{ id: "t1", text: [{ text: "First of the second list." }] }];
+  addBlock(project.tree[0].children[0].page!, steps2);
+  const { flatten } = fakeFlatten();
+  const { flat } = await flattenPlaced(project, assets, "book", flatten);
+  const parts = buildDocxParts(project, flat, { now: "2026-10-21T10:00:00.000Z" });
+  assert.deepEqual(Object.keys(parts).sort(), [
+    "[Content_Types].xml", "_rels/.rels", "docProps/core.xml", "word/_rels/document.xml.rels", "word/document.xml", "word/footer1.xml", "word/header1.xml",
+    "word/media/p1.png", "word/media/p2.png", "word/numbering.xml", "word/styles.xml",
+  ]);
+  const text = (name: string) => new TextDecoder().decode(parts[name]);
+  for (const name of Object.keys(parts).filter((n) => /\.(xml|rels)$/.test(n))) assert.equal(xmlProblem(text(name)), null, `${name} is well formed`);
+  const doc = text("word/document.xml");
+  assert.match(doc, /<w:pStyle w:val="Title"\/>.*My &lt;Book&gt; &amp; more/, "the title is escaped");
+  assert.match(doc, /Acme Draw/, "the product is on the title page");
+  assert.match(doc, /<w:pStyle w:val="Heading1"\/><w:pageBreakBefore\/>.*1 Getting started/, "a chapter is a Heading 1 and starts a page");
+  assert.match(doc, /<w:pStyle w:val="Heading2"\/>.*1\.1 Saving &amp; closing/, "a topic is a Heading 2");
+  assert.match(doc, /<w:pStyle w:val="Heading3"\/><\/w:pPr><w:r><w:t xml:space="preserve">Before you begin/, "a heading block is one level below its topic");
+  assert.match(doc, /<w:rStyle w:val="ControlName"\/><\/w:rPr><w:t xml:space="preserve">Save/, "a control name uses its character style");
+  assert.match(doc, /Press .*in Acme Draw: \*stars\*, _under_ and #hash &lt;tag&gt; \[link\]\./, "text is kept as text and the variable is filled in");
+  assert.ok(!doc.includes("SECRET"), "no comments");
+  // Numbered steps: each procedure has its own list so it starts at 1.
+  const ids = [...doc.matchAll(/<w:numId w:val="(\d+)"\/>/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(ids)].sort(), ["1", "2", "3"], "the bullets are list 1, and two procedures have a list each");
+  const numbering = text("word/numbering.xml");
+  assert.equal([...numbering.matchAll(/<w:num w:numId="(\d+)"><w:abstractNumId w:val="1"\/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"\/>/g)].length, 2, "each list starts again at 1");
+  // Pictures, with their descriptions and sizes.
+  const rels = text("word/_rels/document.xml.rels");
+  assert.match(rels, /Id="rIdImg1" Type="[^"]*\/image" Target="media\/p1\.png"/);
+  assert.match(rels, /Id="rIdImg2" Type="[^"]*\/image" Target="media\/p2\.png"/);
+  assert.deepEqual([...parts["word/media/p1.png"]].slice(-1), [255], "the flat picture's bytes are what is in the file");
+  const descrs = [...doc.matchAll(/<wp:docPr id="\d+" name="Picture \d+" descr="([^"]*)"/g)].map((m) => m[1]);
+  assert.deepEqual(descrs, ["Picture p1 Marks: Arrow: Points at Save. Text box: &quot;Press Save&quot;. Marker 2.", "Picture p2"], "the description (with the marks) is the alternative text");
+  const widths = [...doc.matchAll(/<wp:extent cx="(\d+)" cy="(\d+)"\/>/g)].map((m) => [Number(m[1]), Number(m[2])]);
+  assert.deepEqual(widths[0], [624 * 9525, Math.round(624 * 1080 * 9525 / 1920)], "a wide picture is cut down to the text width, keeping its shape");
+  assert.deepEqual(widths[1], [576 * 9525, Math.round(576 * 540 * 9525 / 960)], "a picture under a step is narrower so it stays inside the margins");
+  assert.match(doc, /<w:pStyle w:val="Caption"\/><\/w:pPr><w:r><w:t xml:space="preserve">A\. Save: Saves your work\./, "a callout's entry is a caption under its picture");
+  assert.match(doc, /\(The picture &quot;Picture p4&quot; could not be included\.\)/, "a picture that could not be made is said");
+  assert.match(doc, /<w:pStyle w:val="Callout2"\/><\/w:pPr><w:r><w:rPr><w:b\/><\/w:rPr><w:t xml:space="preserve">Caution\. /, "a callout box says its kind in words");
+  assert.match(doc, /Result: <\/w:t>/, "a step's result");
+  // Contents: each entry links to a bookmark on its heading.
+  const anchors = [...doc.matchAll(/<w:hyperlink w:anchor="(_Toc\d+)"/g)].map((m) => m[1]);
+  assert.equal(anchors.length, 3, "a contents entry for each of the three topics");
+  for (const anchor of anchors) assert.ok(doc.includes(`w:name="${anchor}"`), `${anchor} is a bookmark`);
+  assert.equal(doc.split(' TOC \\o "1-3" \\h \\z \\u ').length - 1, 1, "the contents is Word's own table of contents field, so Word can add the page numbers");
+  const fields = (type: string) => doc.split(`<w:fldChar w:fldCharType="${type}"/>`).length - 1;
+  assert.deepEqual([fields("begin"), fields("separate"), fields("end")], [1, 1, 1], "and the field is opened, filled and closed once");
+  assert.equal(doc.split('<w:pStyle w:val="Step"/><w:keepNext/>').length - 1, 1, "a step with a picture stays on the page with it");
+  const bookmarkIds = [...doc.matchAll(/<w:bookmarkStart w:id="(\d+)"/g)].map((m) => m[1]);
+  assert.equal(new Set(bookmarkIds).size, bookmarkIds.length, "bookmark numbers are all different");
+  // The fixed parts.
+  assert.match(text("word/footer1.xml"), /<w:instrText xml:space="preserve"> PAGE <\/w:instrText>/, "page numbers");
+  assert.match(text("word/header1.xml"), /My &lt;Book&gt; &amp; more/, "the running header");
+  assert.match(text("[Content_Types].xml"), /Extension="png" ContentType="image\/png"/);
+  assert.match(text("docProps/core.xml"), /<dc:title>My &lt;Book&gt; &amp; more<\/dc:title>/);
+  const styles = text("word/styles.xml");
+  for (const id of ["Title", "Heading1", "Heading2", "Heading3", "Heading4", "Heading5", "Heading6", "Step", "StepContinued", "Caption", "ControlName", "Callout1", "Callout6", "Contents1", "Header", "Footer"]) assert.ok(styles.includes(`w:styleId="${id}"`), `${id} style`);
+  assert.match(styles, /<w:name w:val="Callout box, Caution"\/>/, "a box style is named for its kind");
+  // The box's edge must stand out from its fill (3:1 for graphics).
+  const borders = [...styles.matchAll(/<w:left w:val="single" w:sz="48" w:space="6" w:color="([0-9A-F]{6})"\/>/g)].map((m) => `#${m[1]}`);
+  assert.equal(borders.length, 6);
+  for (const colour of borders) assert.ok(checkContrast(colour, colour, "#F4F6F9", GRAPHIC_MIN)!.ok, `${colour} on the box fill`);
+});
+
+test("the Word file is a zip that reads back, an empty book still makes one, and nothing in the project can break the XML", async () => {
+  const { project, assets } = book();
+  const { flatten } = fakeFlatten();
+  const { flat } = await flattenPlaced(project, assets, "book", flatten);
+  const files = await unzip(packDocx(project, flat, { now: "2026-10-21T10:00:00.000Z" }));
+  assert.ok(files["word/document.xml"] && files["word/media/p1.png"] && files["[Content_Types].xml"]);
+  assert.equal(xmlProblem(new TextDecoder().decode(files["word/document.xml"])), null);
+  const empty = buildDocxParts(createProject("Empty"), new Map());
+  assert.equal(xmlProblem(new TextDecoder().decode(empty["word/document.xml"])), null, "a book with no topics is still a valid document");
+  assert.ok(Object.keys(empty).every((n) => !n.startsWith("word/media/")));
+  const odd = createProject('A "quote" & <b>bold</b> \u0001 title');
+  const t = addNode(odd.tree, null, "Q&A <x> \u000B end");
+  const page = ensurePage(t);
+  const para = makeBlock("paragraph"); (para as { text: unknown }).text = [{ text: "]]> & <![CDATA[ \u0000 ok" }];
+  addBlock(page, para);
+  const parts = buildDocxParts(odd, new Map());
+  for (const name of Object.keys(parts).filter((n) => /\.(xml|rels)$/.test(n))) assert.equal(xmlProblem(new TextDecoder().decode(parts[name])), null, name);
+  assert.equal(xml('a<b>&"c"\u0001'), "a&lt;b&gt;&amp;&quot;c&quot;");
+  assert.equal(xmlProblem("<a><b></a>"), "closing a does not match", "the checker itself notices a broken part");
 });

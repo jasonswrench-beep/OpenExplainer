@@ -2,7 +2,7 @@
 // this only asks. The kinds are made by src/export/.
 import { open } from "./dialogs.ts";
 
-export type ExportKind = "help-site" | "json" | "markdown";
+export type ExportKind = "help-site" | "json" | "markdown" | "word";
 
 export interface ExportChoice {
   kind: ExportKind;
@@ -14,6 +14,7 @@ export const EXPORT_KINDS: { id: ExportKind; name: string; words: string }[] = [
   { id: "help-site", name: "Help site", words: "A folder of web pages, one for each topic, with the contents tree, breadcrumbs, previous and next links, search and a Print this page button. Saved as a zip file; unzip it and open index.html." },
   { id: "json", name: "JSON with images", words: "The whole book as one readable file, book.json (structure, text, callouts, marks, variables), with the picture files beside it, for other programs and AI assistants. It can be imported back. Saved as a zip file." },
   { id: "markdown", name: "Markdown", words: "The whole book as one plain text file, book.md, with each picture as a linked PNG file (cut to the part shown, with its marks drawn in). Saved as a zip file." },
+  { id: "word", name: "Word", words: "The whole book as one Word document (.docx) that you can edit and restyle: real headings, numbered steps that start again at 1 for each procedure, callout boxes, a contents list with links, and every picture cut to the part shown with its marks drawn in and its description as alternative text." },
 ];
 
 /** Asks what to export. `checkFirst` opens the book check; it is offered, never required. Returns the choice, or `null` if cancelled. */

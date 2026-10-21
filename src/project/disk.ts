@@ -42,11 +42,13 @@ export async function chooseImages(): Promise<{ name: string; bytes: Uint8Array 
 
 const zipFilters = [{ name: "Zip file", extensions: ["zip"] }];
 
-/** Asks where to save an export (a zip file). `null` if cancelled. */
-export async function chooseExportPath(suggestedName: string): Promise<string | null> {
-  const picked = await save({ title: "Save the export", defaultPath: suggestedName, filters: zipFilters });
+const docxFilters = [{ name: "Word document", extensions: ["docx"] }];
+
+/** Asks where to save an export (a zip file, or a Word document when `extension` is "docx"). `null` if cancelled. */
+export async function chooseExportPath(suggestedName: string, extension: "zip" | "docx" = "zip"): Promise<string | null> {
+  const picked = await save({ title: "Save the export", defaultPath: suggestedName, filters: extension === "docx" ? docxFilters : zipFilters });
   if (!picked) return null;
-  return picked.toLowerCase().endsWith(".zip") ? picked : `${picked}.zip`;
+  return picked.toLowerCase().endsWith(`.${extension}`) ? picked : `${picked}.${extension}`;
 }
 
 /** Asks which export (a zip file) to import. `null` if cancelled. */

@@ -28,6 +28,7 @@ import { exportDialog, EXPORT_KINDS, type ExportChoice } from "./export-dialog.t
 import { flattenPlaced } from "./export/pictures.ts";
 import { packJsonExport, unpackJsonExport } from "./export/json.ts";
 import { buildMarkdown } from "./export/markdown.ts";
+import { packDocx } from "./export/docx.ts";
 import { buildHelpSite } from "./export/help-site.ts";
 import { flattenPicture } from "./render/flatten.ts";
 import { zip } from "./project/zip.ts";
@@ -948,10 +949,10 @@ async function openProject() {
   }
 }
 
-/** A safe file name for an export, such as "My Book help site.zip". */
-function exportFileName(kind: string): string {
+/** A safe file name for an export, such as "My Book help site.zip" (or "My Book.docx" for Word). */
+function exportFileName(kind: string, extension = "zip"): string {
   const base = projectFileName(project.name).replace(/\.openexplainer$/, "");
-  return `${base} ${kind}.zip`;
+  return extension === "docx" ? `${base}.docx` : `${base} ${kind}.${extension}`;
 }
 
 /** Makes an export of the whole book as one zip file the author chooses where to save. Nothing in the project changes. */
@@ -963,7 +964,11 @@ async function exportBook() {
   if (!choice) return $("b-export").focus();
   const name = EXPORT_KINDS.find((k) => k.id === choice.kind)!.name;
   try {
-    const path = await chooseExportPath(exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown"));
+    const isWord = choice.kind === "word";
+    const path = await chooseExportPath(
+      exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown", isWord ? "docx" : "zip"),
+      isWord ? "docx" : "zip",
+    );
     if (!path) return $("b-export").focus();
     announce(`Making the ${name} export. This can take a moment.`);
     let bytes: Uint8Array;
@@ -975,7 +980,7 @@ async function exportBook() {
     } else {
       const flat = await flattenPlaced(project, assets, "book", flattenPicture);
       left.push(...flat.missing.map((m) => `The picture "${m}" is missing from the project, so it is not in the export.`), ...flat.failed.map((m) => `The picture "${m}" could not be drawn, so it is not in the export.`));
-      bytes = zip(choice.kind === "help-site" ? buildHelpSite(project, flat.flat) : buildMarkdown(project, flat.flat));
+      bytes = isWord ? packDocx(project, flat.flat) : zip(choice.kind === "help-site" ? buildHelpSite(project, flat.flat) : buildMarkdown(project, flat.flat));
     }
     await writeBytes(path, bytes);
     announce(`${name} export saved to ${path}.`);

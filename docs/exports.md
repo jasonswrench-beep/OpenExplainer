@@ -1,6 +1,6 @@
 # Exports
 
-An export is made from the open project and never changes it. Each kind is saved as one zip file that the author chooses where to put (Export in the toolbar). The code is in `src/export/`;
+An export is made from the open project and never changes it. Each kind is saved as one file that the author chooses where to put (Export in the toolbar): a zip file, or for Word a single .docx file. The code is in `src/export/`;
 the Export dialog is `src/export-dialog.ts`. Comments are working notes and are never in a help site or a Markdown export; the JSON export leaves them out unless the author ticks a box.
 
 The book is exported as it prints: pictures use the book's click circle and zoom settings (`place: "book"`).
@@ -46,7 +46,32 @@ headings one level below their topic's. Paragraphs keep bold, italic and control
 as "*Result:* ...". A callout box is a quotation (`> **Caution.** ...`). A picture is `![description with its marks](images/<id>.png)` with its callout entries as a list under it. Everything from the project is
 escaped so it reads as text, not as Markdown (`*`, `_`, `` ` ``, `[`, `]`, `<`, and a `#`, `-`, `+`, `>` or `1.` at the start of a line), and variables are filled in.
 
+## Word
+
+One `.docx` file (`src/export/docx.ts`), made in TypeScript from the flat pictures. Nothing is sent anywhere and Word is not needed to make it. A `.docx` is itself a zip of XML parts, so it needs no zip to be unpacked.
+It is meant to be edited and restyled, so everything is a real Word style rather than hand-made formatting:
+
+- **Title page**: the book's name (Title), then the PRODUCT, VERSION and COMPANY variables where they have a value (Subtitle).
+- **Contents**: Word's own table of contents field (`TOC \o "1-3" \h \z \u`) already holding the entries, each linked to its heading. There are no page numbers yet because only Word knows where the pages break:
+  in Word, right-click the contents and choose Update Field to add them.
+- **Headings**: a chapter is Heading 1 and starts a new page, each topic is one level deeper (to Heading 6), and a heading inside a page is one level below its topic, so the navigation pane and a contents list work.
+  Chapters that have topics open with an "In This Chapter" list.
+- **Steps**: a numbered list in the Step style. Each procedure has its own list, so each starts again at 1. A step's picture goes under it, indented (and kept on the same page as the step), then its result as "Result:".
+- **Pictures**: inline, the flat PNG (cut to the part shown, marks drawn in), no wider than 6.5 inches (6 inches under a step), keeping their shape. The picture's description, with its marks, is the alternative text.
+  A picture's callout entries follow it as Caption paragraphs ("A. Save: Saves your work.").
+- **Callout boxes**: one style for each kind, named in words (such as "Callout box, Caution"), with a coloured left edge and a light fill. The kind is also written in the box, so it is never colour alone.
+  The edge colours meet 3:1 against the fill (a test checks it).
+- **Other styles**: Contents heading, Contents 1 to 3 (Word's own TOC 1 to 3), Chapter opener, List Bullet, Step continued, Caption, Control name (a character style for control names), Hyperlink, Header and Footer.
+  Changing a style changes the whole book.
+- A running header with the book's name, a page number field in the footer, the language set to English and the book's name in the document properties. Comments are never included. A picture that could not be made is
+  replaced by an italic sentence saying so.
+- Text that Word cannot hold (control characters) is dropped, and `&`, `<`, `>` and quotes are escaped, so no title or sentence can break the file (a test builds one with all of them).
+
+Tried: the file was opened in the real Word (16.0) by automation, in its own hidden copy: it opened with no repair message, every style was recognised (Heading 1 to 3, TOC 1 and 2, Subtitle, the box styles), the steps
+numbered 1, 2, 3 and then 1, 2, the pictures had their sizes and alternative text, the contents field was recognised and Word's own Update Field added the page numbers, and Word saved it to a PDF that was looked at.
+Not tried yet: LibreOffice, Word on a Mac, Word's own accessibility checker, and a screen reader on the result.
+
 ## Still to come
 
-Book PDF (tagged, with a contents list, running headers and page numbers) and Word (`.docx`), the short guides, the choice to switch a picture to a crop or zoom automatically when it would print too small,
+Book PDF (tagged, with a contents list, running headers and page numbers), the short guides, the choice to switch a picture to a crop or zoom automatically when it would print too small,
 and the book index. See `docs/HANDOFF.md`.

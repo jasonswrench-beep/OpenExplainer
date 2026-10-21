@@ -368,10 +368,13 @@ Parts, in order:
     as a PNG, on a canvas), `src/export/pictures.ts` (the flat pictures for a book), `src/export/json.ts` (JSON with images, and reading it back), `src/export/markdown.ts`, `src/export/help-site.ts` and
     `site-assets.ts` (the help site with search), `src/export-dialog.ts`, and the Export and Import an export buttons and `exportBook` and `importExport` in `src/main.ts`; `docs/exports.md`; 10 tests in
     `tests/export.test.ts`; tried in the real window (scenario `exports`, with pixel checks of the drawn pictures, the search script run for real and an import round trip; `keyboard2` extended). Each export is saved as
-    one zip through the native Save dialog, which no test can drive: Jason should try Export and Import an export by hand. Not built: the book PDF and Word (`.docx`), the short guides, the automatic crop or zoom for
+    one zip through the native Save dialog, which no test can drive: Jason should try Export and Import an export by hand. Not built: the book PDF, the short guides, the automatic crop or zoom for
     pictures that would print too small (the to-do list asks for it in Step 6; the preview only flags them), the book index and the collapsible FAQ of the help site, an installer.
-11. Next, in order: Word export (a `.docx` is a zip of XML and can be written in TypeScript with the flat pictures), the short guides (a guide made from a chapter's topics, in two layouts, shown in HTML first),
-    and the automatic crop or zoom option for print. The PDF engine and the AI model both need Jason's decision (see "Still open").
+11. **Word export (DONE 2026-10-21 while Jason was away)**: `src/export/docx.ts` (a `.docx` with real styles, a table of contents field, numbered steps that restart for each procedure, inline pictures with
+    alternative text, callout box styles, header and page number; see `docs/exports.md`), "Word" in `src/export-dialog.ts`, and `exportBook` in `src/main.ts` (saves one `.docx`, `chooseExportPath` takes the extension).
+    Two tests in `tests/export.test.ts`; scenario `word` in the real window plus a check that the real Word opens it, updates its contents and saves a PDF. Jason should try Export, Word by hand through the Save dialog.
+12. Next, in order: the short guides (a guide made from a chapter's topics, in two layouts, shown in HTML first) and the automatic crop or zoom option for print. The PDF engine and the AI model both need
+    Jason's decision (see "Still open").
 
 ## Still open (ask Jason, do not guess)
 
