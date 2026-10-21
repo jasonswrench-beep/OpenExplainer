@@ -8,10 +8,11 @@ import type { Callout } from "./callouts.ts";
 import { cleanPictureView, defaultZoom, type PictureView, type ZoomSettings } from "./views.ts";
 import type { Shape } from "./shapes.ts";
 import type { NamedStyle } from "./styles.ts";
+import { emptyCheckSettings, type CheckSettings } from "./checks.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 9;
+export const CURRENT_VERSION = 10;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -101,6 +102,8 @@ export interface Project {
   zoom: ZoomSettings;
   /** Named sets of colours for marks (format version 9). */
   styles: NamedStyle[];
+  /** What the author chose to ignore in the book check (format version 10). */
+  checks: CheckSettings;
   tree: TreeNode[];
 }
 
@@ -117,6 +120,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     highlight: defaultHighlight(),
     zoom: defaultZoom(),
     styles: [],
+    checks: emptyCheckSettings(),
     tree: [],
   };
   if (template === "openstage-how-to-book") {

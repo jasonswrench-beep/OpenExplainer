@@ -146,3 +146,6 @@ fieldset.co-active { border: 2px solid var(--accent); padding: calc(0.25rem - 1p
 .dr-wide input { width: min(100%, 36rem); box-sizing: border-box; }
 .dr-contrast { list-style: none; padding: 0; margin: 0.3rem 0; font-size: 0.9rem; }
 .dr-contrast li { margin: 0.15rem 0; }
+#ck-groups h3 { margin: 1rem 0 0.2rem; }
+#ck-groups h4 { margin: 0.8rem 0 0.3rem; font-size: 1rem; }
+#ck-ignored { margin: 1rem 0; }

@@ -358,9 +358,20 @@ Parts, in order:
    marks"); tried in the real window (scenarios `drawing`, `keyboard2` extended). Not built: the accessibility check that lists every low-contrast mark and every mark with no alternative text across the
    book (the data is there: `shapeChecks`, `missingAlt`, `keptLowContrast`), a contrast check of the built-in callout box styles in a list, drawing marks into exports (reuse `src/render/overlay.ts`;
    the text box lines are drawn as separate SVG texts, which an export to PDF or Word must keep), a quick guide preview. Defaults for Jason to confirm are in the first paragraph of this item.
-9. Then the check tool (in the design spec, not on Jason's To-Do List), then Step 6 (export).
+9. **The book check and the accessibility check (DONE 2026-10-21, ahead of Steps 6 to 8 because it needed no decisions from Jason; Step 9's first two items)**: format version 10 (`project.checks.ignored`),
+   `src/project/checks.ts` (the rules: pictures and marks with no alternative text, colours too close, callouts with no name or sentence, empty topics and blocks, missing files, variables with no
+   value or not used, pictures too small for paper; ignore one, ignore all of a kind, bring back, the summary in words, cleaning), `src/check-dialog.ts`, the Check the book button and `goToIssue` in
+   `src/main.ts`; the print size rule moved into `src/project/views.ts` (`printScale`, `MIN_PRINT_SCALE`) so the check and the preview share it; 12 tests; `docs/editor.md` ("The book check"),
+   `docs/format-spec.md` ("The book check"); tried in the real window (scenarios `check`, `keyboard2` extended). Not checked because the book cannot have them yet: skipped heading levels, links, tables
+   with no header row. The export should offer to run this check first, and should never require it.
+10. Then Step 6 (short guides, PDF, Word, picture sizing that switches to a crop or zoom) and Step 8 (help site, JSON, Markdown, import). The PDF engine needs Jason's decision (see "Still open").
 
 ## Still open (ask Jason, do not guess)
+
+- PDF export (Step 6): the design wants a tagged PDF with a contents list, running headers and page numbers. The best engine is the Chromium that already shows the app (WebView2 `PrintToPdf` via a
+  small piece of Rust in the Tauri shell, which makes a tagged PDF from the same HTML as the print preview and supports CSS page margin boxes for headers and numbers). The alternative is a
+  TypeScript PDF library with my own layout, which cannot easily make a tagged PDF. CLAUDE.md says Rust only where native Windows capture needs it, so adding Rust to the shell for printing is
+  Jason's call. A contents list with real page numbers needs a second pass either way.
 
 - Print layout: the design says the layout switches to a cropped or zoomed picture when a full window would be too small to read on paper. The preview only flags such a picture (a
   note for the writer) and never changes it. Should the export switch automatically, or only warn?

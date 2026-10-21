@@ -7,6 +7,7 @@ import { cleanTreeCallouts } from "./callouts.ts";
 import { cleanTreeViews, cleanZoom, defaultZoom } from "./views.ts";
 import { cleanTreeShapes } from "./shapes.ts";
 import { cleanStyles } from "./styles.ts";
+import { cleanChecks } from "./checks.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -39,6 +40,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   7: (raw) => ({ ...raw, version: 8 }),
   // Version 8 to 9: a picture can have marks drawn on it, and the project keeps named styles. An older project has none.
   8: (raw) => ({ ...raw, version: 9, styles: [] }),
+  // Version 9 to 10: the project keeps what the author chose to ignore in the book check. An older project ignores nothing.
+  9: (raw) => ({ ...raw, version: 10, checks: { ignored: [] } }),
 };
 
 export function migrate(input: unknown): Project {
@@ -59,5 +62,6 @@ export function migrate(input: unknown): Project {
   project.highlight = cleanHighlight(project.highlight);
   project.zoom = cleanZoom(project.zoom);
   project.styles = cleanStyles(project.styles);
+  project.checks = cleanChecks(project.checks);
   return project;
 }

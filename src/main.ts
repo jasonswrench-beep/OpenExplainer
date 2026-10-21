@@ -22,6 +22,8 @@ import { commentsOn, commentsWords, commentTotals, openCount, replaceBlockCommen
 import { blockWords, unresolvedCount, unresolvedIn, type UnresolvedItem } from "./project/comment-list.ts";
 import { renderPrintPreview, topicAnchor } from "./render/print.ts";
 import { drawingDialog } from "./drawing-dialog.ts";
+import { checkDialog } from "./check-dialog.ts";
+import { checkProject, type Issue } from "./project/checks.ts";
 import { marksSummary, setShapes } from "./project/shapes.ts";
 import { renderHelpPage } from "./render/help.ts";
 import { addCalloutFromClick, setCallouts } from "./project/callouts.ts";
@@ -52,6 +54,7 @@ app.innerHTML = `
       <button type="button" id="b-save">Save (Ctrl+S)</button>
       <button type="button" id="b-saveas">Save as</button>
       <button type="button" id="b-vars">Project variables</button>
+      <button type="button" id="b-check">Check the book</button>
     </div>
     <p id="panes-help" class="help">Three panes: the chapters and topics, the page, and the properties. F6 moves to the next pane and Shift+F6 to the one before.</p>
     <div class="panes">
@@ -570,11 +573,13 @@ function renderPictures() {
     const edit = document.createElement("button");
     edit.type = "button";
     edit.textContent = "Edit description";
+    edit.dataset.edit = picture.id;
     edit.setAttribute("aria-label", `Edit description of ${name}`);
     edit.addEventListener("click", () => void editDescription(node.id, picture));
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "Remove picture";
+    remove.dataset.remove = picture.id;
     remove.setAttribute("aria-label", `Remove ${name}`);
     remove.addEventListener("click", () => void removeOnePicture(node.id, picture, name));
     info.append(description, size);
@@ -1044,6 +1049,39 @@ statusSelect.addEventListener("change", () => {
   render();
   announce(`Status set to ${STATUSES.find((s) => s.id === statusSelect.value)!.word}`);
 });
+
+/** The book check: optional, advises only. What the author ignores is saved with the project. */
+$("b-check").addEventListener("click", async () => {
+  const go = await checkDialog({
+    issues: () => checkProject(project, { hasFile: (file) => assets.has(file) }),
+    settings: () => project.checks,
+    setSettings: (next) => { project.checks = next; markDirty(); },
+  });
+  if (go) goToIssue(go);
+  else $("b-check").focus();
+});
+
+/** Takes the author to the thing the check found: the topic, and the button or block where it is put right. */
+function goToIssue(issue: Issue) {
+  if (issue.kind === "variable-empty" || issue.kind === "variable-unused") {
+    announce("Opening the project variables.");
+    $("b-vars").click();
+    return;
+  }
+  if (viewMode !== "edit") setViewMode("edit", { announce: false });
+  if (issue.nodeId) select(issue.nodeId);
+  const pick = (attribute: string) => document.querySelector<HTMLElement>(`[data-${attribute}="${issue.pictureId}"]`)?.focus();
+  switch (issue.kind) {
+    case "picture-alt": pick("edit"); break;
+    case "mark-alt": case "mark-contrast": pick("drawing"); break;
+    case "callout-name": case "callout-description": pick("callouts"); break;
+    case "print-small": pick("view"); break;
+    case "missing-file": case "picture-unplaced": pick("remove"); break;
+    case "empty-block": if (issue.blockId) pageEditor.focusBlockControl(issue.blockId, "first"); break;
+    case "empty-topic": pageEditor.focus(); break;
+  }
+  announce(`Went to ${issue.where}.`);
+}
 
 $("b-vars").addEventListener("click", async () => {
   const result = await variablesDialog(project.variables);

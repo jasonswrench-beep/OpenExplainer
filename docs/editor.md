@@ -4,7 +4,7 @@ The editor window has three panes: the chapters and topics on the left, the page
 rules about what a page is are in `docs/format-spec.md` ("The page"); this file says what the editor does and what has been tried.
 
 Status: the three panes, the block editor, the lettered callouts on pictures, the picture views and pointing at a picture with the mouse and the arrow keys are built
-(Step 4, parts 2 to 7), comments on blocks, the print and help site previews, and the drawing marks of Step 5. The check tool and the accessibility check are not built yet. See `docs/HANDOFF.md`.
+(Step 4, parts 2 to 7), comments on blocks, the print and help site previews, the drawing marks of Step 5 and the book check. See `docs/HANDOFF.md`.
 
 ## The panes
 
@@ -190,6 +190,24 @@ The **Drawing** button on each picture opens the Drawing dialog (`src/drawing-di
   The print preview adds notes for the writer about marks with no alternative text and colours below the minimum (saying when they were kept on purpose); it cannot read the picture behind a mark,
   so it leaves that check to the dialog.
 
+## The book check
+
+**Check the book** (a button beside Project variables) opens an optional check, and says so: nothing in it stops saving or exporting. The rules (`src/project/checks.ts`) work out what is
+worth fixing from the project alone, in reading order. The dialog (`src/check-dialog.ts`) groups the things under **Accessibility** and **The book**, by kind, each in plain words with what
+to do about it. What it finds:
+
+- Accessibility: a picture on a page with no description; an arrow or a rectangle with no alternative text; a mark whose colours are too close (text on its fill under 4.5 to 1) or were kept
+  with low contrast on purpose (the check cannot read the picture behind a mark, so the Drawing dialog does that and records the choice); a callout with no name or no sentence; and, as a
+  note, a picture that will print too small to read (the same rule as the print preview).
+- The book: a topic with nothing on its page; an empty block, or a step with no text; a picture whose file is missing from the project; a variable used in the book that has no value (it
+  would print as `{{NAME}}`); and, as notes, a picture that is in a topic but not on its page, and a variable with a value that nothing uses.
+- Not checked, because the book cannot have them yet: skipped heading levels (headings are levelled by the tree), links and tables.
+
+For each thing: **Go to it** closes the check, selects the topic and puts the keyboard on the control that fixes it (Edit description, Drawing, Callouts, Picture view, a block, or the Project
+variables dialog); **Ignore this**; and, when a kind has several things, **Ignore all N of these**. What is ignored moves to an **Ignored** list with **Stop ignoring**, and is saved with the
+project (format version 10, `docs/format-spec.md` "The book check"). The summary says in words how many things there are to fix and how many are notes, and how many are ignored. After an
+ignore the keyboard stays on the same place in the list (or goes to Close when none are left), and each change is announced.
+
 ## What has been tried
 
 In the real window (a development build driven through its debugging port, with real key presses and clicks): the three panes side by side, each a
@@ -208,6 +226,14 @@ open; Add a callout, Move up and Move down (letters following the position and t
 the click button being off with its reason; Save updating the entry under the picture and on the page, being announced and returning the keyboard to the
 button; Cancel and Escape changing nothing; deleting all callouts and making one again from the click; and a project with callouts packed, unpacked and read
 by another program (the .NET zip reader) with no letters in the file.
+
+The book check, in the real window with a chapter holding an empty topic and a topic with an empty heading, an empty callout box, a variable with no value and a click picture with a callout and
+no description: the check opened by its button, saying it is optional and only advises; an Accessibility part and a Book part; the summary in words; an empty topic, an empty heading block, a
+variable used with no value, a picture with no description, a callout with no sentence and a picture too small for paper each listed with a reason and what to do; every button saying which thing
+it is for; Ignore this moving a thing to the Ignored list, the summary following, announcing it and marking the project as changed; Stop ignoring bringing it back and putting the keyboard on
+Close; Ignore all N of these for a kind with several things (and no such button for a kind with one); Go to it selecting the topic and putting the keyboard on Edit description for that picture;
+the choices still in place when the check is opened again; a variable going to the Project variables dialog; and Escape closing it. By keyboard alone: Tab reaching every control and never
+leaving the dialog, and Escape giving the keyboard back.
 
 The Drawing dialog, in the real window on a click picture of a made-up window, with a real mouse and real key presses: an empty dialog offering four Add buttons with the keyboard on the first and
 saying contrast is only a warning; adding an arrow (selected, a handle at each end, named for a screen reader, every control named and saying which mark); drawing the arrow on an empty place from

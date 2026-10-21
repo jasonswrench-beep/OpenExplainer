@@ -192,3 +192,13 @@ export function checkCropInput(input: CropInput, size: Size): CropCheck {
   if (got.top + got.height > size.height) return { ok: false, field: "height", message: `The region reaches past the bottom of the picture, which is ${size.height} pixels high. Make the height ${size.height - got.top} or less, or start it higher.` };
   return { ok: true, view: { kind: "crop", x: got.left, y: got.top, width: got.width, height: got.height } };
 }
+
+/** The width of the text on a printed page, in pixels at 96 to the inch (6.5 inches). */
+export const PRINT_TEXT_WIDTH = 624;
+/** Below this share of its size on screen, the writing in a picture is too small to read on paper. */
+export const MIN_PRINT_SCALE = 0.5;
+
+/** How big a picture's writing is on paper compared with the screen it came from, when the part shown is set across the text width (never bigger than life). */
+export function printScale(shownWidth: number): number {
+  return Math.min(1, PRINT_TEXT_WIDTH / Math.max(1, shownWidth));
+}

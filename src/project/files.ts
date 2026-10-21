@@ -9,6 +9,7 @@ import { cleanTreeCallouts } from "./callouts.ts";
 import { cleanTreeViews, cleanZoom } from "./views.ts";
 import { cleanTreeShapes } from "./shapes.ts";
 import { cleanStyles } from "./styles.ts";
+import { cleanChecks } from "./checks.ts";
 
 export const PROJECT_FILE = "project.json";
 export const STRUCTURE_FILE = "structure.json";
@@ -60,7 +61,7 @@ export function toFiles(project: Project): Record<string, string> {
   // Click notes are checked on the way out too, so a password box can never be written to a file.
   const tree = cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(rawTree)))));
   const files: Record<string, string> = {
-    [PROJECT_FILE]: JSON.stringify({ ...header, highlight: cleanHighlight(header.highlight), zoom: cleanZoom(header.zoom), styles: cleanStyles(header.styles) }, null, 2) + "\n",
+    [PROJECT_FILE]: JSON.stringify({ ...header, highlight: cleanHighlight(header.highlight), zoom: cleanZoom(header.zoom), styles: cleanStyles(header.styles), checks: cleanChecks(header.checks) }, null, 2) + "\n",
     [STRUCTURE_FILE]: JSON.stringify({ version: project.version, tree: withoutPages(tree) }, null, 2) + "\n",
   };
   pageFiles(tree, project.version, files);

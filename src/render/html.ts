@@ -7,7 +7,9 @@ import type { Picture, Project, TreeNode } from "../project/model.ts";
 import { calloutLabel, type Block, type CalloutKind, type Step } from "../project/page.ts";
 import { failing, kindName, missingAlt, shapeChecks, shapesDescription } from "../project/shapes.ts";
 import type { Run } from "../project/text.ts";
-import { isWhole, shownPart } from "../project/views.ts";
+import { isWhole, MIN_PRINT_SCALE, PRINT_TEXT_WIDTH, printScale, shownPart } from "../project/views.ts";
+
+export { MIN_PRINT_SCALE, PRINT_TEXT_WIDTH, printScale };
 import { calloutInView, overlayFor, overlaySvg } from "./overlay.ts";
 
 /** What a page needs to know to be written out. */
@@ -51,16 +53,6 @@ export function runsHtml(ctx: RenderContext, runs: Run[]): string {
       return words;
     })
     .join("");
-}
-
-/** The width of the text on a printed page, in pixels at 96 to the inch (6.5 inches). */
-export const PRINT_TEXT_WIDTH = 624;
-/** Below this share of its size on screen, the writing in a picture is too small to read on paper. */
-export const MIN_PRINT_SCALE = 0.5;
-
-/** How big a picture's writing is on paper compared with the screen it came from, when the part shown is set across the text width (never bigger than life). */
-export function printScale(shownWidth: number): number {
-  return Math.min(1, PRINT_TEXT_WIDTH / Math.max(1, shownWidth));
 }
 
 /**

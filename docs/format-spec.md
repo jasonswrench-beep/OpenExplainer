@@ -179,6 +179,13 @@ that is not one becomes the starting one; a repeated id gets a new one; and a pi
 the outline), so a mark never depends on a style and every picture is complete by itself. A name is at most 40 letters and no two styles have the same name, capitals aside. A style's own
 colours get the same contrast check as a mark's (its words on its fill). Cleaned when a project is opened and saved.
 
+## The book check
+
+`project.json` has `checks: { ignored }`, the keys of the things in the book check that the author chose to ignore. A key is made so that it stays the same while the thing stays the same, such
+as `picture-alt:<picture id>`, `empty-topic:<topic id>`, `callout-description:<picture id>:<callout id>`, `mark-alt:<picture id>:<mark id>` or `variable-empty:PRODUCT`. Ignoring all of a kind
+adds the keys of the things of that kind found at that moment; a new one found later still shows. Cleaned when a project is opened and saved: only keys that are text, once each. The things the
+check finds are worked out from the project every time (`src/project/checks.ts`), never stored.
+
 ## The click highlight
 
 A transparent circle can be drawn on the spot of a click, so the reader sees where to click. It is never burned into a picture: it is drawn from the
@@ -215,6 +222,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 10: the project keeps what the author chose to ignore in the book check (`checks`). A version 9 project upgrades ignoring nothing. A copy of OpenExplainer that only knows version 9 refuses a version 10 project, so it can never open one and save it without those choices.
 - Version 9: a picture can have marks drawn on it (`shapes`), and the project keeps named styles (`styles`). A version 8 project upgrades with none. A copy of OpenExplainer that only knows version 8 refuses a version 9 project, so it can never open one and save it without the marks.
 - Version 8: a page can have comments on its blocks, saved in the page's file. A version 7 project upgrades with none. A copy of OpenExplainer that only knows version 7 refuses a version 8 project, so it can never open one and save it without the comments.
 - Version 7: a picture can have a view (cropped, or zoomed on the click), and the project keeps the zoom sizes (`zoom`). A version 6 project upgrades with the starting sizes and no views. A copy of OpenExplainer that only knows version 6 refuses a version 7 project, so it can never open one and save it without the views.
