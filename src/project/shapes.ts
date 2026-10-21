@@ -263,6 +263,17 @@ export function shapeLine(shape: Shape): string {
   }
 }
 
+/** The marks on a picture counted in words for the picture list: "3 marks: 1 arrow, 1 text box and 1 numbered marker." with how many still need alternative text. `null` when none. */
+export function marksSummary(picture: Pick<Picture, "shapes">): string | null {
+  const list = picture.shapes ?? [];
+  if (list.length === 0) return null;
+  const plural: Record<ShapeKind, [string, string]> = { arrow: ["arrow", "arrows"], text: ["text box", "text boxes"], rectangle: ["rectangle", "rectangles"], marker: ["numbered marker", "numbered markers"] };
+  const parts = SHAPE_KINDS.map((k) => ({ n: list.filter((s) => s.kind === k.id).length, k: k.id })).filter((p) => p.n > 0).map((p) => `${p.n} ${plural[p.k][p.n === 1 ? 0 : 1]}`);
+  const joined = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
+  const missing = missingAlt(picture);
+  return `${list.length} ${list.length === 1 ? "mark" : "marks"}: ${joined}.${missing > 0 ? ` ${missing} still ${missing === 1 ? "needs" : "need"} alternative text.` : ""}`;
+}
+
 // ---- Contrast ---------------------------------------------------------------------------------------------
 
 /**
@@ -292,6 +303,153 @@ export function shapeChecks(shape: Shape, behind: string | null = null): Contras
 /** The checks that fail. */
 export function failing(checks: ContrastCheck[]): ContrastCheck[] {
   return checks.filter((c) => !c.ok);
+}
+
+// ---- Checking what is typed in the Drawing dialog -----------------------------------------------------
+
+/** One box of the Drawing dialog for a kind of mark. */
+export interface FieldSpec {
+  field: string;
+  label: string;
+  /** `color` is a colour, `optionalColor` a colour or none, `number` a whole number, `text` any words, `label` one to three letters or digits. */
+  type: "number" | "text" | "color" | "optionalColor" | "label";
+  size: number;
+}
+
+const FIELD_ALT: FieldSpec = { field: "alt", label: "Alternative text (what the mark means, for a reader who cannot see it)", type: "text", size: 60 };
+
+/** The boxes for each kind, in the order they are shown. The shape's own alternative text box comes last. */
+export const SHAPE_FIELDS: Record<ShapeKind, FieldSpec[]> = {
+  arrow: [
+    { field: "fromX", label: "Tail: how far across", type: "number", size: 6 },
+    { field: "fromY", label: "Tail: how far down", type: "number", size: 6 },
+    { field: "toX", label: "Head: how far across", type: "number", size: 6 },
+    { field: "toY", label: "Head: how far down", type: "number", size: 6 },
+    { field: "color", label: "Color", type: "color", size: 8 },
+    { field: "thickness", label: "Thickness, in pixels", type: "number", size: 5 },
+    FIELD_ALT,
+  ],
+  text: [
+    { field: "text", label: "Words in the box", type: "text", size: 60 },
+    { field: "left", label: "Box: how far across it starts", type: "number", size: 6 },
+    { field: "top", label: "Box: how far down it starts", type: "number", size: 6 },
+    { field: "width", label: "Box: width", type: "number", size: 6 },
+    { field: "height", label: "Box: height", type: "number", size: 6 },
+    { field: "size", label: "Height of the letters, in pixels", type: "number", size: 5 },
+    { field: "fill", label: "Fill", type: "optionalColor", size: 8 },
+    { field: "outline", label: "Outline color", type: "color", size: 8 },
+    { field: "textColor", label: "Text color", type: "color", size: 8 },
+    FIELD_ALT,
+  ],
+  rectangle: [
+    { field: "left", label: "How far across it starts", type: "number", size: 6 },
+    { field: "top", label: "How far down it starts", type: "number", size: 6 },
+    { field: "width", label: "Width", type: "number", size: 6 },
+    { field: "height", label: "Height", type: "number", size: 6 },
+    { field: "outline", label: "Outline color", type: "color", size: 8 },
+    { field: "thickness", label: "Outline thickness, in pixels", type: "number", size: 5 },
+    { field: "fill", label: "Fill", type: "optionalColor", size: 8 },
+    { field: "seeThrough", label: "How much shows through the fill, in percent", type: "number", size: 5 },
+    FIELD_ALT,
+  ],
+  marker: [
+    { field: "x", label: "How far across", type: "number", size: 6 },
+    { field: "y", label: "How far down", type: "number", size: 6 },
+    { field: "label", label: "Label, one to three letters or digits", type: "label", size: 4 },
+    { field: "color", label: "Color", type: "color", size: 8 },
+    { field: "size", label: "Radius, in pixels", type: "number", size: 5 },
+    FIELD_ALT,
+  ],
+};
+
+/** What is in the boxes of the dialog for one mark. */
+export type ShapeInput = Record<string, string>;
+
+/** A mark's values as the text that goes in its boxes. A fill of none is the word "none". */
+export function inputFromShape(shape: Shape): ShapeInput {
+  const n = (v: number) => String(v);
+  const colour = (v: string | null) => (v === null ? "none" : v);
+  switch (shape.kind) {
+    case "arrow": return { fromX: n(shape.from.x), fromY: n(shape.from.y), toX: n(shape.to.x), toY: n(shape.to.y), color: shape.color, thickness: n(shape.thickness), alt: shape.alt };
+    case "text": return { text: shape.text, left: n(shape.box.x), top: n(shape.box.y), width: n(shape.box.width), height: n(shape.box.height), size: n(shape.size), fill: colour(shape.fill), outline: shape.outline, textColor: shape.textColor, alt: shape.alt };
+    case "rectangle": return { left: n(shape.box.x), top: n(shape.box.y), width: n(shape.box.width), height: n(shape.box.height), outline: shape.outline, thickness: n(shape.thickness), fill: colour(shape.fill), seeThrough: n(shape.seeThrough), alt: shape.alt };
+    case "marker": return { x: n(shape.at.x), y: n(shape.at.y), label: shape.label, color: shape.color, size: n(shape.size), alt: shape.alt };
+  }
+}
+
+export type ShapeCheck = { ok: true; shape: Shape } | { ok: false; field: string; message: string };
+
+const wholeNumber = /^\d+$/;
+
+/**
+ * Checks the boxes of the dialog for one mark and makes the mark from them (keeping its id and its kept-colours record). A mistake is explained in plain words and says which
+ * box it is in. Alternative text and words are checked for length only.
+ */
+export function checkShapeInput(previous: Shape, input: ShapeInput, size: Size): ShapeCheck {
+  type Fail = { ok: false; field: string; message: string };
+  const fail = (field: string, message: string): Fail => ({ ok: false, field, message });
+  const alt = (input.alt ?? "").replace(/\s+/g, " ").trim();
+  if (alt.length > MOST_SHAPE_TEXT) return fail("alt", `Alternative text can be at most ${MOST_SHAPE_TEXT} letters. This has ${alt.length}.`);
+  const num = (field: string, words: string, least: number, most: number): { ok: true; value: number } | Fail => {
+    const text = (input[field] ?? "").trim();
+    if (!wholeNumber.test(text)) return fail(field, `Type ${words} as a whole number from ${least} to ${most}, such as ${Math.max(least, Math.round(most / 2))}.${text ? ` "${text}" is not one.` : ""}`);
+    const value = Number(text);
+    if (value < least || value > most) return fail(field, `The picture is ${size.width} by ${size.height} pixels. Type ${words} as a number from ${least} to ${most}.`);
+    return { ok: true, value };
+  };
+  const colour = (field: string, words: string, optional = false): { ok: true; value: string | null } | Fail => {
+    const text = (input[field] ?? "").trim();
+    if (optional && (text === "" || text.toLowerCase() === "none")) return { ok: true, value: null };
+    const code = normalizeHex(text);
+    if (!code) return fail(field, `Type ${words} as six hex digits, such as C62828${optional ? ", or the word none" : ""}.${text ? ` "${text}" is not one.` : ""}`);
+    return { ok: true, value: code };
+  };
+  const keep = previous.keptLowContrast ? ({ keptLowContrast: true } as const) : {};
+  const base = { id: previous.id, alt, ...keep };
+  switch (previous.kind) {
+    case "arrow": {
+      const fromX = num("fromX", "how far across the tail is", 0, size.width); if (!fromX.ok) return fromX;
+      const fromY = num("fromY", "how far down the tail is", 0, size.height); if (!fromY.ok) return fromY;
+      const toX = num("toX", "how far across the head is", 0, size.width); if (!toX.ok) return toX;
+      const toY = num("toY", "how far down the head is", 0, size.height); if (!toY.ok) return toY;
+      const thickness = num("thickness", "the thickness", THICKNESS_LIMITS.min, THICKNESS_LIMITS.max); if (!thickness.ok) return thickness;
+      const color = colour("color", "the color"); if (!color.ok) return color;
+      if (fromX.value === toX.value && fromY.value === toY.value) return fail("toX", "The head of the arrow is on its tail, so there is no arrow to see. Move the head away from the tail.");
+      return { ok: true, shape: { ...base, kind: "arrow", from: { x: fromX.value, y: fromY.value }, to: { x: toX.value, y: toY.value }, color: color.value!, thickness: thickness.value } };
+    }
+    case "text":
+    case "rectangle": {
+      const text = previous.kind === "text" ? input.text ?? "" : "";
+      if (previous.kind === "text" && text.replace(/\s+/g, " ").trim().length > MOST_SHAPE_TEXT) return fail("text", `The words can be at most ${MOST_SHAPE_TEXT} letters. These have ${text.replace(/\s+/g, " ").trim().length}.`);
+      const noun = previous.kind === "text" ? "the box" : "the rectangle";
+      const left = num("left", `how far across ${noun} starts`, 0, size.width - 1); if (!left.ok) return left;
+      const top = num("top", `how far down ${noun} starts`, 0, size.height - 1); if (!top.ok) return top;
+      const width = num("width", `the width of ${noun}`, MIN_SIDE, size.width); if (!width.ok) return width;
+      const height = num("height", `the height of ${noun}`, MIN_SIDE, size.height); if (!height.ok) return height;
+      if (left.value + width.value > size.width) return fail("width", `${noun[0].toUpperCase()}${noun.slice(1)} reaches past the right edge of the picture, which is ${size.width} pixels wide. Make the width ${size.width - left.value} or less, or start it further left.`);
+      if (top.value + height.value > size.height) return fail("height", `${noun[0].toUpperCase()}${noun.slice(1)} reaches past the bottom of the picture, which is ${size.height} pixels high. Make the height ${size.height - top.value} or less, or start it higher.`);
+      const outline = colour("outline", "the outline color"); if (!outline.ok) return outline;
+      const fill = colour("fill", "the fill", true); if (!fill.ok) return fill;
+      const boxValue = { x: left.value, y: top.value, width: width.value, height: height.value };
+      if (previous.kind === "text") {
+        const letters = num("size", "the height of the letters", TEXT_SIZE_LIMITS.min, TEXT_SIZE_LIMITS.max); if (!letters.ok) return letters;
+        const textColor = colour("textColor", "the text color"); if (!textColor.ok) return textColor;
+        return { ok: true, shape: { ...base, kind: "text", box: boxValue, text: text.replace(/\s+/g, " ").trim(), fill: fill.value, outline: outline.value!, textColor: textColor.value!, size: letters.value } };
+      }
+      const thickness = num("thickness", "the thickness", THICKNESS_LIMITS.min, THICKNESS_LIMITS.max); if (!thickness.ok) return thickness;
+      const seeThrough = num("seeThrough", "how much shows through", 0, 100); if (!seeThrough.ok) return seeThrough;
+      return { ok: true, shape: { ...base, kind: "rectangle", box: boxValue, outline: outline.value!, thickness: thickness.value, fill: fill.value, seeThrough: seeThrough.value } };
+    }
+    case "marker": {
+      const x = num("x", "how far across the marker is", 0, size.width); if (!x.ok) return x;
+      const y = num("y", "how far down the marker is", 0, size.height); if (!y.ok) return y;
+      const label = (input.label ?? "").trim();
+      if (!/^[A-Za-z0-9]{1,3}$/.test(label)) return fail("label", `Type one to three letters or digits for the label, such as 1 or A.${label ? ` "${label}" is not allowed.` : ""}`);
+      const radius = num("size", "the radius", MARKER_SIZE_LIMITS.min, MARKER_SIZE_LIMITS.max); if (!radius.ok) return radius;
+      const color = colour("color", "the color"); if (!color.ok) return color;
+      return { ok: true, shape: { ...base, kind: "marker", at: { x: x.value, y: y.value }, label, color: color.value!, size: radius.value } };
+    }
+  }
 }
 
 // ---- Changing a picture's marks ---------------------------------------------------------------------------

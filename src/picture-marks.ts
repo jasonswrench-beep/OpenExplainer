@@ -22,7 +22,7 @@ function svgEl<K extends keyof SVGElementTagNameMap>(name: K, attributes: Record
  * from src/render/overlay.ts, the same ones the previews and exports write as SVG text. It is hidden from a screen reader, because the entries under the picture
  * say the same in words.
  */
-export function marksOverlay(picture: Pick<Picture, "width" | "height" | "callouts">, circle: Circle | null, shown?: Rect): SVGSVGElement | null {
+export function marksOverlay(picture: Pick<Picture, "width" | "height" | "callouts" | "shapes">, circle: Circle | null, shown?: Rect): SVGSVGElement | null {
   const overlay = overlayFor(picture, circle, shown);
   if (!overlay) return null;
   // The drawing is in the whole picture's pixels. Its window onto them is the part that is shown, so it lines up in every view.

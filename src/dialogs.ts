@@ -62,7 +62,7 @@ function wrapTab(dialog: HTMLDialogElement) {
   });
 }
 
-function open(dialog: HTMLDialogElement, focusTarget: HTMLElement): Promise<void> {
+export function open(dialog: HTMLDialogElement, focusTarget: HTMLElement): Promise<void> {
   const returnTo = document.activeElement as HTMLElement | null;
   document.body.append(dialog);
   wrapTab(dialog);

@@ -5,6 +5,7 @@ import { entries, entryWords } from "../project/callouts.ts";
 import { circleFor, type HighlightKind } from "../project/highlight.ts";
 import type { Picture, Project, TreeNode } from "../project/model.ts";
 import { calloutLabel, type Block, type CalloutKind, type Step } from "../project/page.ts";
+import { failing, kindName, missingAlt, shapeChecks, shapesDescription } from "../project/shapes.ts";
 import type { Run } from "../project/text.ts";
 import { isWhole, shownPart } from "../project/views.ts";
 import { calloutInView, overlayFor, overlaySvg } from "./overlay.ts";
@@ -62,12 +63,15 @@ export function printScale(shownWidth: number): number {
   return Math.min(1, PRINT_TEXT_WIDTH / Math.max(1, shownWidth));
 }
 
-/** The words that say what is in a picture, for a screen reader: what the author wrote, or else its callouts, or else nothing. */
+/**
+ * The words that say what is in a picture, for a screen reader: what the author wrote, or else its callouts, then the marks drawn on it (the words of a text box, the label of a
+ * marker and the description of an arrow or a rectangle), or else nothing.
+ */
 export function altTextFor(picture: Picture): string {
   const written = picture.altText.trim();
-  if (written) return written;
   const list = entries(picture).filter((e) => !e.needsName || !e.needsDescription);
-  return list.length ? `Callouts: ${list.map(entryWords).join(" ")}` : "";
+  const base = written || (list.length ? `Callouts: ${list.map(entryWords).join(" ")}` : "");
+  return [base, shapesDescription(picture)].filter(Boolean).join(" ");
 }
 
 /** A picture as it is shown where it is used: only the part chosen, with its click circle and callouts over it, and the callout entries under it. */
@@ -90,6 +94,11 @@ export function figureHtml(ctx: RenderContext, picture: Picture, where?: string)
   const scale = printScale(shown.width);
   if (scale < MIN_PRINT_SCALE) notes.push(`Small on paper: the writing in this picture will print at about ${Math.round(scale * 100)} percent of its size on screen. A crop or a zoom (Picture view) would make it easier to read.`);
   if (!picture.altText.trim()) notes.push("This picture has no description yet, so a screen reader has little to say about it.");
+  const unnamed = missingAlt(picture);
+  if (unnamed > 0) notes.push(`${unnamed} ${unnamed === 1 ? "mark (an arrow or a rectangle) has" : "marks (arrows or rectangles) have"} no alternative text yet, so a screen reader cannot say what ${unnamed === 1 ? "it points" : "they point"} at.`);
+  for (const mark of picture.shapes ?? []) {
+    for (const bad of failing(shapeChecks(mark))) notes.push(`${kindName(mark.kind)}: ${bad.words}${mark.keptLowContrast ? " (The colours were kept on purpose.)" : ""}`);
+  }
   if (hidden > 0) notes.push(`${hidden} ${hidden === 1 ? "callout is" : "callouts are"} outside the part of the picture that is shown, so ${hidden === 1 ? "it is" : "they are"} left out of the list and the drawing.`);
   return `<figure class="pv-figure" style="max-width: ${Math.min(shown.width, PRINT_TEXT_WIDTH)}px">`
     + `<div class="pv-shot" style="aspect-ratio: ${shown.width} / ${shown.height}"><img src="${esc(src)}" alt="${esc(alt)}"${crop}>${overlay ? overlaySvg(overlay, "pv-marks") : ""}</div>`

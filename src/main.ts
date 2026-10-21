@@ -21,6 +21,8 @@ import { shownPart, viewWords } from "./project/views.ts";
 import { commentsOn, commentsWords, commentTotals, openCount, replaceBlockComments, setResolved } from "./project/comments.ts";
 import { blockWords, unresolvedCount, unresolvedIn, type UnresolvedItem } from "./project/comment-list.ts";
 import { renderPrintPreview, topicAnchor } from "./render/print.ts";
+import { drawingDialog } from "./drawing-dialog.ts";
+import { marksSummary, setShapes } from "./project/shapes.ts";
 import { renderHelpPage } from "./render/help.ts";
 import { addCalloutFromClick, setCallouts } from "./project/callouts.ts";
 import { blockLabel, calloutLabel, type Block } from "./project/page.ts";
@@ -436,6 +438,26 @@ function setCircleMode(nodeId: string, picture: Picture, mode: string) {
   announce(mode === "follow" ? "The click circle now follows the project setting." : mode === "on" ? "The click circle will always show." : "The click circle will never show.");
 }
 
+/** The Drawing dialog for one picture: its arrows, text boxes, rectangles and markers, and the project's named styles. Nothing changes unless the author presses Save. */
+async function editDrawing(picture: Picture, name: string) {
+  const bytes = assets.get(picture.file);
+  const url = bytes ? URL.createObjectURL(new Blob([bytes as BlobPart], { type: picture.file.endsWith(".png") ? "image/png" : "image/jpeg" })) : null;
+  let result;
+  try {
+    result = await drawingDialog({ picture, imageUrl: url, styles: project.styles });
+  } finally {
+    if (url) URL.revokeObjectURL(url);
+  }
+  if (!result) return;
+  setShapes(picture, result.shapes);
+  project.styles = result.styles;
+  markDirty();
+  renderPictures();
+  document.querySelector<HTMLElement>(`[data-drawing="${picture.id}"]`)?.focus();
+  const n = result.shapes.length;
+  announce(n ? `Drawing saved on ${name}: ${n} ${n === 1 ? "mark" : "marks"}.` : `All marks removed from ${name}.`);
+}
+
 /** The Picture view dialog for one picture. Nothing changes unless the author presses Save. */
 async function editView(nodeId: string, picture: Picture, name: string) {
   const bytes = assets.get(picture.file);
@@ -574,6 +596,13 @@ function renderPictures() {
     }
     const callouts = entryList(picture, shownPart(picture, project.zoom, previewKind));
     if (callouts) info.append(callouts);
+    const marks = marksSummary(picture);
+    if (marks) {
+      const markLine = document.createElement("p");
+      markLine.className = "help";
+      markLine.textContent = `Drawing: ${marks}`;
+      info.append(markLine);
+    }
     const circleWords = highlightWords(picture, project.highlight, previewKind);
     if (circleWords) {
       const state = document.createElement("p");
@@ -615,7 +644,13 @@ function renderPictures() {
     viewButton.dataset.view = picture.id;
     viewButton.setAttribute("aria-label", `Picture view of ${name}`);
     viewButton.addEventListener("click", () => void editView(node.id, picture, name));
-    info.append(edit, " ", viewButton, " ", calloutsButton, " ", remove);
+    const drawingButton = document.createElement("button");
+    drawingButton.type = "button";
+    drawingButton.textContent = "Drawing";
+    drawingButton.dataset.drawing = picture.id;
+    drawingButton.setAttribute("aria-label", `Drawing on ${name}`);
+    drawingButton.addEventListener("click", () => void editDrawing(picture, name));
+    info.append(edit, " ", viewButton, " ", calloutsButton, " ", drawingButton, " ", remove);
     li.append(info);
     list.append(li);
   }

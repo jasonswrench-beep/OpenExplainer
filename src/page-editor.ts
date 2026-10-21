@@ -82,7 +82,7 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
   const node = () => deps.node();
 
   function keyFor(n: TreeNode | null): string {
-    return n ? `${n.id}|${n.title}|${deps.marksKey()}|${n.pictures.map((p) => `${p.id}:${p.altText}:${p.file}:${JSON.stringify(p.callouts ?? [])}:${JSON.stringify(p.highlight ?? null)}:${JSON.stringify(p.view ?? null)}`).join(",")}|${JSON.stringify(n.page?.comments ?? [])}` : "";
+    return n ? `${n.id}|${n.title}|${deps.marksKey()}|${n.pictures.map((p) => `${p.id}:${p.altText}:${p.file}:${JSON.stringify(p.callouts ?? [])}:${JSON.stringify(p.highlight ?? null)}:${JSON.stringify(p.view ?? null)}:${JSON.stringify(p.shapes ?? [])}`).join(",")}|${JSON.stringify(n.page?.comments ?? [])}` : "";
   }
 
   function setCurrent(id: string | null) {

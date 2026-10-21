@@ -4,7 +4,7 @@ The editor window has three panes: the chapters and topics on the left, the page
 rules about what a page is are in `docs/format-spec.md` ("The page"); this file says what the editor does and what has been tried.
 
 Status: the three panes, the block editor, the lettered callouts on pictures, the picture views and pointing at a picture with the mouse and the arrow keys are built
-(Step 4, parts 2 to 7), comments on blocks, and the print and help site previews. The check tool is not built yet. See `docs/HANDOFF.md`.
+(Step 4, parts 2 to 7), comments on blocks, the print and help site previews, and the drawing marks of Step 5. The check tool and the accessibility check are not built yet. See `docs/HANDOFF.md`.
 
 ## The panes
 
@@ -159,6 +159,37 @@ and zoom settings.
   the topic, the topic's title and blocks, a list of its topics when it has any, and Previous and Next links in reading order. A link opens that topic here (the tree follows) and puts
   the keyboard on the page that opened. Search, the index and the collapsible FAQ come with the export.
 
+## Drawing marks
+
+The rules (what a mark is, what is saved, the contrast rules, named styles) are in `docs/format-spec.md` ("Marks drawn on a picture", "Named styles") and `src/project/shapes.ts`,
+`contrast.ts` and `styles.ts`. A mark is an **arrow**, a **text box**, a **rectangle** or a **numbered marker**, drawn over the picture and under the lettered callouts, never into it.
+The **Drawing** button on each picture opens the Drawing dialog (`src/drawing-dialog.ts`):
+
+- **Adding.** Four buttons: Add an arrow, a text box, a rectangle, a numbered marker. A new mark starts near the middle in the starting red, sized by the picture's width. A marker's label
+  starts as the next number. Each mark is a group named "Mark 2: Text box", with the one being edited marked "(selected on the picture)" in words.
+- **Boxes.** Every box says which mark it is for ("Tail: how far across, mark 1, arrow"). An arrow has a tail and a head (across and down) and a thickness; a text box has its words, its box,
+  the height of its letters and three colours (fill, outline, text); a rectangle has its box, its outline and thickness and an optional fill with a see-through level; a marker has its place, a
+  label of one to three letters or digits, a colour and a radius. A mistake is explained next to the box ("Type the color as six hex digits, such as C62828. "red" is not one."), names the
+  mark, marks the box and keeps the dialog open. A text box says when its words do not fit and offers **Make the box tall enough**.
+- **Pointing.** The sample picture shows the marks. The selected mark has handles: drag on an empty place to draw it again (an arrow is drawn from tail to head), drag a box to move it or a corner
+  to resize it, drag an end of an arrow or a marker, or press another mark to select it. The arrow keys move a handle by 1 pixel (10 with Shift) and Control with an arrow resizes a box;
+  Escape during a drag puts things back (the same handles as the Callouts and Picture view dialogs).
+- **Colours and contrast.** Each colour is a list of ten swatches (Red, Orange, Yellow, Green, Blue, Purple, Black, White, Dark gray, Light gray; a fill can also be None), a code box and a small
+  chip. As soon as a colour is chosen its contrast is shown in words, with a symbol so it is not colour alone: "✓ Text on its fill: 5.6 to 1, which meets the 4.5 to 1 minimum." or
+  "⚠ Arrow against the picture behind it: about 2.6 to 1, which is below the 3.0 to 1 minimum (WCAG 2.2 AA). Choose colours that are further apart, or keep these if you mean to." A
+  warning is announced. Text is compared with its fill (4.5 to 1); an arrow, an outline and a marker are compared with the picture behind them (3 to 1), an average of the picture's pixels under
+  the mark read through a small canvas (`src/backdrop.ts`), so it says "about". It only ever warns. Saving a mark while it fails records `keptLowContrast`, for the accessibility check.
+- **Alternative text.** Every mark has a box for it. An arrow or a rectangle with none says so under its boxes. The words of a text box and the labels of markers are added to the picture's
+  description ("Marks: Arrow: Points at the Save button. Text box: "Press Save"."), in the editor's alternative text for a picture and in both previews.
+- **Named styles.** In each mark's group: choose a named style and **Apply the style** (it copies the colours; the mark is not linked), or type a name and **Save these colors as a style**
+  (a name nobody else has, capitals aside, up to 40 letters; a mistake is explained). A section lists the project's styles, each with its colours, its own contrast check and a Delete (marks that
+  used its colours keep them).
+- **Order.** Move towards the top or the bottom, and Delete, each saying the result in words and keeping the keyboard on that mark's button. Nothing changes until **Save the drawing**; Cancel and
+  Escape leave the marks and the styles as they were.
+- **Where it shows.** The picture list says "Drawing: 3 marks: 1 arrow, 1 text box and 1 rectangle. 1 still needs alternative text."; the thumbnail, the page and both previews draw the marks.
+  The print preview adds notes for the writer about marks with no alternative text and colours below the minimum (saying when they were kept on purpose); it cannot read the picture behind a mark,
+  so it leaves that check to the dialog.
+
 ## What has been tried
 
 In the real window (a development build driven through its debugging port, with real key presses and clicks): the three panes side by side, each a
@@ -177,6 +208,15 @@ open; Add a callout, Move up and Move down (letters following the position and t
 the click button being off with its reason; Save updating the entry under the picture and on the page, being announced and returning the keyboard to the
 button; Cancel and Escape changing nothing; deleting all callouts and making one again from the click; and a project with callouts packed, unpacked and read
 by another program (the .NET zip reader) with no letters in the file.
+
+The Drawing dialog, in the real window on a click picture of a made-up window, with a real mouse and real key presses: an empty dialog offering four Add buttons with the keyboard on the first and
+saying contrast is only a warning; adding an arrow (selected, a handle at each end, named for a screen reader, every control named and saying which mark); drawing the arrow on an empty place from
+tail to head; dragging its head and moving it 10 pixels with Shift and an arrow; its contrast against the picture shown with a symbol; yellow on the light window warned in plain words and announced;
+black passing; a colour that is not one explained with the dialog kept open; the alternative-text reminder going once it is written; a text box (words, a red fill with white letters passing at 5.6 to 1,
+colours too close warned, words that do not fit and Make the box tall enough); a named style saved (an empty name and a taken name explained), listed with its own contrast and applied by copying to a
+rectangle; a numbered marker dragged to a place and a label that is too long explained; Move towards the bottom renumbering and Delete counting what is left; Save updating the picture list, the thumbnail
+and announcing; reopening bringing the marks and the style back; Cancel and Escape changing nothing; and the print preview drawing the marks and describing them. By keyboard alone: Tab reaching every
+control and never leaving the dialog (with no marks, an arrow, and a text box), and Escape giving the keyboard back. The pictures were looked at.
 
 The previews, in the real window with a chapter, a topic with a heading, a procedure, a callout box and a click picture with a callout, and a comment: three tabs with only the chosen one
 in the Tab order; the Right arrow choosing Print preview and keeping the keyboard on the tab, the panel named by its tab, and it announced; the preview being a named region the
@@ -216,5 +256,5 @@ settings and Callouts dialogs, the arrow keys moving through the three view choi
 and fixed a real fault: the four region boxes were still on the screen and in the Tab order while "whole picture" was chosen (a style rule overrode the hidden
 attribute), so `[hidden]` now always hides.
 
-Not tried: the previews, picture views and callouts with a screen reader, a book of 200 topics in the print preview (it draws the whole book each time), a view on a very small or very large picture by eye, and a callout on a very small or very large picture by eye; saving a project with pages through the app's own Save and Open (the format has unit tests, including packing and unpacking and every way a page file
+Not tried: the Drawing dialog with a screen reader (it has about 90 controls with three marks, so it needs a person's judgement), picture views and callouts with a screen reader, a book of 200 topics in the print preview (it draws the whole book each time), a view on a very small or very large picture by eye, and a callout on a very small or very large picture by eye; saving a project with pages through the app's own Save and Open (the format has unit tests, including packing and unpacking and every way a page file
 can be wrong); a screen reader; keyboard-only use start to finish by a person; many blocks (a page of 200); and print or help site output, which is not built.

@@ -5,7 +5,7 @@ import {
 } from "../src/project/contrast.ts";
 import {
   addShape, arrowHead, cleanShapes, cleanTreeShapes, failing, fitHeight, kindName, missingAlt, moveShape, needsAlt, newShape, removeShape, setShapes, shapeBounds, shapeChecks,
-  shapeLine, shapesDescription, shapeWords, textLines, wordsFit, wrapText, type ArrowShape, type MarkerShape, type RectShape, type Shape, type TextShape,
+  checkShapeInput, inputFromShape, marksSummary, SHAPE_FIELDS, shapeLine, shapesDescription, shapeWords, textLines, wordsFit, wrapText, type ArrowShape, type MarkerShape, type RectShape, type Shape, type TextShape,
 } from "../src/project/shapes.ts";
 import { applyStyle, checkStyleName, cleanStyles, coloursOf, deleteStyle, MOST_NAME, styleChecks, styleFromShape, type NamedStyle } from "../src/project/styles.ts";
 import { addNode, addPicture, createProject, CURRENT_VERSION, type Picture } from "../src/project/model.ts";
@@ -292,4 +292,74 @@ test("cleaning a tree reaches pictures in nested topics and leaves the rest alon
   const clean = cleanTreeShapes(tree);
   assert.deepEqual(clean[0].children[0].pictures[0].shapes, [marker]);
   assert.equal(clean[0].title, "A");
+});
+
+test("the marks on a picture are counted in words for the picture list, with how many still need alternative text", () => {
+  assert.equal(marksSummary(picture()), null);
+  const arrow = newShape("arrow", size), text = newShape("text", size), marker = newShape("marker", size);
+  assert.equal(marksSummary(picture({ shapes: [arrow] })), "1 mark: 1 arrow. 1 still needs alternative text.");
+  assert.equal(marksSummary(picture({ shapes: [arrow, text, marker, newShape("arrow", size)] })), "4 marks: 2 arrows, 1 text box and 1 numbered marker. 2 still need alternative text.");
+  assert.equal(marksSummary(picture({ shapes: [text, marker] })), "2 marks: 1 text box and 1 numbered marker.");
+});
+
+test("the boxes of the Drawing dialog are listed for each kind and filled from a mark", () => {
+  for (const kind of ["arrow", "text", "rectangle", "marker"] as const) {
+    const fields = SHAPE_FIELDS[kind].map((f) => f.field);
+    assert.equal(fields[fields.length - 1], "alt", `${kind}: alternative text comes last`);
+    const input = inputFromShape(newShape(kind, size));
+    assert.deepEqual(Object.keys(input).sort(), [...fields].sort(), `${kind}: every box has a value`);
+  }
+  assert.equal(inputFromShape(newShape("rectangle", size)).fill, "none", "no fill is the word none");
+  assert.equal(inputFromShape({ ...(newShape("text", size) as TextShape), text: "Hi" }).text, "Hi");
+});
+
+test("typed boxes make a mark, keep its id and its kept-colours record, and a mistake is explained in plain words and names the box", () => {
+  const arrow = { ...(newShape("arrow", size) as ArrowShape), keptLowContrast: true as const };
+  const input = { ...inputFromShape(arrow), fromX: "100", fromY: "200", toX: "300", toY: "250", color: "1565c0", thickness: "8", alt: "  Points   at Save " };
+  const ok = checkShapeInput(arrow, input, size);
+  assert.ok(ok.ok);
+  assert.deepEqual(ok.ok && ok.shape, { id: arrow.id, kind: "arrow", alt: "Points at Save", keptLowContrast: true, from: { x: 100, y: 200 }, to: { x: 300, y: 250 }, color: "#1565C0", thickness: 8 });
+  const bad = (previous: Shape, change: Record<string, string>) => checkShapeInput(previous, { ...inputFromShape(previous), ...change }, size);
+  let r = bad(arrow, { toX: "abc" });
+  assert.ok(!r.ok && r.field === "toX" && /^Type how far across the head is as a whole number from 0 to 1920, such as 960\. "abc" is not one\.$/.test(r.message));
+  r = bad(arrow, { thickness: "500" });
+  assert.ok(!r.ok && r.field === "thickness" && /The picture is 1920 by 1080 pixels\. Type the thickness as a number from 1 to 100\./.test(r.message));
+  r = bad(arrow, { color: "red" });
+  assert.ok(!r.ok && r.field === "color" && /^Type the color as six hex digits, such as C62828\. "red" is not one\.$/.test(r.message));
+  r = bad({ ...arrow, from: { x: 5, y: 5 }, to: { x: 50, y: 50 } }, { fromX: "9", fromY: "9", toX: "9", toY: "9" });
+  assert.ok(!r.ok && r.field === "toX" && /head of the arrow is on its tail/.test(r.message));
+  r = bad(arrow, { alt: "x".repeat(301) });
+  assert.ok(!r.ok && r.field === "alt" && /at most 300 letters\. This has 301\./.test(r.message));
+
+  const text = newShape("text", size) as TextShape;
+  const made = checkShapeInput(text, { ...inputFromShape(text), text: "Press   Save", left: "100", top: "100", width: "400", height: "120", size: "30", fill: "NONE", outline: "#000", textColor: "fff" }, size);
+  assert.ok(made.ok && made.shape.kind === "text" && made.shape.text === "Press Save" && made.shape.fill === null && made.shape.outline === "#000000" && made.shape.textColor === "#FFFFFF");
+  r = bad(text, { left: "1700", width: "500" });
+  assert.ok(!r.ok && r.field === "width" && /^The box reaches past the right edge of the picture, which is 1920 pixels wide\. Make the width 220 or less/.test(r.message));
+  r = bad(text, { top: "1000", height: "200" });
+  assert.ok(!r.ok && r.field === "height" && /Make the height 80 or less, or start it higher\./.test(r.message));
+  r = bad(text, { width: "2" });
+  assert.ok(!r.ok && r.field === "width" && /from 4 to 1920/.test(r.message));
+  r = bad(text, { fill: "pink" });
+  assert.ok(!r.ok && r.field === "fill" && /six hex digits, such as C62828, or the word none\. "pink" is not one\./.test(r.message));
+  r = bad(text, { text: "w".repeat(301) });
+  assert.ok(!r.ok && r.field === "text");
+
+  const rect = newShape("rectangle", size) as RectShape;
+  const rr = checkShapeInput(rect, { ...inputFromShape(rect), fill: "#FFD600", seeThrough: "60" }, size);
+  assert.ok(rr.ok && rr.shape.kind === "rectangle" && rr.shape.fill === "#FFD600" && rr.shape.seeThrough === 60);
+  r = bad(rect, { seeThrough: "101" });
+  assert.ok(!r.ok && r.field === "seeThrough");
+  r = bad(rect, { left: "1920" });
+  assert.ok(!r.ok && r.field === "left" && /from 0 to 1919/.test(r.message));
+
+  const marker = newShape("marker", size) as MarkerShape;
+  const mm = checkShapeInput(marker, { ...inputFromShape(marker), label: "B2", x: "10", y: "20" }, size);
+  assert.ok(mm.ok && mm.shape.kind === "marker" && mm.shape.label === "B2" && mm.shape.at.x === 10);
+  r = bad(marker, { label: "" });
+  assert.ok(!r.ok && r.field === "label" && /^Type one to three letters or digits for the label, such as 1 or A\.$/.test(r.message));
+  r = bad(marker, { label: "ABCD" });
+  assert.ok(!r.ok && r.field === "label" && /"ABCD" is not allowed\./.test(r.message));
+  r = bad(marker, { size: "3" });
+  assert.ok(!r.ok && r.field === "size" && /from 6 to 200/.test(r.message));
 });

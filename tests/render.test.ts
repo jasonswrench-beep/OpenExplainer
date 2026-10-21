@@ -8,6 +8,7 @@ import { addNode, addPicture, createProject, ensurePage, type Picture, type Proj
 import { addBlock, makeBlock, type Block } from "../src/project/page.ts";
 import { addComment } from "../src/project/comments.ts";
 import type { Callout } from "../src/project/callouts.ts";
+import { newShape, type ArrowShape, type MarkerShape, type RectShape, type TextShape } from "../src/project/shapes.ts";
 
 const picture = (extra: Partial<Picture> = {}): Picture => ({
   id: "p1", file: "images/p1.png", width: 1920, height: 1080, altText: "The Save dialog", source: { kind: "click", capturedAt: "t" },
@@ -187,4 +188,69 @@ test("the first topic has no previous link, the last has no next, a chapter list
   assert.ok(last.includes("hs-previous") && !last.includes("hs-next"));
   assert.match(renderHelpPage(ctxFor(project), null), /Select a chapter or topic to see its page\./);
   assert.ok(!renderHelpPage(ctxFor(project), chapter.id).includes("SECRET"));
+});
+
+function marked(): { arrow: ArrowShape; text: TextShape; rect: RectShape; marker: MarkerShape } {
+  const size = { width: 1920, height: 1080 };
+  const arrow = { ...(newShape("arrow", size) as ArrowShape), from: { x: 400, y: 600 }, to: { x: 500, y: 500 }, alt: "Points at the Save button" };
+  const text = { ...(newShape("text", size) as TextShape), box: { x: 600, y: 200, width: 400, height: 120 }, text: "Press Save now", fill: "#C62828", textColor: "#FFFFFF" };
+  const rect = { ...(newShape("rectangle", size) as RectShape), box: { x: 100, y: 100, width: 300, height: 100 }, fill: "#FFD600", seeThrough: 75, alt: "The toolbar" };
+  const marker = { ...(newShape("marker", size) as MarkerShape), at: { x: 800, y: 700 }, label: "2" };
+  return { arrow, text, rect, marker };
+}
+
+test("marks are drawn over the picture from the bottom one to the top one, under the callouts and over the click circle", () => {
+  const { arrow, text, rect, marker } = marked();
+  const over = overlayFor(picture({ shapes: [rect, arrow, text, marker], callouts: [callout("c1")] }), { cx: 196, cy: 453, r: 28.8, color: "#FFD600", opacity: 0.6 })!;
+  const tags = over.parts.map((p) => p.tag);
+  assert.equal(tags[0], "circle", "the click circle is first");
+  assert.deepEqual(tags.slice(1, 4), ["rect", "line", "polygon"], "then the rectangle and the arrow in their order");
+  assert.equal(over.parts[1].attrs.fill, "#FFD600");
+  assert.equal(over.parts[1].attrs["fill-opacity"], 0.25, "75 percent see-through is a quarter solid");
+  assert.equal(over.parts[1].attrs["stroke-width"], 6);
+  const textParts = over.parts.filter((p) => p.tag === "text").map((p) => p.text);
+  assert.ok(textParts.includes("Press Save now") || (textParts.includes("Press Save") && textParts.includes("now")), "the words of the text box are drawn, in lines that fit");
+  assert.ok(textParts.includes("2") && textParts[textParts.length - 1] === "A", "the marker, then the callout's letter last, on top");
+  const line = over.parts.find((p) => p.tag === "line" && p.attrs.stroke === "#C62828" && p.attrs["stroke-linecap"] === "round")!;
+  assert.deepEqual([line.attrs.x1, line.attrs.y1], [400, 600]);
+  const head = over.parts.find((p) => p.tag === "polygon")!;
+  assert.match(String(head.attrs.points), /^500,500 /, "the head's tip is where the arrow points");
+  const markerLetter = over.parts.find((p) => p.tag === "text" && p.text === "2")!;
+  assert.equal(markerLetter.attrs.fill, "#FFFFFF", "white letters on the red marker");
+  const svg = overlaySvg(over, "pv-marks");
+  assert.match(svg, /<polygon points="500,500 /);
+  assert.ok(svg.includes("</svg>"));
+});
+
+test("a mark wholly outside the part shown is not drawn, and a picture with only marks still has a drawing", () => {
+  const { arrow } = marked();
+  assert.equal(overlayFor(picture({ shapes: [arrow] }), null, { x: 1000, y: 700, width: 500, height: 300 }), null);
+  const only = overlayFor(picture({ shapes: [arrow] }), null)!;
+  assert.deepEqual(only.parts.map((p) => p.tag), ["line", "polygon"]);
+  assert.equal(overlayFor(picture({ shapes: [arrow] }), null, { x: 300, y: 400, width: 400, height: 300 })!.parts.length, 2, "one that is partly in it is drawn");
+});
+
+test("the marks are part of a picture's description for a screen reader", () => {
+  const { arrow, text, marker } = marked();
+  assert.equal(altTextFor(picture({ shapes: [arrow, text, marker] })), 'The Save dialog Marks: Arrow: Points at the Save button. Text box: "Press Save now". Marker 2.');
+  assert.equal(altTextFor(picture({ altText: "", shapes: [text] })), 'Marks: Text box: "Press Save now".');
+  assert.equal(altTextFor(picture({ altText: "", callouts: [callout("c1")], shapes: [marker] })), "Callouts: A. Save: Saves your work. Marks: Marker 2.");
+  const { project } = sample();
+  const html = figureHtml(ctxFor(project), picture({ shapes: [arrow, text] }));
+  assert.match(html, /alt="The Save dialog Marks: Arrow: Points at the Save button\. Text box: &quot;Press Save now&quot;\."/, "escaped in the page");
+  assert.match(html, /<polygon points=/);
+});
+
+test("the preview tells the writer about marks with no alternative text and about colours that are too close, and says when they were kept on purpose", () => {
+  const { project } = sample();
+  const { arrow, text } = marked();
+  const told: string[] = [];
+  const ctx = ctxFor(project, { notes: true, onNote: (w) => told.push(w) });
+  figureHtml(ctx, picture({ shapes: [{ ...arrow, alt: "" }, { ...text, fill: "#E57373", keptLowContrast: true }] }), "1.1 Saving");
+  assert.ok(told.some((n) => /^1\.1 Saving: 1 mark \(an arrow or a rectangle\) has no alternative text yet/.test(n)), told.join(" | "));
+  assert.ok(told.some((n) => /^1\.1 Saving: Text box: Text on its fill: \d\.\d to 1, which is below the 4\.5 to 1 minimum \(WCAG 2\.2 AA\)\..*\(The colours were kept on purpose\.\)$/.test(n)), told.join(" | "));
+  const quiet: string[] = [];
+  figureHtml(ctxFor(project, { notes: true, onNote: (w) => quiet.push(w) }), picture({ view: { kind: "zoom" }, shapes: [arrow, text] }));
+  assert.ok(!quiet.some((n) => /alternative text|Text on its fill/.test(n)), "a mark with a description and colours that pass says nothing");
+  assert.ok(!figureHtml(ctxFor(project, { notes: false }), picture({ shapes: [{ ...arrow, alt: "" }] })).includes("pv-note"), "an export has no notes");
 });

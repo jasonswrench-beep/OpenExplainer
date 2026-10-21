@@ -1,7 +1,7 @@
 // The handles laid over a sample picture so a box (a callout's outline, or a crop region) and a point (a callout's marker) can be drawn, moved and resized with the
 // mouse, or moved and resized with the arrow keys. The rules are in src/pointing.ts. This only fills things in: the dialogs keep their number boxes as the exact
 // record, and every change made here goes through them, so the checks, the live sample and Cancel work as they always did.
-import { boxFromPoints, boxWords, keyStep, moveBox, movePoint, pointWords, resizeByKey, resizeCorner, toPicturePoint, type Box, type Corner, type Point, type Size } from "./pointing.ts";
+import { boxFromPoints, boxWords, keyStep, MIN_DRAG, moveBox, movePoint, pointWords, resizeByKey, resizeCorner, toPicturePoint, type Box, type Corner, type Point, type Size } from "./pointing.ts";
 
 /** A box the author can draw, move and resize. */
 export interface BoxTarget {
@@ -32,13 +32,36 @@ export interface OtherMarker {
   pick(): void;
 }
 
+/** A part of a picture that can be pressed to pick the mark that is there (another mark's outline). */
+export interface HitBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string;
+  pick(): void;
+}
+
+/** Drawing a line by dragging from where the pointer went down to where it is now, such as an arrow from its tail to its head. */
+export interface LineTarget {
+  label: string;
+  begin(): () => void;
+  set(from: Point, to: Point): void;
+}
+
 export interface LayerOptions {
   size: Size;
   /** Says something to a screen reader. */
   say(text: string): void;
   box?: BoxTarget;
   point?: PointTarget;
+  /** More points to move besides `point`, such as the two ends of an arrow. */
+  extraPoints?: PointTarget[];
+  /** Dragging on an empty place draws a line, when there is no box to draw. */
+  lineDraw?: LineTarget;
   others?: OtherMarker[];
+  /** Other marks, to press to pick them. */
+  hits?: HitBox[];
 }
 
 export interface PointerLayer {
@@ -53,7 +76,8 @@ const HINT = "Arrow keys move it by 1 pixel, and by 10 with Shift. Control with 
 
 /** Builds the layer. Put `element` over the picture (inside the box that holds the image, after its drawing). */
 export function createPointerLayer(options: LayerOptions): PointerLayer {
-  const { size, box, point } = options;
+  const { size, box } = options;
+  const pointSpecs = [options.point, ...(options.extraPoints ?? [])].filter((p): p is PointTarget => !!p);
   const layer = document.createElement("div");
   layer.className = "pointer-layer";
   const id = `pl-${++counter}`;
@@ -117,7 +141,8 @@ export function createPointerLayer(options: LayerOptions): PointerLayer {
   };
 
   let boxEl: HTMLElement | null = null;
-  let markerEl: HTMLElement | null = null;
+  const hitEls: { el: HTMLElement; spec: HitBox }[] = [];
+  const pointEls: { el: HTMLElement; spec: PointTarget }[] = [];
   const otherEls: { el: HTMLElement; spec: OtherMarker }[] = [];
 
   // Other callouts' markers, to pick them.
@@ -129,6 +154,34 @@ export function createPointerLayer(options: LayerOptions): PointerLayer {
     el.addEventListener("pointerdown", (event) => { event.preventDefault(); event.stopPropagation(); spec.pick(); });
     layer.append(el);
     otherEls.push({ el, spec });
+  }
+
+  // Other marks' outlines, to pick them. They sit under the mark being edited.
+  for (const spec of options.hits ?? []) {
+    const el = document.createElement("div");
+    el.className = "pointer-hit";
+    el.setAttribute("aria-hidden", "true");
+    el.title = spec.label;
+    el.addEventListener("pointerdown", (event) => { event.preventDefault(); event.stopPropagation(); spec.pick(); });
+    layer.append(el);
+    hitEls.push({ el, spec });
+  }
+
+  if (!box && options.lineDraw) {
+    // Dragging on the empty picture draws a line from where it went down to where it is now.
+    const lineDraw = options.lineDraw;
+    layer.addEventListener("pointerdown", (event) => {
+      if (event.target !== layer || event.button !== 0) return;
+      const start = at(event);
+      const undo = lineDraw.begin();
+      let last: Point | null = null;
+      drag(layer, event, undo, (now) => {
+        if (Math.hypot(now.x - start.x, now.y - start.y) < MIN_DRAG) return;
+        last = now;
+        lineDraw.set(start, now);
+        update();
+      }, () => { if (last) options.say(`${lineDraw.label}: from ${start.x} across and ${start.y} down to ${last.x} across and ${last.y} down.`); });
+    });
   }
 
   if (box) {
@@ -188,23 +241,23 @@ export function createPointerLayer(options: LayerOptions): PointerLayer {
     layer.append(boxEl);
   }
 
-  if (point) {
-    markerEl = document.createElement("div");
-    markerEl.className = "pointer-marker";
-    markerEl.tabIndex = 0;
-    markerEl.setAttribute("role", "application");
-    markerEl.setAttribute("aria-roledescription", "movable marker");
-    markerEl.setAttribute("aria-label", point.label);
-    markerEl.setAttribute("aria-describedby", hint.id);
-    markerEl.addEventListener("pointerdown", (event) => {
+  for (const point of pointSpecs) {
+    const el = document.createElement("div");
+    el.className = "pointer-marker";
+    el.tabIndex = 0;
+    el.setAttribute("role", "application");
+    el.setAttribute("aria-roledescription", "movable marker");
+    el.setAttribute("aria-label", point.label);
+    el.setAttribute("aria-describedby", hint.id);
+    el.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
       const start = at(event);
       const original = point.get();
       const undo = point.begin();
-      drag(markerEl!, event, undo, (now) => { point.set(movePoint(original, now.x - start.x, now.y - start.y, size)); update(); }, () => options.say(pointWords(point.label, point.get())));
-      markerEl!.focus();
+      drag(el, event, undo, (now) => { point.set(movePoint(original, now.x - start.x, now.y - start.y, size)); update(); }, () => options.say(pointWords(point.label, point.get())));
+      el.focus();
     });
-    markerEl.addEventListener("keydown", (event) => {
+    el.addEventListener("keydown", (event) => {
       const step = keyStep(event.key, { shift: event.shiftKey, ctrl: false });
       if (!step || event.altKey || event.metaKey || event.ctrlKey) return;
       event.preventDefault();
@@ -214,17 +267,19 @@ export function createPointerLayer(options: LayerOptions): PointerLayer {
       update();
       announceLater(() => pointWords(point.label, point.get()));
     });
-    layer.append(markerEl);
+    layer.append(el);
+    pointEls.push({ el, spec: point });
   }
 
   function update() {
     if (box && boxEl) place(boxEl, box.get());
-    if (point && markerEl) {
-      const p = point.get();
-      markerEl.style.left = pct(p.x, size.width);
-      markerEl.style.top = pct(p.y, size.height);
-      markerEl.style.width = pct(point.radius * 2, size.width);
+    for (const { el, spec } of pointEls) {
+      const p = spec.get();
+      el.style.left = pct(p.x, size.width);
+      el.style.top = pct(p.y, size.height);
+      el.style.width = pct(spec.radius * 2, size.width);
     }
+    for (const { el, spec } of hitEls) place(el, spec);
     for (const { el, spec } of otherEls) {
       el.style.left = pct(spec.x, size.width);
       el.style.top = pct(spec.y, size.height);

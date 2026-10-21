@@ -350,8 +350,14 @@ Parts, in order:
    (new marks, cleaning, arrow head, text wrapping, what a mark says, the checks), `src/project/styles.ts` (apply by copy, names, cleaning), migration 8 to 9, 18 tests,
    `docs/format-spec.md` ("Marks drawn on a picture", "Named styles"). Defaults chosen: applying a style copies colours (no link); a marker's label is typed by the author and its letter
    colour is black or white by contrast; a text box's fill is white; a kept low-contrast choice is recorded when a mark is saved while failing (`keptLowContrast`). b. Drawing the marks in
-   the editor, the previews and the exports, and adding them to a picture's description. NOT built. c. The Drawing dialog (add, type numbers, point with the mouse and keys, swatches,
-   contrast warnings, named styles). NOT built.
+   the editor, the previews and the exports, and adding them to a picture's description. (DONE) `src/render/overlay.ts` draws marks (`shapeParts`: the arrow's line and head, the rectangle with its
+   see-through fill, the text box with its words wrapped into lines, the marker with a letter that is black or white by contrast) between the click circle and the callouts; `altTextFor` adds
+   "Marks: ..."; the preview notes mention marks with no alternative text and low contrast. c. The Drawing dialog (DONE): `src/drawing-dialog.ts` (add, typed boxes checked by `checkShapeInput`,
+   pointing with the shared pointer layer, which gained extra points, line drawing and pickable outlines; swatch lists, contrast lines in words with symbols, announcements; named styles; save records
+   `keptLowContrast`), `src/backdrop.ts` (reads the colour behind a mark through a canvas), the Drawing button and "Drawing: ..." line in `src/main.ts`; written up in `docs/editor.md` ("Drawing
+   marks"); tried in the real window (scenarios `drawing`, `keyboard2` extended). Not built: the accessibility check that lists every low-contrast mark and every mark with no alternative text across the
+   book (the data is there: `shapeChecks`, `missingAlt`, `keptLowContrast`), a contrast check of the built-in callout box styles in a list, drawing marks into exports (reuse `src/render/overlay.ts`;
+   the text box lines are drawn as separate SVG texts, which an export to PDF or Word must keep), a quick guide preview. Defaults for Jason to confirm are in the first paragraph of this item.
 9. Then the check tool (in the design spec, not on Jason's To-Do List), then Step 6 (export).
 
 ## Still open (ask Jason, do not guess)
