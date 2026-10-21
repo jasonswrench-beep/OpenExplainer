@@ -16,6 +16,20 @@ pub fn config_folder(app: &AppHandle) -> Result<PathBuf, String> {
     }
 }
 
+/// Where the app keeps big files that belong to this PC and not to a project (the built-in AI model). In a development build a test can point it somewhere else with
+/// `OPENEXPLAINER_DATA_DIR`, so a test never touches the real folder.
+pub fn data_folder(app: &AppHandle) -> Result<PathBuf, String> {
+    let folder = if cfg!(debug_assertions) {
+        std::env::var_os("OPENEXPLAINER_DATA_DIR").map(PathBuf::from)
+    } else {
+        None
+    };
+    match folder {
+        Some(f) => Ok(f),
+        None => app.path().app_local_data_dir().map_err(|e| format!("The folder for the app's data could not be found: {e}")),
+    }
+}
+
 /// Keeps a settings file, making its folder first.
 pub fn write_settings_file(path: &PathBuf, text: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {

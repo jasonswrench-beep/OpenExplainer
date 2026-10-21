@@ -17,10 +17,14 @@ serde_json = "1"
 # For making a PDF (src/pdf.rs): the answer comes back as base64 text. Already part of Tauri's own dependencies.
 base64 = "0.22"
 
+# For the built-in AI model (src/models.rs): the SHA-256 fingerprint that shows the downloaded file is the one that was audited. Already in Tauri's own build tools at this version.
+sha2 = "0.10"
+
 # The browser engine Tauri uses on Windows (WebView2), asked to print a page to a PDF. Both are already part of Tauri's own dependencies, at these versions.
+# The `windows` crate also reads the free disk space and the memory of this PC for the AI model's download (src/models.rs).
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39"
-windows = "0.62"
+windows = { version = "0.62", features = ["Win32_Storage_FileSystem", "Win32_System_SystemInformation"] }
 
 [profile.release]
 lto = "thin"

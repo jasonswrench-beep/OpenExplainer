@@ -12,7 +12,7 @@ downloads the first time the author turns the built-in model on; drafts and writ
 | Part | State |
 | --- | --- |
 | 1. Settings and the connector | **Built 2026-10-21.** See below. |
-| 2. The model download | Not started. Waits for Jason's yes before the first real 2.7 GB download. |
+| 2. The model download | **Built 2026-10-21 and tried against a stand-in download site only.** The first real 2.7 GB download waits for Jason's yes. See below. |
 | 3. The runtime and Test the AI | Not started. |
 | 4 to 8 | Not started. |
 
@@ -29,6 +29,25 @@ downloads the first time the author turns the built-in model on; drafts and writ
   the model's facts in words, and its state ("Not downloaded."). Keyboard operable, Escape closes without keeping anything, status in words.
 - Tests: `tests/ai.test.ts` (12) against `tests/fake-llama.ts`, a stand-in for `llama-server` that can misbehave on purpose; Rust test for the settings file;
   scenario `ai` in the real window.
+
+### What part 2 is
+
+- `src/ai/download.ts`: the downloader. Asks for the one pinned file in pieces of about 4 MB, saves each piece to a half-finished file, and at the end checks the file's SHA-256 against the pinned value. A file that does not match is
+  deleted and the author told; only a matching file is ever kept, with a small note (`.verified.json`) that it passed, so the dialog does not have to check 2.7 GB every time it opens.
+  **Pause** keeps what arrived. **Resume** (or a closed app, or a dropped connection) carries on from the saved size with a "Range" request. A lost connection is tried again three times (after 2, 5 and 15 seconds; a try that got
+  somewhere starts the count again), then the download stops with the place it got to and Resume ready. **Cancel** deletes the partial file (after asking). A server that ignores the request for the rest is handled (the file is taken from the start),
+  and so are a file of the wrong size, one that is longer than it should be, a missing file, a sign-in request, a full disk and a piece that would land in the wrong place.
+- The licence text (11 KB, pinned and checked by its own SHA-256) is fetched before the model, kept beside it, and shown by **Show the licence text**. If it is not the one that was checked, nothing is downloaded.
+- `src-tauri/src/models.rs`: the shell part. Keeps the files in `models` inside the app's data folder (`%LOCALAPPDATA%\org.openexplainer.app\models`), only ever touches files named after the one model file with fixed endings, refuses a piece that does not start
+  exactly where the saved file ends, flushes and renames the finished file, works out the SHA-256 (with progress), and reads the free disk space and the memory of the PC. The `sha2` crate was already in Tauri's build tools; the licence check passed before and after.
+- `src/ai-dialog.ts`: Download, Resume, Pause, Cancel, Check the file, Delete the model and Show the licence text, a progress bar with the numbers in words and an estimate of the time left, and the facts about this PC in words. Disk space that cannot
+  possibly hold the file stops the download (it says so with the numbers); little memory only warns. The keyboard moves to the button that takes the place of the one just pressed. Progress is announced to a screen reader at every tenth part and
+  when something changes, not continuously. The download belongs to the app, so it carries on when the dialog is closed, and the main window says when it ends.
+- Tests: `tests/ai-download.test.ts` (16) against `tests/fake-hub.ts` (a stand-in for the Hugging Face site with its redirect and Range answers, and ways to misbehave) and `tests/fake-model-files.ts`; 5 Rust tests for the file rules and the SHA-256;
+  scenario `aidownload` in the real window (against the stand-in site, with the data folder pointed at a scratch folder by `OPENEXPLAINER_DATA_DIR`, which a development build honours).
+- Checked against the real site with **headers only** (no model data): the address answers any web page's origin and redirects to a second address, which allows any origin, supports "Range" (answers 206 with a Content-Range) and exposes the headers
+  the downloader reads. So a download straight from the app's page works. The second address is signed and expires after about an hour; every retry starts again from the first address, so a long or paused download is fine.
+- Not tried: a real download; the speed on a slow connection; Windows' own reaction to 2.7 GB written in pieces (an antivirus program may scan the file as it grows); what happens when the PC sleeps mid-download.
 
 ### To check against the real `llama-server` in part 3 (the fake cannot prove these)
 

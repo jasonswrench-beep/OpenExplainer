@@ -4,6 +4,7 @@ mod ai;
 mod capture;
 mod config;
 mod mcp;
+mod models;
 mod pdf;
 
 fn main() {
@@ -48,7 +49,16 @@ fn main() {
             mcp::mcp_exe_path,
             mcp::mcp_settings_set,
             ai::ai_settings_get,
-            ai::ai_settings_set
+            ai::ai_settings_set,
+            models::ai_machine_facts,
+            models::ai_model_files,
+            models::ai_model_append,
+            models::ai_model_finish,
+            models::ai_model_remove,
+            models::ai_model_hash,
+            models::ai_model_save_record,
+            models::ai_model_write_licence,
+            models::ai_model_read_licence
         ])
         .run(tauri::generate_context!())
         .expect("OpenExplainer could not start.");

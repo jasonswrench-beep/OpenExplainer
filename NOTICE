@@ -22,3 +22,15 @@ Libraries used by the app's shell (src-tauri/) for making a PDF (src-tauri/src/p
 - webview2-com (Rust bindings for Microsoft's WebView2 browser engine), MIT. https://github.com/wravery/webview2-rs
 - windows (Microsoft's Rust bindings for the Windows API), MIT OR Apache-2.0. https://github.com/microsoft/windows-rs
 - base64 (decoding the PDF the browser engine returns), MIT OR Apache-2.0. https://github.com/marshallpierce/rust-base64
+
+Libraries used by the app's shell (src-tauri/src/models.rs) for the built-in AI model's download, each already in Tauri's own dependencies or part of an existing one:
+
+- sha2 (the SHA-256 fingerprint that shows a downloaded model file is the one that was checked), MIT OR Apache-2.0. https://github.com/RustCrypto/hashes
+- windows (Microsoft's Rust bindings for the Windows API), MIT OR Apache-2.0, now also with the features that read the free disk space and the memory of the PC. https://github.com/microsoft/windows-rs
+
+The built-in AI model is not part of this program. The program offers to download it, on the author's request, from Hugging Face, and checks the file's SHA-256 before using it:
+
+- Qwen3.5-4B, by Alibaba Cloud (Qwen), Apache License 2.0, Copyright 2026 Alibaba Cloud. https://huggingface.co/Qwen/Qwen3.5-4B
+- The file Qwen3.5-4B-Q4_K_M.gguf, a smaller copy of that model made by Unsloth, Apache License 2.0 (as stated on its page). https://huggingface.co/unsloth/Qwen3.5-4B-GGUF
+  Pinned to commit e87f176479d0855a907a41277aca2f8ee7a09523, 2,740,937,888 bytes, SHA-256 00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4.
+- The licence text is downloaded and kept beside the model, and can be read from the AI help dialog. The audit is in docs/local-ai-plan.md.

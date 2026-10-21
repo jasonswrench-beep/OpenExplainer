@@ -21,7 +21,11 @@ export interface ModelInfo {
   licenceCommit: string;
   licenceBytes: number;
   licenceSha256: string;
+  /** The web site the files come from. Only a test sets this (to a stand-in server); the real model always comes from Hugging Face. */
+  hub?: string;
 }
+
+const HUB = "https://huggingface.co";
 
 export const BUILTIN_MODEL: ModelInfo = {
   title: "Qwen 3.5, 4 billion parameters (Q4_K_M)",
@@ -42,17 +46,17 @@ export const BUILTIN_MODEL: ModelInfo = {
 
 /** The address the model file is downloaded from: a commit, never a branch, so it cannot change under us. */
 export function modelUrl(model: ModelInfo = BUILTIN_MODEL): string {
-  return `https://huggingface.co/${model.repo}/resolve/${model.commit}/${model.file}`;
+  return `${model.hub ?? HUB}/${model.repo}/resolve/${model.commit}/${model.file}`;
 }
 
 /** The address of the licence text that goes with the model. */
 export function licenceUrl(model: ModelInfo = BUILTIN_MODEL): string {
-  return `https://huggingface.co/${model.licenceRepo}/raw/${model.licenceCommit}/LICENSE`;
+  return `${model.hub ?? HUB}/${model.licenceRepo}/raw/${model.licenceCommit}/LICENSE`;
 }
 
 /** The page the model can be looked at on, for the author. */
 export function modelPageUrl(model: ModelInfo = BUILTIN_MODEL): string {
-  return `https://huggingface.co/${model.repo}/tree/${model.commit}`;
+  return `${model.hub ?? HUB}/${model.repo}/tree/${model.commit}`;
 }
 
 /** A size in words: "2.7 GB", "672 MB". Decimal units, like the download site. */

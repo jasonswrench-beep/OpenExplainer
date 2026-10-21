@@ -33,7 +33,7 @@ import { indexDialog } from "./index-dialog.ts";
 import { mcpDialog } from "./mcp-dialog.ts";
 import { aiDialog } from "./ai-dialog.ts";
 import { aiStatusWords } from "./ai/settings.ts";
-import { modelState } from "./ai/model-state.ts";
+import { modelState, watchModel } from "./ai/model-state.ts";
 import { buildBookIndex, indexSummary, setTermLines, termLines, updateBookIndex, updateTopicIndex } from "./project/book-index.ts";
 import { cleanGuides, guideSummary } from "./project/guides.ts";
 import { renderGuide } from "./render/guide.ts";
@@ -389,6 +389,15 @@ async function manageIndex() {
 $("b-index").addEventListener("click", () => void manageIndex());
 
 // ---- AI help: who drafts text for the author ---------------------------------------------------------------------
+// The model's download belongs to the app, so it can finish while the AI help dialog is closed: the author is told when it ends, by words in the announce area.
+{
+  let before = "absent";
+  watchModel((state) => {
+    if (state.status === before) return;
+    before = state.status;
+    if (state.status === "ready" || state.status === "failed" || state.status === "damaged") announce(state.status === "ready" ? "The built-in AI model has been downloaded and checked." : state.message);
+  });
+}
 $("b-ai").addEventListener("click", async () => {
   try {
     const saved = await aiDialog();

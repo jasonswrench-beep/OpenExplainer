@@ -17,8 +17,8 @@ export function cleanAiSettings(raw: unknown): AiSettings {
   return typeof choice === "string" && (AI_CHOICES as readonly string[]).includes(choice) ? { choice: choice as AiChoice } : { ...DEFAULT_AI_SETTINGS };
 }
 
-/** What the built-in model's files are doing on this PC. Part 2 (the download) fills this in; until then it is always "absent". */
-export type ModelState = "absent" | "partial" | "ready" | "damaged";
+/** What the built-in model's files are doing on this PC (src/ai/download.ts works it out). "unchecked" is a whole file that has not yet been checked against its fingerprint. */
+export type ModelState = "absent" | "partial" | "unchecked" | "ready" | "damaged";
 
 /** One plain sentence on where AI help stands, for the dialog and for what a screen reader is told. */
 export function aiStatusWords(settings: AiSettings, model: ModelState): string {
@@ -33,10 +33,12 @@ export function aiStatusWords(settings: AiSettings, model: ModelState): string {
           return "AI help will use the built-in model on this PC.";
         case "partial":
           return "The built-in model is only partly downloaded, so nothing can be drafted yet.";
+        case "unchecked":
+          return "The built-in model file is on this PC but has not been checked yet, so nothing can be drafted until it is.";
         case "damaged":
           return "The built-in model file is damaged, so nothing can be drafted until it is downloaded again.";
         default:
-          return "AI help will use the built-in model, but the model is not on this PC yet, so nothing can be drafted. (Downloading it is not built yet.)";
+          return "AI help will use the built-in model, but the model is not on this PC yet, so nothing can be drafted. Download it with the Download button.";
       }
   }
 }

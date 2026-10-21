@@ -406,9 +406,8 @@ Parts, in order:
     `OPENEXPLAINER_EXE=<path> node tools/mcp-e2e.mjs` tries one (it saves and restores the real MCP settings).
 18. The **local AI** (Step 7), plan and licence check in `docs/local-ai-plan.md`. Jason confirmed on 2026-10-21: Unsloth's `Qwen3.5-4B-Q4_K_M.gguf` (2,740,937,888 bytes, pinned by commit and SHA-256; Apache 2.0 all the way down),
     the runtime (llama.cpp `llama-server`, MIT) inside the installer, the model downloading the first time the built-in model is turned on, drafts and writing-style notes stored in the project (format v14, part 4).
-    **Part 1 DONE 2026-10-21** (settings and the connector, no download): `src/ai/` (`settings.ts`, `model-info.ts`, `types.ts`, `local.ts`, `connector.ts`, `model-state.ts`), `src/ai-dialog.ts` (the **AI help** button),
-    `src-tauri/src/ai.rs` + `config.rs`, `tests/ai.test.ts` + `tests/fake-llama.ts`, scenario `ai`. Next: part 2, the model download (progress, pause, resume, cancel, disk and memory checks, SHA-256 check, delete, licence text);
-    **ask Jason before the first real 2.7 GB download.**
+    **Part 2 DONE 2026-10-21, tried against a stand-in download site only** (the model download: `src/ai/download.ts`, `src/ai/shell-files.ts`, `src-tauri/src/models.rs`, the download controls in `src/ai-dialog.ts`, tests `ai-download.test.ts` with `fake-hub.ts`, scenario `aidownload`; see `docs/local-ai-plan.md`). **Part 1 DONE 2026-10-21** (settings and the connector, no download): `src/ai/` (`settings.ts`, `model-info.ts`, `types.ts`, `local.ts`, `connector.ts`, `model-state.ts`), `src/ai-dialog.ts` (the **AI help** button),
+    `src-tauri/src/ai.rs` + `config.rs`, `tests/ai.test.ts` + `tests/fake-llama.ts`, scenario `ai`. Next: **ask Jason before the first real 2.7 GB download** (it is the only way to prove the real site, the speed and Windows' reaction); then part 3, the runtime (`llama-server`) and a Test the AI button.
 
 ## Still open (ask Jason, do not guess)
 
