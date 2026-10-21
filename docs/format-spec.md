@@ -8,7 +8,7 @@ A saved project is ONE file named after the project, such as `Test1.openexplaine
 (stored without compression, so pictures are not compressed twice), written and read by `src/project/zip.ts` and
 `src/project/package.ts`. Any zip program can open it for inspection. Inside it, format version 6 holds two files, a page file for each topic that has a page, and a picture folder:
 
-- `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others), `highlight` (the look of the click circle, see "The click highlight"), `zoom`, `styles`, `checks` and `guides` (see "Short guides").
+- `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others), `highlight` (the look of the click circle, see "The click highlight"), `zoom`, `styles`, `checks`, `guides` (see "Short guides") and `paper` (see "Paper settings").
 - `structure.json`: `version` and `tree`, the chapters and topics.
 - `topics/<topic id>.json`: the page of a topic, only for a topic that has something on its page (see "The page").
 - `images/`: one file per picture, named `images/<picture id>.png` or `.jpg`. Only pictures a topic still uses are saved.
@@ -186,6 +186,15 @@ as `picture-alt:<picture id>`, `empty-topic:<topic id>`, `callout-description:<p
 adds the keys of the things of that kind found at that moment; a new one found later still shows. Cleaned when a project is opened and saved: only keys that are text, once each. The things the
 check finds are worked out from the project every time (`src/project/checks.ts`), never stored.
 
+## Paper settings
+
+`project.json` has `paper: { autoZoom }` (format version 12), choices about the printed book. `autoZoom` is `false` to begin with (and for any older project), so nothing changes until the author turns it on in
+Zoom settings. When it is on, a picture that would print too small is shown zoomed in on its click **on paper** instead of whole. On paper means the print preview, the PDF and Word; the editor, the help site,
+Markdown, JSON and the guides are not affected. A picture is switched only when all of these hold (`switchedForPaper` in `src/project/views.ts`): the setting is on; the picture has a click to zoom on; the author
+gave it **no view of its own** (a crop or a zoom the author chose always wins); the whole picture would print below half its size on screen (`MIN_PRINT_SCALE`, with the print text width `PRINT_TEXT_WIDTH`); and the book's
+zoom size really is narrower than the picture. A picture with no click stays whole (the book check still flags it). The picture's own record is never changed: `forPaper` makes a copy with a zoom view, and the
+outputs use it. The zoom size is the book's (`zoom.book`). Cleaned when a project is opened and saved: only `true` turns it on.
+
 ## Short guides
 
 `project.json` has `guides`, a list of short step-by-step guides: `{ id, name, tasks, layout, stepLayouts?, zoomFocus }`. A guide holds **no text of its own**. It is made of topics that are already in
@@ -239,6 +248,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 12: the project keeps choices about the printed book (`paper`), with an automatic zoom for pictures that would print too small, off to begin with. A version 11 project upgrades with it off. A copy of OpenExplainer that only knows version 11 refuses a version 12 project, so it can never open one and save it without the choice.
 - Version 11: the project can hold short step-by-step guides made from topics (`guides`). A version 10 project upgrades with none. A copy of OpenExplainer that only knows version 10 refuses a version 11 project, so it can never open one and save it without the guides.
 - Version 10: the project keeps what the author chose to ignore in the book check (`checks`). A version 9 project upgrades ignoring nothing. A copy of OpenExplainer that only knows version 9 refuses a version 10 project, so it can never open one and save it without those choices.
 - Version 9: a picture can have marks drawn on it (`shapes`), and the project keeps named styles (`styles`). A version 8 project upgrades with none. A copy of OpenExplainer that only knows version 8 refuses a version 9 project, so it can never open one and save it without the marks.

@@ -41,6 +41,7 @@ function context(project: Project, flat: Map<string, FlatPicture>): RenderContex
   return {
     project,
     place: "book",
+    paper: true,
     notes: false,
     flat: true,
     // A guide's pictures are made for each step (and a close-up), so they are found by the step; a book's by the picture.

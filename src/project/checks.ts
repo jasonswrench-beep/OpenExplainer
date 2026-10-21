@@ -6,7 +6,7 @@ import { failing, kindName, needsAlt, shapeChecks } from "./shapes.ts";
 import { numbering, type Picture, type Project, type TreeNode } from "./model.ts";
 import { calloutLabel, placedPictureIds, type Block, type Step } from "./page.ts";
 import { plainText } from "./text.ts";
-import { MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
+import { forPaper, MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
 
 export type CheckKind =
   | "picture-alt" | "mark-alt" | "mark-contrast" | "callout-name" | "callout-description"
@@ -161,9 +161,10 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
             add({ ...pic, shapeId: shape.id, key: `mark-contrast:${picture.id}:${shape.id}`, kind: "mark-contrast", words: `${kindName(shape.kind)} on the picture "${label}" in "${where}": ${why}${shape.keptLowContrast ? " (Kept on purpose.)" : ""}`, fix: "Open Drawing for the picture and choose colours that are further apart, or ignore this if you mean to keep them." });
           }
         }
-        const shown = shownPart(picture, project.zoom, "book");
+        // On paper a picture may be zoomed in on its click automatically (a setting), which can make it big enough.
+        const shown = shownPart(forPaper(picture, project.zoom, project.paper), project.zoom, "book");
         if (printScale(shown.width) < MIN_PRINT_SCALE) {
-          add({ ...pic, key: `print-small:${picture.id}`, kind: "print-small", words: `The picture "${label}" in "${where}" will print at about ${Math.round(printScale(shown.width) * 100)} percent of its size on screen, which may be too small to read.`, fix: "Choose Picture view for the picture and crop it or zoom in on the click." });
+          add({ ...pic, key: `print-small:${picture.id}`, kind: "print-small", words: `The picture "${label}" in "${where}" will print at about ${Math.round(printScale(shown.width) * 100)} percent of its size on screen, which may be too small to read.`, fix: `Choose Picture view for the picture and crop it or zoom in on the click${picture.click ? ", or turn on the automatic zoom for print in Zoom settings" : ""}.` });
         }
       }
       visit(node.children);

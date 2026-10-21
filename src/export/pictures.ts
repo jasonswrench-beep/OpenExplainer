@@ -6,7 +6,7 @@ import { focusPicture, guideSteps, type Guide } from "../project/guides.ts";
 import type { Picture, Project, TreeNode } from "../project/model.ts";
 import { placedPictureIds } from "../project/page.ts";
 import type { Assets } from "../project/package.ts";
-import { shownPart, type Rect } from "../project/views.ts";
+import { forPaper, shownPart, type Rect } from "../project/views.ts";
 import { overlayFor, type Overlay } from "../render/overlay.ts";
 
 /** Draws a picture with its marks into PNG bytes: the file's bytes, its name (for its kind), the part to keep, and what to draw over it. */
@@ -46,10 +46,12 @@ export function placedPictures(project: Project): Picture[] {
   return out;
 }
 
-/** Makes the picture files for an output: each placed picture cut to the part that is shown for `place`, with its marks drawn in, as a PNG. */
-export async function flattenPlaced(project: Project, assets: Assets, place: HighlightKind, flatten: Flattener): Promise<FlatResult> {
+/** Makes the picture files for an output: each placed picture cut to the part that is shown for `place` (for paper, with the automatic zoom if the project asks for it), with its marks drawn in, as a PNG. */
+export async function flattenPlaced(project: Project, assets: Assets, place: HighlightKind, flatten: Flattener, options: { paper?: boolean } = {}): Promise<FlatResult> {
   const result: FlatResult = { flat: new Map(), missing: [], failed: [] };
-  for (const picture of placedPictures(project)) {
+  for (const placed of placedPictures(project)) {
+    // For paper, a picture that would print too small is zoomed in on its click if the project asks for that.
+    const picture = options.paper ? forPaper(placed, project.zoom, project.paper) : placed;
     const bytes = assets.get(picture.file);
     if (!bytes) { result.missing.push(label(picture)); continue; }
     const shown = shownPart(picture, project.zoom, place);

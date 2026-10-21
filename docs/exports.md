@@ -3,7 +3,8 @@
 An export is made from the open project and never changes it. Each kind is saved as one file that the author chooses where to put (Export in the toolbar): a zip file, or for Word a single .docx file. The code is in `src/export/`;
 the Export dialog is `src/export-dialog.ts`. Comments are working notes and are never in a help site or a Markdown export; the JSON export leaves them out unless the author ticks a box.
 
-The book is exported as it prints: pictures use the book's click circle and zoom settings (`place: "book"`).
+The book is exported as it prints: pictures use the book's click circle and zoom settings (`place: "book"`). The two outputs made for paper, Word and PDF, also apply the automatic zoom for print when the project
+asks for it (see `docs/format-spec.md`, "Paper settings"): a picture that would print too small is made zoomed in on its click (`flattenPlaced(..., { paper: true })`). The help site, Markdown and JSON do not.
 
 ## Pictures with their marks drawn in
 
@@ -119,5 +120,4 @@ are Georgia (body) and Segoe UI (headings) as installed on the PC, falling back 
 
 ## Still to come
 
-The book index, a guide as a help site, the choice to switch a picture to a crop or zoom automatically when it would print too small (the preview and the check only flag them), and the printed look matched
-more closely to the reference how-to book. See `docs/HANDOFF.md`.
+The book index, a guide as a help site, and the printed look matched more closely to the reference how-to book. See `docs/HANDOFF.md`.

@@ -112,6 +112,38 @@ export function shownPart(picture: ViewSubject, zoom: ZoomSettings, place: Highl
   return zoomRect(picture, zoom[place]) ?? whole;
 }
 
+// ---- Pictures for paper ---------------------------------------------------------------------------------------------
+
+/** Choices about the printed book (format version 12). */
+export interface PaperSettings {
+  /** When a picture would print too small to read, zoom in on its click instead (print preview, PDF and Word). Off to begin with, so nothing changes until the author asks. */
+  autoZoom: boolean;
+}
+
+export const defaultPaper = (): PaperSettings => ({ autoZoom: false });
+
+/** The paper settings with anything missing or wrong put right (only `true` turns the zoom on). */
+export function cleanPaper(raw: unknown): PaperSettings {
+  const input = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+  return { autoZoom: input.autoZoom === true };
+}
+
+/**
+ * Is this picture shown zoomed in on its click on paper, although the author gave it no view? Only when the setting is on, the picture has a click to zoom on and no view of its own
+ * (the author's own crop or zoom always wins), the whole picture would print too small to read, and the zoom really is narrower than the picture. A picture with no click stays whole.
+ */
+export function switchedForPaper(picture: ViewSubject, zoom: ZoomSettings, paper: PaperSettings): boolean {
+  if (!paper.autoZoom || picture.view || !picture.click) return false;
+  if (printScale(picture.width) >= MIN_PRINT_SCALE) return false;
+  const part = zoomRect(picture, zoom.book);
+  return part !== null && part.width < picture.width;
+}
+
+/** The picture as it is shown on paper: the same picture, zoomed in on its click if `switchedForPaper` says so. The project's own picture is never changed. */
+export function forPaper<T extends ViewSubject>(picture: T, zoom: ZoomSettings, paper: PaperSettings): T {
+  return switchedForPaper(picture, zoom, paper) ? { ...picture, view: { kind: "zoom" } } : picture;
+}
+
 /** Is it the whole picture? */
 export function isWhole(part: Rect, picture: Size): boolean {
   return part.x === 0 && part.y === 0 && part.width === picture.width && part.height === picture.height;

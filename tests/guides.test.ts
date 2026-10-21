@@ -159,7 +159,7 @@ test("odd guides in a file are put right: unknown topics, repeats, layouts and i
 
 test("a project is saved and opened with its guides, a topic that was removed leaves its guides, and an older project has none", () => {
   const { project, ids } = book();
-  assert.equal(CURRENT_VERSION, 11);
+  assert.equal(CURRENT_VERSION, 12);
   assert.deepEqual(createProject("x").guides, []);
   const guide = newGuide("Saving", [ids.save, ids.close]);
   setStepLayout(guide, "s2", "left");
@@ -167,13 +167,13 @@ test("a project is saved and opened with its guides, a topic that was removed le
   project.guides.push(guide);
   const back = fromFiles(toFiles(project));
   assert.deepEqual(back.guides, project.guides, "the guide comes back as it was");
-  assert.equal(JSON.parse(toFiles(project)["project.json"]).version, 11);
+  assert.equal(JSON.parse(toFiles(project)["project.json"]).version, 12);
   removeNode(project.tree, ids.close);
   const after = fromFiles(toFiles(project));
   assert.deepEqual(after.guides[0].tasks, [ids.save], "a task whose topic was removed is not kept");
   // an older project
   const old = migrate({ version: 10, name: "Old", template: "empty", variables: {}, highlight: {}, zoom: {}, styles: [], checks: { ignored: [] }, tree: [] });
-  assert.equal(old.version, 11);
+  assert.equal(old.version, 12);
   assert.deepEqual(old.guides, []);
   const odd = migrate({ version: 11, name: "Odd", template: "empty", variables: {}, guides: [{ id: "q", name: "Q", tasks: ["nope"] }, 3], tree: [] });
   assert.deepEqual(odd.guides.map((g) => [g.id, g.tasks]), [["q", []]]);

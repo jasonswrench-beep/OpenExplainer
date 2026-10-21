@@ -10,7 +10,7 @@ import { checkCommentText, commentsWords, type Comment } from "./project/comment
 import type { UnresolvedItem } from "./project/comment-list.ts";
 import { createPointerLayer, type PointerLayer } from "./pointer-layer.ts";
 import { movePoint } from "./pointing.ts";
-import { checkCropInput, checkZoomInput, shownPart, ZOOM_LIMITS, type PictureView, type Rect as ShownRect, type ZoomSettings } from "./project/views.ts";
+import { checkCropInput, checkZoomInput, shownPart, ZOOM_LIMITS, type PaperSettings, type PictureView, type Rect as ShownRect, type ZoomSettings } from "./project/views.ts";
 import {
   calloutFromClick, checkCalloutInput, clipToPicture, letterFor, markerRadius, newCalloutFromClick, placeMarker, type Callout, type CalloutField, type CalloutInput,
 } from "./project/callouts.ts";
@@ -1205,10 +1205,10 @@ export async function pictureViewDialog(picture: Picture, imageUrl: string | nul
 }
 
 /**
- * The zoom sizes: how much of a picture a zoomed picture shows, for the book and for a quick guide, as a percent of the picture's width. Kept in the
- * project. Returns the new sizes, or `null` if cancelled.
+ * The zoom sizes: how much of a picture a zoomed picture shows, for the book and for a quick guide, as a percent of the picture's width, and whether a picture that
+ * would print too small is zoomed in on its click for the printed book. Kept in the project. Returns the new settings, or `null` if cancelled.
  */
-export async function zoomSettingsDialog(zoom: ZoomSettings): Promise<ZoomSettings | null> {
+export async function zoomSettingsDialog(zoom: ZoomSettings, paper: PaperSettings): Promise<{ zoom: ZoomSettings; paper: PaperSettings } | null> {
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-labelledby", "dlg-title");
   dialog.innerHTML = `
@@ -1219,16 +1219,22 @@ export async function zoomSettingsDialog(zoom: ZoomSettings): Promise<ZoomSettin
         for the book and one for a quick guide, and apply to every picture that is set to zoom. A smaller number zooms in closer.</p>
       <p><label for="zs-book">Zoom size in the book, in percent</label><br><input type="text" id="zs-book" size="6" inputmode="decimal" autocomplete="off" aria-describedby="zs-error"></p>
       <p><label for="zs-guide">Zoom size in a quick guide, in percent</label><br><input type="text" id="zs-guide" size="6" inputmode="decimal" autocomplete="off" aria-describedby="zs-error"></p>
+      <p><label><input type="checkbox" id="zs-auto" aria-describedby="zs-auto-help"> Zoom in on the click automatically when a picture would print too small</label><br>
+        <span class="help" id="zs-auto-help">For the printed book only (the print preview, the PDF and Word). A picture whose writing would print at less than half its size on screen is shown zoomed in on its
+        click, at the book's zoom size above, instead of whole. A picture you gave a crop or a zoom of its own is left as you set it, and a picture with no click stays whole. Off to begin with, so nothing
+        changes until you turn it on. The picture file itself is never cut.</span></p>
       <p id="zs-error" class="error" role="alert"></p>
       <p><button value="ok">Save the settings</button> <button value="cancel" formnovalidate>Cancel</button></p>
     </form>`;
   const book = dialog.querySelector<HTMLInputElement>("#zs-book")!;
   const guide = dialog.querySelector<HTMLInputElement>("#zs-guide")!;
   const errorEl = dialog.querySelector<HTMLElement>("#zs-error")!;
+  const auto = dialog.querySelector<HTMLInputElement>("#zs-auto")!;
   book.value = String(zoom.book.size);
   guide.value = String(zoom.guide.size);
+  auto.checked = paper.autoZoom;
   for (const input of [book, guide]) input.addEventListener("input", () => { errorEl.textContent = ""; book.removeAttribute("aria-invalid"); guide.removeAttribute("aria-invalid"); });
-  let result: ZoomSettings | null = null;
+  let result: { zoom: ZoomSettings; paper: PaperSettings } | null = null;
   dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
     event.preventDefault();
     if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return dialog.close("cancel");
@@ -1240,7 +1246,7 @@ export async function zoomSettingsDialog(zoom: ZoomSettings): Promise<ZoomSettin
       box.focus();
       return;
     }
-    result = checked.zoom;
+    result = { zoom: checked.zoom, paper: { autoZoom: auto.checked } };
     dialog.close("ok");
   });
   await open(dialog, book);

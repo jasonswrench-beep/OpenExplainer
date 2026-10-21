@@ -4,7 +4,7 @@ import { CURRENT_VERSION, type Project, type TreeNode } from "./model.ts";
 import { cleanClicks } from "./clicks.ts";
 import { cleanHighlight, cleanTreeHighlights, defaultHighlight } from "./highlight.ts";
 import { cleanTreeCallouts } from "./callouts.ts";
-import { cleanTreeViews, cleanZoom, defaultZoom } from "./views.ts";
+import { cleanPaper, cleanTreeViews, cleanZoom, defaultZoom } from "./views.ts";
 import { cleanTreeShapes } from "./shapes.ts";
 import { cleanStyles } from "./styles.ts";
 import { cleanChecks } from "./checks.ts";
@@ -45,6 +45,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   9: (raw) => ({ ...raw, version: 10, checks: { ignored: [] } }),
   // Version 10 to 11: the project can hold short guides made from topics. An older project has none.
   10: (raw) => ({ ...raw, version: 11, guides: [] }),
+  // Version 11 to 12: the project keeps choices about the printed book. An older project has the zoom for print switched off.
+  11: (raw) => ({ ...raw, version: 12, paper: { autoZoom: false } }),
 };
 
 export function migrate(input: unknown): Project {
@@ -67,5 +69,6 @@ export function migrate(input: unknown): Project {
   project.styles = cleanStyles(project.styles);
   project.checks = cleanChecks(project.checks);
   project.guides = cleanGuides(project.guides, project.tree ?? []);
+  project.paper = cleanPaper(project.paper);
   return project;
 }

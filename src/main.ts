@@ -243,6 +243,8 @@ function renderPreview(scroll = false) {
   const ctx = {
     project,
     place: "book" as const,
+    // Only the print preview shows pictures as they will print; the help site and guide previews are not for paper.
+    paper: viewMode === "print",
     notes: true,
     imageSrc: (picture: Picture) => {
       const bytes = assets.get(picture.file);
@@ -583,12 +585,14 @@ async function moveCircle(nodeId: string, picture: Picture, name: string) {
 }
 
 $("b-zoom").addEventListener("click", async () => {
-  const next = await zoomSettingsDialog(project.zoom);
+  const next = await zoomSettingsDialog(project.zoom, project.paper);
   if (!next) return;
-  project.zoom = next;
+  project.zoom = next.zoom;
+  project.paper = next.paper;
   markDirty();
   renderPictures();
-  announce("Zoom settings saved.");
+  if (viewMode !== "edit") renderPreview();
+  announce(`Zoom settings saved. The automatic zoom for print is ${next.paper.autoZoom ? "on" : "off"}.`);
 });
 
 $("b-highlight").addEventListener("click", async () => {
@@ -1039,7 +1043,8 @@ async function exportBook() {
       bytes = made.bytes;
       left.push(...made.missing.map((file) => `The picture file ${file} is missing from the project, so it is not in the export.`));
     } else {
-      const flat = guide ? await flattenGuide(project, guide, assets, flattenPicture) : await flattenPlaced(project, assets, "book", flattenPicture);
+      // The printed outputs (Word and PDF) may zoom in on a picture that would print too small; the help site and Markdown are not for paper.
+      const flat = guide ? await flattenGuide(project, guide, assets, flattenPicture) : await flattenPlaced(project, assets, "book", flattenPicture, { paper: choice.kind === "word" || choice.kind === "pdf" });
       left.push(...flat.missing.map((m) => `The picture "${m}" is missing from the project, so it is not in the export.`), ...flat.failed.map((m) => `The picture "${m}" could not be drawn, so it is not in the export.`));
       if (choice.kind === "pdf") {
         const made = await makeBookPdf(project, flat.flat);

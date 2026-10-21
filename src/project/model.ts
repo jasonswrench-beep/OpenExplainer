@@ -5,7 +5,7 @@ import { cleanPictureHighlight, defaultHighlight, type HighlightSettings, type P
 import { newId } from "./ids.ts";
 import { emptyPage, forgetPicture, type Page } from "./page.ts";
 import type { Callout } from "./callouts.ts";
-import { cleanPictureView, defaultZoom, type PictureView, type ZoomSettings } from "./views.ts";
+import { cleanPictureView, defaultPaper, defaultZoom, type PaperSettings, type PictureView, type ZoomSettings } from "./views.ts";
 import type { Shape } from "./shapes.ts";
 import type { NamedStyle } from "./styles.ts";
 import { emptyCheckSettings, type CheckSettings } from "./checks.ts";
@@ -13,7 +13,7 @@ import type { Guide } from "./guides.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 11;
+export const CURRENT_VERSION = 12;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -107,6 +107,8 @@ export interface Project {
   checks: CheckSettings;
   /** Short step-by-step guides made from topics of the book (format version 11). */
   guides: Guide[];
+  /** Choices about the printed book (format version 12). */
+  paper: PaperSettings;
   tree: TreeNode[];
 }
 
@@ -125,6 +127,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     styles: [],
     checks: emptyCheckSettings(),
     guides: [],
+    paper: defaultPaper(),
     tree: [],
   };
   if (template === "openstage-how-to-book") {

@@ -389,24 +389,26 @@ Parts, in order:
     `exportBook` in `src/main.ts`, a capability scope for `$TEMP/openexplainer-pdf` in `src-tauri/capabilities/default.json`; `renderPrintPreview` takes the contents' page numbers; 6 tests in `tests/pdf.test.ts`,
     1 Rust test; tried in the real window (scenario `pdf`). `CLAUDE.md` and `NOTICE` were updated. Jason should try Export, PDF and Guide (PDF) by hand through the Save dialog, and open a PDF in a desktop PDF program or another
     reader. Not done: a screen reader or a desktop PDF program accessibility check of the PDF, matching the the reference authoring platform look more closely, a guide as a help site.
-15. Next: the questions below (print auto crop or zoom, the AI model, the MCP server, the book index).
+15. **Automatic zoom for print (DONE 2026-10-21; Jason: a setting that starts off)**: format v12 `project.paper.autoZoom` (off), `switchedForPaper` / `forPaper` in `src/project/views.ts`, `RenderContext.paper`,
+    `flattenPlaced(..., { paper })`, Word captions and the book check follow it, a box in Zoom settings, a note for the writer in the print preview; tests in `tests/paper.test.ts`; scenario `paper`. Applies to the print
+    preview, PDF and Word only.
+16. Next, from Jason's answers 2026-10-21: the book index (the software writes the first pass, the author edits it and can update it), the local AI (Qwen's weights are Apache 2.0, Jason confirmed) and the MCP server
+    (Jason wants an AI assistant able to document something without a person being involved). See "Still open".
 
 ## Still open (ask Jason, do not guess)
 
 - PDF export: answered 2026-10-21 (Rust in the shell, see item 14). Open: how closely the printed look should follow the reference how-to book (fonts, running headers, chapter openers).
 
-- Print layout: the design says the layout switches to a cropped or zoomed picture when a full window would be too small to read on paper. The preview only flags such a picture (a
-  note for the writer) and never changes it. Should the export switch automatically, or only warn?
-
-  Detail for that question: only a picture with a click can be zoomed in on automatically (the zoom is centred on the click). For a picture with no click there is no obvious region, so it would have to
-  stay whole (and flagged) unless the author gives it a crop. A setting that is off to begin with would change nothing for anyone until it is switched on.
 - Short guides (built 2026-10-21): please confirm the choices I made without asking (HANDOFF item 12): a guide takes only the numbered steps and boxed notes of its topics; each step is headed "Step N"; close-ups
   are on by default; the left layout shows the picture and a close-up because a step holds one picture (the design says up to three: should a step be able to hold more, such as a result picture?); the step
   number marker is dark blue and 2.5 percent of the width in radius. Also the Step 5 defaults: a named style is applied by copy, a marker's label is typed, and a mark saved with low contrast keeps a record.
-- Qwen 3.5: which size, and what its weights licence allows (audit before downloading or bundling).
-- MCP server: which actions to offer first. Note for the answer: an export needs a canvas to draw the marks into the pictures (src/render/flatten.ts), so "run exports" from outside the window needs either the
-  running app to do it, or a separate drawing library in the MCP program.
-- The book index (Step 9): where index terms are marked (a list of terms on each topic, or marks inside the text), and who writes them (by hand, or drafted by the AI and reviewed).
+- Qwen 3.5 (Jason, 2026-10-21: the weights are Apache 2.0, so the licence works; I still read the licence of the exact files before downloading, as CLAUDE.md says): which size is the default, and how the
+  model runs without Python (a separate llama.cpp program downloaded with the model, or a library in the shell). To decide with Jason before building Step 7.
+- MCP server (Jason, 2026-10-21: he wants an AI assistant to be able to use OpenExplainer to document something **without a person being actively involved**, so capture is in, not only read and write): the design
+  question is where it runs. An export needs a canvas to draw the marks (src/render/flatten.ts) and the PDF needs the browser engine, so the choice is the running app doing the work (the MCP program talks to the
+  app, which can run hidden) or a separate program with its own drawing. To decide with Jason before building it.
+- The book index (Jason, 2026-10-21: **the software writes the first pass, the author edits it and can update it**): the first pass is worked out from the book (control names, callout names, topic titles), kept per
+  topic, edited by the author, and updated without losing the author's changes. Next to build.
 - Which the reference authoring platform page styles to copy exactly versus only resemble; how much detail per feature in the OpenStage book.
 - The name "OpenExplainer" has not been checked for conflicts on GitHub and elsewhere.
 - Capture helper: should the window list also show a program's dialogs (marked as belonging to it) so a native dialog can be captured by itself?
@@ -421,4 +423,4 @@ Parts, in order:
 
 ## Housekeeping on Jason's PC
 
-a step-by-step screen capturing program may still be open with an unsaved test project, and there may be an untitled a step-guide program guide. Harmless; mention if relevant.
+Nothing to note. a step-by-step screen capturing program was never installed on this PC (Jason confirmed 2026-10-21), and a stray untitled a step-guide program guide does not matter.

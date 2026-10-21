@@ -7,7 +7,7 @@ import type { Picture, Project, TreeNode } from "../project/model.ts";
 import { calloutLabel, type Block, type CalloutKind, type Step } from "../project/page.ts";
 import { failing, kindName, missingAlt, shapeChecks, shapesDescription } from "../project/shapes.ts";
 import type { Run } from "../project/text.ts";
-import { isWhole, MIN_PRINT_SCALE, PRINT_TEXT_WIDTH, printScale, shownPart } from "../project/views.ts";
+import { forPaper, isWhole, MIN_PRINT_SCALE, PRINT_TEXT_WIDTH, printScale, shownPart, switchedForPaper } from "../project/views.ts";
 
 export { MIN_PRINT_SCALE, PRINT_TEXT_WIDTH, printScale };
 import { calloutInView, overlayFor, overlaySvg } from "./overlay.ts";
@@ -22,6 +22,8 @@ export interface RenderContext {
    * whether it is the close-up, because an output that draws the marks into each picture makes one for each use.
    */
   imageSrc(picture: Picture, use?: { stepId: string; closeUp: boolean }): string | null;
+  /** The output is for paper (the print preview, the PDF and Word): a picture that would print too small is zoomed in on its click if the project asks for that. */
+  paper?: boolean;
   /** Add notes for the writer, marked as not part of the output. A preview does; an export does not. */
   notes: boolean;
   /** The pictures come already cut to the part shown, with the click circle, the marks and the callouts drawn in (see src/render/flatten.ts), so no drawing is laid over them. */
@@ -85,7 +87,9 @@ export interface FigureOptions {
 }
 
 /** A picture as it is shown where it is used: only the part chosen, with its click circle and callouts over it, and the callout entries under it. */
-export function figureHtml(ctx: RenderContext, picture: Picture, where?: string, options: FigureOptions = {}): string {
+export function figureHtml(ctx: RenderContext, original: Picture, where?: string, options: FigureOptions = {}): string {
+  const switched = ctx.paper === true && switchedForPaper(original, ctx.project.zoom, ctx.project.paper);
+  const picture = ctx.paper === true ? forPaper(original, ctx.project.zoom, ctx.project.paper) : original;
   const src = ctx.imageSrc(picture);
   if (!src) return `<p class="pv-missing">This picture file is missing from the project.</p>${noteHtml(ctx, "A picture file is missing from the project.", where)}`;
   const shown = shownPart(picture, ctx.project.zoom, ctx.place);
@@ -107,6 +111,7 @@ export function figureHtml(ctx: RenderContext, picture: Picture, where?: string,
   }
   const notes: string[] = [];
   const scale = printScale(shown.width);
+  if (switched) notes.push("Zoomed in on the click for print, because the whole picture would print too small. This is the automatic zoom for print in Zoom settings; a picture view of its own would take its place.");
   // A close-up has no notes of its own: the whole picture beside it carries them.
   if (!options.closeUp && scale < MIN_PRINT_SCALE && !options.noSmallNote) notes.push(`Small on paper: the writing in this picture will print at about ${Math.round(scale * 100)} percent of its size on screen. A crop or a zoom (Picture view) would make it easier to read.`);
   if (!options.closeUp && !picture.altText.trim() && !options.altFallback?.trim()) notes.push("This picture has no description yet, so a screen reader has little to say about it.");

@@ -6,7 +6,7 @@ import { entries, entryWords } from "../project/callouts.ts";
 import { numbering, type Picture, type Project, type TreeNode } from "../project/model.ts";
 import { CALLOUT_KINDS, calloutLabel, type Block } from "../project/page.ts";
 import type { Run } from "../project/text.ts";
-import { PRINT_TEXT_WIDTH, shownPart } from "../project/views.ts";
+import { forPaper, PRINT_TEXT_WIDTH, shownPart } from "../project/views.ts";
 import { altTextFor, fillVariables } from "../render/html.ts";
 import { calloutInView } from "../render/overlay.ts";
 import type { FlatPicture } from "./pictures.ts";
@@ -74,7 +74,9 @@ export function drawing(ctx: Context, made: FlatPicture, alt: string, maxWidthPx
 }
 
 /** A picture in the document: the picture itself, then its callout entries as caption lines. `indent` puts it under a numbered step. */
-function pictureXml(ctx: Context, picture: Picture, indent: boolean): string {
+function pictureXml(ctx: Context, original: Picture, indent: boolean): string {
+  // The picture on paper may be zoomed in on its click (the flat picture was made that way), so its callouts are the ones in that part.
+  const picture = forPaper(original, ctx.project.zoom, ctx.project.paper);
   const made = ctx.flat.get(picture.id);
   const style = indent ? "StepContinued" : "Normal";
   if (!made) return para(style, run(`(The picture "${picture.altText.trim() || picture.source.originalName || picture.file}" could not be included.)`, "<w:i/>"));

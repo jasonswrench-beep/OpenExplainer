@@ -238,6 +238,14 @@ A **guide** is a few pages for one task, or for several (the quick, step-by-step
 - Not built yet: the third picture of the left layout (a step holds one picture today, so the left layout shows the picture and its close-up), exporting a guide as a help site, and book check rules for
   guides (a task whose topic has lost its steps shows a note for the writer in the preview).
 
+## Automatic zoom for print
+
+**Zoom settings** (a button in Pictures) has, besides the zoom sizes for the book and for a quick guide, a box: **Zoom in on the click automatically when a picture would print too small**. It is **off to begin
+with** (Jason's choice), so nothing changes until it is turned on. When it is on, the printed outputs (the print preview, the PDF and Word) show a picture that would print below half its size on screen zoomed
+in on its click, at the book's zoom size, instead of whole. The author's own crop or zoom always wins, and a picture with no click stays whole. The print preview says so in a note for the writer ("Zoomed in on the
+click for print..."), and the book check no longer calls such a picture too small (it still does for one with no click, and its advice mentions the setting for one that has a click). The editor, the help site, Markdown and
+guides are not affected. The rules are `switchedForPaper` and `forPaper` in `src/project/views.ts` and the format is in `docs/format-spec.md` ("Paper settings").
+
 ## What has been tried
 
 In the real window (a development build driven through its debugging port, with real key presses and clicks): the three panes side by side, each a
@@ -278,6 +286,10 @@ A guide as Word, in the real window: the Export dialog with five kinds, the Guid
 by the real canvas (each step's picture and close-up with the step's number drawn on, checked by reading the pixel on the marker), built into a .docx, every XML part read by the browser's XML reader with no error. The real
 Word opened it with no repair message (6 pictures, 2 tables, header and page number) and its PDF was looked at; that showed the number marker too small to read in the left column, so it was made larger. The native
 Save dialog was not driven.
+
+The automatic zoom for print, in the real window, with a real click picture (a whole screen, which prints small): the box in Zoom settings (described in words, off to begin with, Space turns it on, Escape closes
+without saving and gives the keyboard back); with it off the print preview shows the picture whole; saved on, the print preview shows it zoomed on the click and says so in a note, the help site preview and the
+editor still show it whole, and the book check does not call it small; turned off again it is whole again.
 
 PDF, in the real window: the Export dialog with seven kinds, the guide choices switched off with the reason when there are no guides; then a made-up 13-page book and a two-task guide with real pictures drawn
 by the real canvas, printed to PDF by the real shell, the pages drawn and looked at (title page without a header, the contents with page numbers and leaders, a chapter opener, a picture with its marks, both guide
