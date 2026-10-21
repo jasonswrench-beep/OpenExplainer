@@ -6,9 +6,11 @@ import { checkWait } from "./capture/wait.ts";
 import { describeShot, type ClickShot } from "./capture/clicks.ts";
 import { discardQuestion, type ReviewAnswer } from "./capture/review.ts";
 import { marksOverlay } from "./picture-marks.ts";
+import { createPointerLayer, type PointerLayer } from "./pointer-layer.ts";
+import { movePoint } from "./pointing.ts";
 import { checkCropInput, checkZoomInput, shownPart, ZOOM_LIMITS, type PictureView, type Rect as ShownRect, type ZoomSettings } from "./project/views.ts";
 import {
-  calloutFromClick, checkCalloutInput, clipToPicture, letterFor, newCalloutFromClick, placeMarker, type Callout, type CalloutField, type CalloutInput,
+  calloutFromClick, checkCalloutInput, clipToPicture, letterFor, markerRadius, newCalloutFromClick, placeMarker, type Callout, type CalloutField, type CalloutInput,
 } from "./project/callouts.ts";
 import { newId } from "./project/ids.ts";
 import type { Picture } from "./project/model.ts";
@@ -693,6 +695,7 @@ export async function calloutsDialog(picture: Picture, imageUrl: string | null):
     <form method="dialog">
       <h2 id="dlg-title">Callouts</h2>
       <p class="help" id="co-help"></p>
+      <p class="help" id="co-point-help"></p>
       <div id="co-preview"></div>
       <p id="co-status" class="visually-hidden" role="status"></p>
       <div id="co-rows"></div>
@@ -704,6 +707,11 @@ export async function calloutsDialog(picture: Picture, imageUrl: string | null):
   dialog.querySelector("#co-help")!.textContent =
     "A callout is a lettered marker with a line to the part of the picture it names. Under the picture it gets an entry: its letter, its name and a sentence. " +
     `Numbers count in pixels from the top left corner of the picture, which is ${picture.width} by ${picture.height} pixels. Moving or deleting a callout re-letters the others.`;
+  dialog.querySelector("#co-point-help")!.textContent =
+    "You can also point on the picture below. The callout marked \"selected on the picture\" is the one being edited. Drag on an empty place to draw its outline (the marker is placed beside it), " +
+    "drag the outline to move it (the marker comes with it) or a corner to resize it, drag the marker to move only the marker, or press another marker to select that callout. " +
+    "With the keyboard, Tab to the outline or the marker on the picture: the arrow keys move it by 1 pixel, by 10 with Shift, and Control with an arrow makes the outline bigger or smaller. " +
+    "Escape during a drag puts things back. The number boxes always show the exact numbers.";
   const working: Callout[] = (picture.callouts ?? []).map((c) => ({ ...c, target: { ...c.target }, marker: { ...c.marker } }));
   const errorEl = dialog.querySelector<HTMLElement>("#co-error")!;
   const statusEl = dialog.querySelector<HTMLElement>("#co-status")!;
@@ -712,19 +720,106 @@ export async function calloutsDialog(picture: Picture, imageUrl: string | null):
   const previewEl = dialog.querySelector<HTMLElement>("#co-preview")!;
   const clearErrors = () => { errorEl.textContent = ""; rowsEl.querySelectorAll("[aria-invalid]").forEach((e) => e.removeAttribute("aria-invalid")); };
 
+  /** The callout being edited on the picture, by its id so it stays the same one when callouts are moved or deleted. */
+  let activeId: string | null = working.length ? working[0].id : null;
+  const current = () => working.find((c) => c.id === activeId) ?? null;
+  let previewBox: HTMLElement | null = null;
+  let layer: PointerLayer | null = null;
+
+  /** The box that holds the sample picture, made once so the picture is not loaded again at every change. */
+  function previewBoxOf(): HTMLElement | null {
+    if (!imageUrl) return null;
+    if (!previewBox) {
+      previewBox = document.createElement("span");
+      previewBox.className = "thumbbox";
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.alt = picture.altText || "The picture the callouts are on";
+      img.className = "thumb callout-preview";
+      previewBox.append(img);
+      previewEl.append(previewBox);
+    }
+    return previewBox;
+  }
+
+  /** Draws the callouts over the sample, under the handles. */
   function drawPreview() {
-    previewEl.replaceChildren();
-    if (!imageUrl) return;
-    const box = document.createElement("span");
-    box.className = "thumbbox";
-    const img = document.createElement("img");
-    img.src = imageUrl;
-    img.alt = picture.altText || "The picture the callouts are on";
-    img.className = "thumb callout-preview";
-    box.append(img);
+    const box = previewBoxOf();
+    if (!box) return;
+    box.querySelector("svg.circle-overlay")?.remove();
     const marks = marksOverlay({ ...size, callouts: working }, null);
-    if (marks) box.append(marks);
-    previewEl.append(box);
+    if (marks) box.insertBefore(marks, layer?.element ?? null);
+  }
+
+  /** Puts the numbers of a callout into its boxes, after the picture was pointed at. */
+  function syncNumbers(callout: Callout) {
+    const index = working.indexOf(callout);
+    const put = (field: string, value: number) => { const el = rowsEl.querySelector<HTMLInputElement>(`#co-${index}-${field}`); if (el) el.value = String(value); };
+    put("left", callout.target.x); put("top", callout.target.y); put("width", callout.target.width); put("height", callout.target.height);
+    put("markerX", callout.marker.x); put("markerY", callout.marker.y);
+    clearErrors();
+  }
+
+  /** The handles on the sample for the callout being edited: its outline, its marker, and the other callouts' markers to pick them. */
+  function mountHandles() {
+    const box = previewBoxOf();
+    if (!box) return;
+    layer?.element.remove();
+    layer = null;
+    const c = current();
+    if (!c) return;
+    const letter = letterFor(working.indexOf(c));
+    const radius = markerRadius(size.width);
+    layer = createPointerLayer({
+      size,
+      say,
+      box: {
+        label: `Item of callout ${letter}`,
+        get: () => ({ ...c.target }),
+        set: (b, how) => {
+          if (how === "move") {
+            const moved = movePoint(c.marker, b.x - c.target.x, b.y - c.target.y, size);
+            c.marker = moved;
+          } else if (how === "draw") {
+            c.marker = placeMarker(b, size, working.filter((o) => o !== c).map((o) => o.marker));
+          }
+          c.target = b;
+          syncNumbers(c);
+          drawPreview();
+        },
+        begin: () => { const t = { ...c.target }, m = { ...c.marker }; return () => { c.target = t; c.marker = m; syncNumbers(c); drawPreview(); }; },
+      },
+      point: {
+        label: `Marker of callout ${letter}`,
+        radius,
+        get: () => ({ ...c.marker }),
+        set: (p) => { c.marker = p; syncNumbers(c); drawPreview(); },
+        begin: () => { const m = { ...c.marker }; return () => { c.marker = m; syncNumbers(c); drawPreview(); }; },
+      },
+      others: working.filter((o) => o !== c).map((o) => ({
+        x: o.marker.x, y: o.marker.y, radius, label: `Select callout ${letterFor(working.indexOf(o))}`,
+        pick: () => { setActive(o.id); previewBox?.querySelector<HTMLElement>(".pointer-box")?.focus(); say(`Callout ${letterFor(working.indexOf(o))} is selected on the picture.`); },
+      })),
+    });
+    box.append(layer.element);
+    drawPreview();
+  }
+
+  /** Which callout is being edited on the picture is said in words on its group, not only shown. */
+  function markActive() {
+    rowsEl.querySelectorAll("fieldset").forEach((fieldset, i) => {
+      const on = working[i]?.id === activeId;
+      fieldset.classList.toggle("co-active", on);
+      const legend = fieldset.querySelector("legend")!;
+      legend.textContent = `Callout ${letterFor(i)}${on ? " (selected on the picture)" : ""}`;
+    });
+  }
+
+  function setActive(id: string | null) {
+    if (id === activeId && layer) return;
+    activeId = id;
+    markActive();
+    mountHandles();
   }
 
   const inputOf = (index: number): CalloutInput => {
@@ -743,6 +838,7 @@ export async function calloutsDialog(picture: Picture, imageUrl: string | null):
       working[index].marker = checked.callout.marker;
     }
     drawPreview();
+    layer?.update();
   }
 
   function drawRows(focus?: { index: number; part: string }) {
@@ -824,9 +920,13 @@ export async function calloutsDialog(picture: Picture, imageUrl: string | null):
         say(`Callout ${letter} deleted. ${working.length} ${working.length === 1 ? "callout" : "callouts"} left.`);
       });
       fieldset.addEventListener("input", () => { clearErrors(); takeRow(i); });
+      fieldset.addEventListener("focusin", () => { if (working[i] && activeId !== working[i].id) setActive(working[i].id); });
       rowsEl.append(fieldset);
     });
     if (focus) rowsEl.querySelector<HTMLElement>(`#co-${focus.index}-${focus.part}`)?.focus();
+    if (!current()) activeId = working.length ? working[0].id : null;
+    markActive();
+    mountHandles();
     drawPreview();
     updateClickButton();
   }
@@ -920,6 +1020,8 @@ export async function pictureViewDialog(picture: Picture, imageUrl: string | nul
         <p id="pv-zoom-help" class="help"></p>
       </fieldset>
       <p id="pv-summary" class="help" role="status"></p>
+      <p id="pv-live" class="visually-hidden" role="status"></p>
+      <p id="pv-point-help" class="help" hidden></p>
       <div id="pv-sample"></div>
       <p id="pv-error" class="error" role="alert"></p>
       <p><button value="ok">Save the view</button> <button value="cancel" formnovalidate>Cancel</button></p>
@@ -929,6 +1031,11 @@ export async function pictureViewDialog(picture: Picture, imageUrl: string | nul
   dialog.querySelector("#pv-help")!.textContent =
     "The picture file is never cut: a view only says which part of it is shown, so it can be changed or taken off at any time. Callouts and the click circle stay on " +
     `the picture and line up in every view. Numbers count in pixels from the top left corner of the picture, which is ${picture.width} by ${picture.height} pixels.`;
+  dialog.querySelector("#pv-point-help")!.textContent =
+    "For a region you can also point on the sample picture: drag on it to draw the region, drag the region to move it or a corner to resize it, and press Escape during a drag to put it back. " +
+    "With the keyboard, Tab to the region on the picture: the arrow keys move it by 1 pixel, by 10 with Shift, and Control with an arrow makes it bigger or smaller. The four boxes always show the exact numbers.";
+  const liveEl = dialog.querySelector<HTMLElement>("#pv-live")!;
+  const sayView = (text: string) => { liveEl.textContent = ""; setTimeout(() => (liveEl.textContent = text), 30); };
   const errorEl = dialog.querySelector<HTMLElement>("#pv-error")!;
   const summaryEl = dialog.querySelector<HTMLElement>("#pv-summary")!;
   const sampleEl = dialog.querySelector<HTMLElement>("#pv-sample")!;
@@ -989,8 +1096,35 @@ export async function pictureViewDialog(picture: Picture, imageUrl: string | nul
     return whole;
   }
 
+  let sampleBox: HTMLElement | null = null;
+  let layer: PointerLayer | null = null;
+
+  /** Puts a region into the four boxes, after the picture was pointed at. */
+  function setCropValues(b: ShownRect) {
+    for (const [field, value] of [["left", b.x], ["top", b.y], ["width", b.width], ["height", b.height]] as const) dialog.querySelector<HTMLInputElement>(`#pv-${field}`)!.value = String(value);
+    lastGood = { ...b };
+    clearErrors();
+  }
+
+  /** The handles on the sample for the region: draw it, move it, resize it. */
+  function mountCropLayer() {
+    if (!sampleBox) return;
+    layer = createPointerLayer({
+      size,
+      say: sayView,
+      box: {
+        label: "Region to show",
+        get: () => ({ ...chosenPart() }),
+        set: (b) => { setCropValues(b); redraw(); },
+        begin: () => { const before = cropInput(); return () => { for (const f of ["left", "top", "width", "height"] as const) dialog.querySelector<HTMLInputElement>(`#pv-${f}`)!.value = before[f]; redraw(); }; },
+      },
+    });
+    sampleBox.append(layer.element);
+  }
+
   function redraw() {
     cropBoxes.hidden = kind() !== "crop";
+    dialog.querySelector<HTMLElement>("#pv-point-help")!.hidden = kind() !== "crop";
     const part = chosenPart();
     const all = part.x === 0 && part.y === 0 && part.width === size.width && part.height === size.height;
     summaryEl.textContent = kind() === "whole" || all
@@ -998,16 +1132,20 @@ export async function pictureViewDialog(picture: Picture, imageUrl: string | nul
       : kind() === "zoom"
         ? `Zoomed in on the click: ${part.width} by ${part.height} pixels, starting ${part.x} across and ${part.y} down, as set for ${placeName}.`
         : `Cropped: ${part.width} by ${part.height} pixels, starting ${part.x} across and ${part.y} down.`;
-    sampleEl.replaceChildren();
     if (!imageUrl) return;
-    // The sample shows the whole picture with the part that is shown outlined and the rest dimmed.
-    const box = document.createElement("span");
-    box.className = "thumbbox";
-    const img = document.createElement("img");
-    img.src = imageUrl;
-    img.alt = picture.altText || "The picture the view is for";
-    img.className = "thumb callout-preview";
-    box.append(img);
+    // The sample shows the whole picture with the part that is shown dimmed round it. The picture is loaded once; the drawing over it is made again at each change.
+    if (!sampleBox) {
+      sampleBox = document.createElement("span");
+      sampleBox.className = "thumbbox";
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.alt = picture.altText || "The picture the view is for";
+      img.className = "thumb callout-preview";
+      sampleBox.append(img);
+      sampleEl.append(sampleBox);
+    }
+    sampleBox.querySelectorAll("svg.circle-overlay").forEach((e) => e.remove());
+    const under = layer?.element ?? null;
     const svg = document.createElementNS(SVG, "svg");
     for (const [k, v] of Object.entries({ viewBox: `0 0 ${size.width} ${size.height}`, preserveAspectRatio: "none", "aria-hidden": "true", focusable: "false", class: "circle-overlay" })) svg.setAttribute(k, v);
     if (!all) {
@@ -1017,14 +1155,22 @@ export async function pictureViewDialog(picture: Picture, imageUrl: string | nul
       shade.setAttribute("fill", "#000000");
       shade.setAttribute("fill-opacity", "0.55");
       svg.append(shade);
-      const outline = document.createElementNS(SVG, "rect");
-      for (const [k, v] of Object.entries({ x: part.x, y: part.y, width: part.width, height: part.height, fill: "none", stroke: "#FFD600", "stroke-width": 2, "vector-effect": "non-scaling-stroke" })) outline.setAttribute(k, String(v));
-      svg.append(outline);
+      // For a region the handles draw the outline themselves; for a zoom it is drawn here.
+      if (kind() !== "crop") {
+        const outline = document.createElementNS(SVG, "rect");
+        for (const [k, v] of Object.entries({ x: part.x, y: part.y, width: part.width, height: part.height, fill: "none", stroke: "#FFD600", "stroke-width": 2, "vector-effect": "non-scaling-stroke" })) outline.setAttribute(k, String(v));
+        svg.append(outline);
+      }
     }
-    box.append(svg);
+    sampleBox.insertBefore(svg, under);
     const marks = marksOverlay(picture, null);
-    if (marks) box.append(marks);
-    sampleEl.append(box);
+    if (marks) sampleBox.insertBefore(marks, under);
+    if (kind() === "crop") {
+      if (!layer) mountCropLayer(); else layer.update();
+    } else if (layer) {
+      layer.element.remove();
+      layer = null;
+    }
   }
 
   const clearErrors = () => { errorEl.textContent = ""; cropBoxes.querySelectorAll("[aria-invalid]").forEach((e) => e.removeAttribute("aria-invalid")); };

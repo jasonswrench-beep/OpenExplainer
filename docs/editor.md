@@ -3,8 +3,8 @@
 The editor window has three panes: the chapters and topics on the left, the page in the middle, and the properties on the right. The
 rules about what a page is are in `docs/format-spec.md` ("The page"); this file says what the editor does and what has been tried.
 
-Status: the three panes, the block editor, the lettered callouts on pictures and the picture views are built (Step 4, parts 2 to 5). Using the mouse to place
-callouts and crops, comments, the check tool and the print and help site previews are not built yet. See `docs/HANDOFF.md`.
+Status: the three panes, the block editor, the lettered callouts on pictures, the picture views and pointing at a picture with the mouse and the arrow keys are built
+(Step 4, parts 2 to 6). Comments, the check tool and the print and help site previews are not built yet. See `docs/HANDOFF.md`.
 
 ## The panes
 
@@ -62,8 +62,29 @@ The rules (what a callout is, how the letters, the marker place and the leader l
   **Save the callouts**; **Cancel** and Escape leave the callouts as they were.
 - **Letters follow position.** A letter is never saved: moving a callout up or down, or deleting one, re-letters the others.
 
-There is no limit on how many callouts a picture has (a test keeps 300; after Z the letters go AA, AB and on). Moving the marker or the outline with the mouse is not
-built yet; it is typed numbers for now (Jason's choice, mouse dragging later).
+There is no limit on how many callouts a picture has (a test keeps 300; after Z the letters go AA, AB and on).
+
+## Pointing at a picture
+
+In the Callouts dialog and the Picture view dialog the sample picture can be pointed at, so an outline, a marker or a crop region can be placed by eye. The typed number
+boxes stay as the exact record: everything done on the picture only fills them in, so the typed checks, the live sample and Cancel work as they always did, and
+someone who cannot or does not want to use a mouse loses nothing. The rules (where a pointer is on the picture, drawing, moving, resizing, what a key means) are in
+`src/pointing.ts`; the handles laid over the sample are `src/pointer-layer.ts`.
+
+- **The callout being edited.** One callout at a time has handles on the sample: the one marked "selected on the picture" in its group's title (in words, not only
+  a border). Putting the keyboard in a group selects it, Add a callout selects the new one, and pressing another callout's marker on the picture selects that one
+  and puts the keyboard on its outline.
+- **With the mouse.** Drag on an empty place to draw the outline (the marker is placed beside it). Drag the outline to move it (its marker comes with it, so the
+  line keeps its shape). Drag a corner to resize it, the opposite corner staying still. Drag the marker to move only the marker. A click that is not a drag does
+  nothing. Nothing can be put off the picture, and an outline cannot be made smaller than 4 pixels. **Escape during a drag** puts everything back and does not close
+  the dialog.
+- **With the keyboard.** The outline and the marker are two Tab stops on the sample, named "Item of callout A" and "Marker of callout A", with a spoken hint. An
+  arrow key moves by 1 pixel and Shift with an arrow by 10; on the outline, Control with an arrow makes it wider or taller (Right or Down) or narrower or shorter
+  (Left or Up), by 1 or, with Shift, by 10. After a pause the new place is said in words ("Item of callout A: starts 201 across and 210 down, 291 wide and 70 high.").
+  The keys stop at the edge of the picture.
+- **The crop.** In the Picture view dialog, choosing "A region I choose" puts the same handles on the sample for the region ("Region to show"), with a line of
+  pointing help; choosing the whole picture or zoom takes them away. The sample dims everything outside the region.
+
 
 ## Picture views
 
@@ -86,7 +107,7 @@ never cut: a view only says which part of it is shown where it is used. What the
 - **Which place.** The choice *Show the pictures as in the* Book or Quick guide (above the picture list) now decides both whether the click circle shows and which
   zoom size is used, so the list and the page preview how the picture will look in that place.
 
-Moving or drawing the region with the mouse is not built yet; it is typed numbers for now.
+The region can be typed or pointed at (see "Pointing at a picture").
 
 ## What has been tried
 
@@ -106,6 +127,14 @@ open; Add a callout, Move up and Move down (letters following the position and t
 the click button being off with its reason; Save updating the entry under the picture and on the page, being announced and returning the keyboard to the
 button; Cancel and Escape changing nothing; deleting all callouts and making one again from the click; and a project with callouts packed, unpacked and read
 by another program (the .NET zip reader) with no letters in the file.
+
+Pointing, in the real window with a real mouse and real key presses (sent through the browser's own input channel) on a click picture: the handles on the sample named
+for a screen reader with their hint; dragging the outline (the marker came along and the handle sat where the numbers said), the marker alone, a corner, and an empty
+place to draw a new outline with the marker placed beside it; a click that is not a drag changing nothing; Escape during a drag putting everything back with the dialog
+still open; typing in a number box moving the handle; arrow keys, Shift and Control moving and resizing the outline and moving the marker, stopping at the picture's
+edge, with the new place said after a pause; Add a callout selecting the new one and pressing callout A's marker selecting A; Cancel changing nothing and Save keeping
+what was pointed at. The same for the crop region in the Picture view dialog (move, corner, draw, keys, Escape, typing, handles going away for zoom, and Save). The
+pictures were looked at.
 
 Picture views, in the real window with real clicks on a made-up window: a click picture shown whole to begin with; the Picture view dialog opened by its button with the
 keyboard on the chosen choice and every control named; a region typed (a word, a number too big and a region past the edge each explained next to the boxes and

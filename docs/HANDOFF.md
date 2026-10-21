@@ -315,9 +315,9 @@ Parts, in order:
    entries under it; used by the Pictures list thumbnails and by `src/page-editor.ts` (picture blocks and step pictures). c. **The Callouts dialog**
    (`calloutsDialog` in `src/dialogs.ts`, the Callouts button on each picture in `src/main.ts`) and the first callout made automatically when click
    pictures are added (`captureClicks` in `src/main.ts`). Written up in `docs/editor.md` ("Lettered callouts"); tried in the real window (scenarios `callouts`,
-   and `circles`, `roundtrip` updated, in the scratch `ui_test.mjs`). Not built: moving a marker or outline with the mouse; drawing callouts and the click
+   and `circles`, `roundtrip` updated, in the scratch `ui_test.mjs`). Pointing with the mouse was added after (item 5). Not built: drawing callouts and the click
    circle into exported pages (when export is built, reuse `shapesFor` and `circleFor` so the editor and the book always agree); a screen reader pass.
-5. **Picture views (DONE 2026-10-20 except the mouse; Jason chose: the zoom size is a project setting, one for the book and one for a quick guide, like the circle)**.
+5. **Picture views (DONE 2026-10-20; Jason chose: the zoom size is a project setting, one for the book and one for a quick guide, like the circle)**.
    a. **Format version 7 and the rules**: `Picture.view` (crop region or zoom on the click), `project.zoom {book, guide}`, `src/project/views.ts` (`shownPart` is the one
    place that decides what is shown: exports must reuse it), `setPictureView`, the dialog checks, cleaning, migration 6 to 7, 14 tests, `docs/format-spec.md`
    ("Picture views"). b. **The screens**: `pictureBox` and `entryList(picture, shown)` in `src/picture-marks.ts` draw a picture through its view with the circle and
@@ -325,9 +325,13 @@ Parts, in order:
    shown width); `pictureViewDialog` and `zoomSettingsDialog` in `src/dialogs.ts`; the Picture view and Zoom settings buttons and the "Show the pictures as in the"
    preview in `src/main.ts`; a global `[hidden] { display: none !important; }` in `src/style.css` (the keyboard run found the region boxes staying on screen).
    Written up in `docs/editor.md` ("Picture views"); tried in the real window (scenarios `views`, `keyboard2`, and `circles`, `callouts`, `roundtrip` updated).
-   c. Jason said callouts must be as many as someone needs and that there must be a way for someone to make them themselves (there is no limit, tested with 300,
-   and Add a callout works on every picture; I read the rest as wanting the mouse, which was NOT yet confirmed with him): one shared control that draws a rectangle
-   on a picture with the mouse and nudges it with the arrow keys (used by callout outlines and markers and by the crop). NOT built.
+   c. **Pointing at a picture (DONE 2026-10-20)**. Jason said callouts must be as many as someone needs and that there must be a way for someone to make them
+   themselves (there is no limit, tested with 300; Add a callout works on every picture) and chose the mouse control: `src/pointing.ts` (the rules: pointer to picture pixel,
+   draw, move, resize by corner or key, key steps, words; 9 tests), `src/pointer-layer.ts` (the handles laid over a sample: mouse drag with pointer capture, Escape to put back,
+   focusable outline and marker with arrow-key moves, Control to resize, announcements), used by `calloutsDialog` (one selected callout at a time, picked by focus, Add or
+   pressing another marker) and `pictureViewDialog` (the crop region) in `src/dialogs.ts`. The typed boxes stay the exact record and everything pointed at fills them in.
+   Written up in `docs/editor.md` ("Pointing at a picture"); tried in the real window (scenario `pointing`, with a real mouse and keys through the browser's input channel).
+   Still to do by a person: a screen reader pass over the handles (they use `role="application"` so arrows reach them; the typed boxes are the fallback).
 6. Then comments, the check tool, previews.
 
 ## Still open (ask Jason, do not guess)

@@ -69,6 +69,17 @@ legend { font-weight: 600; padding: 0 0.25rem; }
 .thumb.page-picture { max-width: min(100%, 36rem); max-height: 24rem; }
 .callout-entries { margin: 0.4rem 0; padding-left: 1.2rem; list-style: none; padding: 0; }
 .callout-entries li { margin: 0.15rem 0; }
-.callout-preview { max-width: min(100%, 40rem); max-height: 22rem; }
 .co-numbers { display: flex; flex-wrap: wrap; gap: 0 1.2rem; }
 .co-number { margin: 0.3rem 0; }
+.callout-preview { max-width: min(100%, 48rem); max-height: 30rem; }
+/* Handles over a sample picture, to draw, move and resize a box or a marker with the mouse (src/pointer-layer.ts). */
+.pointer-layer { position: absolute; inset: 1px; touch-action: none; cursor: crosshair; }
+.pointer-box { position: absolute; box-sizing: border-box; border: 2px dashed #FFD600; box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #000; background: rgba(255, 214, 0, 0.12); cursor: move; }
+.pointer-corner { position: absolute; box-sizing: border-box; width: 12px; height: 12px; background: #FFD600; border: 1px solid #000; }
+.pointer-corner.nw { left: -7px; top: -7px; cursor: nwse-resize; }
+.pointer-corner.ne { right: -7px; top: -7px; cursor: nesw-resize; }
+.pointer-corner.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.pointer-corner.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.pointer-marker { position: absolute; box-sizing: border-box; aspect-ratio: 1; min-width: 14px; border-radius: 50%; border: 2px dashed #FFD600; box-shadow: 0 0 0 1px #000; transform: translate(-50%, -50%); cursor: grab; }
+.pointer-other { position: absolute; aspect-ratio: 1; min-width: 14px; border-radius: 50%; transform: translate(-50%, -50%); cursor: pointer; }
+fieldset.co-active { border: 2px solid var(--accent); padding: calc(0.25rem - 1px) calc(0.75rem - 1px); }
