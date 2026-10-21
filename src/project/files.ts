@@ -28,7 +28,7 @@ function pageFiles(tree: TreeNode[], version: number, into: Record<string, strin
   for (const node of tree) {
     if (hasContent(node.page) && SAFE_ID.test(node.id)) {
       const page = cleanPage(node.page, pictureIdsOf(node));
-      if (page.blocks.length > 0) into[topicFile(node.id)] = JSON.stringify({ version, blocks: page.blocks }, null, 2) + "\n";
+      if (page.blocks.length > 0) into[topicFile(node.id)] = JSON.stringify({ version, blocks: page.blocks, ...(page.comments ? { comments: page.comments } : {}) }, null, 2) + "\n";
     }
     pageFiles(node.children ?? [], version, into);
   }

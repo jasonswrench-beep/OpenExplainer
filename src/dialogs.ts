@@ -6,6 +6,8 @@ import { checkWait } from "./capture/wait.ts";
 import { describeShot, type ClickShot } from "./capture/clicks.ts";
 import { discardQuestion, type ReviewAnswer } from "./capture/review.ts";
 import { marksOverlay } from "./picture-marks.ts";
+import { checkCommentText, commentsWords, type Comment } from "./project/comments.ts";
+import type { UnresolvedItem } from "./project/comment-list.ts";
 import { createPointerLayer, type PointerLayer } from "./pointer-layer.ts";
 import { movePoint } from "./pointing.ts";
 import { checkCropInput, checkZoomInput, shownPart, ZOOM_LIMITS, type PictureView, type Rect as ShownRect, type ZoomSettings } from "./project/views.ts";
@@ -1243,6 +1245,254 @@ export async function zoomSettingsDialog(zoom: ZoomSettings): Promise<ZoomSettin
   });
   await open(dialog, book);
   return dialog.returnValue === "ok" ? result : null;
+}
+
+/** Words as a sentence: a full stop is added unless they already end in one (or in a question or exclamation mark). */
+function asSentence(words: string): string {
+  return /[.!?]$/.test(words) ? words : `${words}.`;
+}
+
+/** A date for a comment, such as 21 October 2026, or "no date" for a comment from a file that gave none. */
+function commentDate(iso: string): string {
+  const when = new Date(iso);
+  return iso && !Number.isNaN(when.getTime()) ? when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) : "no date";
+}
+
+export interface CommentsDialogOptions {
+  /** The block in a few words, such as "Paragraph: Press Save to keep your work". */
+  blockWords: string;
+  /** The block's comments now, open ones first. */
+  comments: Comment[];
+  /** The time to put on a new comment. */
+  now(): string;
+}
+
+/**
+ * The comments on one block: each can be reworded, resolved or opened again, or deleted, and a new one can be added. Nothing changes until the author presses
+ * Save the comments; Cancel leaves them as they were. Returns the block's new list, or `null` if cancelled. Resolved and open comments are told apart in words.
+ */
+export async function commentsDialog(options: CommentsDialogOptions): Promise<Comment[] | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">Comments</h2>
+      <p class="help" id="cm-block"></p>
+      <p id="cm-summary" role="status"></p>
+      <ul id="cm-list" class="comment-list" aria-label="Comments on this block"></ul>
+      <p><label for="cm-new">New comment</label><br><textarea id="cm-new" rows="3" cols="64" aria-describedby="cm-error cm-hint"></textarea></p>
+      <p id="cm-hint" class="help">Comments are working notes for the writer. They are never put in the printed book or the help site.</p>
+      <p><button type="button" id="cm-add">Add the comment</button></p>
+      <p id="cm-error" class="error" role="alert"></p>
+      <p id="cm-status" class="visually-hidden" role="status"></p>
+      <p><button value="ok">Save the comments</button> <button value="cancel" formnovalidate>Cancel</button></p>
+    </form>`;
+  dialog.querySelector("#cm-block")!.textContent = `On this block: ${asSentence(options.blockWords)}`;
+  const listEl = dialog.querySelector<HTMLElement>("#cm-list")!;
+  const summaryEl = dialog.querySelector<HTMLElement>("#cm-summary")!;
+  const errorEl = dialog.querySelector<HTMLElement>("#cm-error")!;
+  const statusEl = dialog.querySelector<HTMLElement>("#cm-status")!;
+  const newBox = dialog.querySelector<HTMLTextAreaElement>("#cm-new")!;
+  const say = (text: string) => { statusEl.textContent = ""; setTimeout(() => (statusEl.textContent = text), 30); };
+  const working: Comment[] = options.comments.map((c) => ({ ...c }));
+  const counts = () => ({ open: working.filter((c) => !c.resolved).length, resolved: working.filter((c) => c.resolved).length });
+  const ordered = () => [...working.filter((c) => !c.resolved), ...working.filter((c) => c.resolved)];
+  const clearErrors = () => { errorEl.textContent = ""; dialog.querySelectorAll("[aria-invalid]").forEach((e) => e.removeAttribute("aria-invalid")); };
+
+  /** Takes what is typed in the comment boxes into the working list. */
+  function takeTexts() {
+    listEl.querySelectorAll<HTMLTextAreaElement>("textarea[data-comment]").forEach((box) => {
+      const c = working.find((w) => w.id === box.dataset.comment);
+      if (c) c.text = box.value;
+    });
+  }
+
+  function draw(focus?: { id: string; part: string }) {
+    const list = ordered();
+    summaryEl.textContent = list.length === 0 ? "There are no comments on this block yet." : `${commentsWords(counts().open, counts().resolved)} on this block.`;
+    listEl.replaceChildren();
+    list.forEach((c, i) => {
+      const li = document.createElement("li");
+      li.className = c.resolved ? "comment resolved" : "comment";
+      const heading = document.createElement("h3");
+      heading.textContent = c.resolved
+        ? `Comment ${i + 1} of ${list.length}: resolved ${commentDate(c.resolvedAt ?? "")}, written ${commentDate(c.createdAt)}`
+        : `Comment ${i + 1} of ${list.length}: open, written ${commentDate(c.createdAt)}`;
+      const label = document.createElement("label");
+      label.htmlFor = `cm-${c.id}-text`;
+      label.textContent = `Words of comment ${i + 1}`;
+      const box = document.createElement("textarea");
+      box.id = `cm-${c.id}-text`;
+      box.dataset.comment = c.id;
+      box.rows = 2;
+      box.cols = 64;
+      box.value = c.text;
+      box.setAttribute("aria-describedby", "cm-error");
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.id = `cm-${c.id}-toggle`;
+      toggle.textContent = c.resolved ? "Open it again" : "Resolve";
+      toggle.setAttribute("aria-label", `${c.resolved ? "Open again" : "Resolve"} comment ${i + 1}`);
+      toggle.addEventListener("click", () => {
+        clearErrors();
+        takeTexts();
+        c.resolved = !c.resolved;
+        if (c.resolved) c.resolvedAt = options.now(); else delete c.resolvedAt;
+        draw({ id: c.id, part: "toggle" });
+        say(c.resolved ? `Comment resolved. ${commentsWords(counts().open, counts().resolved)}.` : `Comment opened again. ${commentsWords(counts().open, counts().resolved)}.`);
+      });
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.id = `cm-${c.id}-delete`;
+      remove.textContent = "Delete";
+      remove.setAttribute("aria-label", `Delete comment ${i + 1}`);
+      remove.addEventListener("click", () => {
+        clearErrors();
+        takeTexts();
+        const at = list.indexOf(c);
+        working.splice(working.indexOf(c), 1);
+        const after = ordered();
+        const neighbour = after[Math.min(at, after.length - 1)];
+        draw(neighbour ? { id: neighbour.id, part: "text" } : undefined);
+        if (!neighbour) newBox.focus();
+        say(`Comment deleted. ${commentsWords(counts().open, counts().resolved)}.`);
+      });
+      box.addEventListener("input", clearErrors);
+      li.append(heading, label, document.createElement("br"), box, document.createElement("br"), toggle, " ", remove);
+      listEl.append(li);
+    });
+    if (focus) listEl.querySelector<HTMLElement>(`#cm-${focus.id}-${focus.part}`)?.focus();
+  }
+
+  /** Adds what is in the new comment box, if anything. Returns false, with the problem shown, when it cannot be added. */
+  function addNew(): boolean {
+    const checked = checkCommentText(newBox.value);
+    if (!checked.ok) {
+      if (newBox.value.trim() === "") return true;
+      errorEl.textContent = `Problem with the new comment: ${checked.message}`;
+      newBox.setAttribute("aria-invalid", "true");
+      newBox.focus();
+      return false;
+    }
+    takeTexts();
+    working.push({ id: newId(), blockId: "", text: checked.text, resolved: false, createdAt: options.now() });
+    newBox.value = "";
+    return true;
+  }
+
+  dialog.querySelector<HTMLButtonElement>("#cm-add")!.addEventListener("click", () => {
+    clearErrors();
+    if (newBox.value.trim() === "") {
+      errorEl.textContent = `Problem with the new comment: ${(checkCommentText("") as { message: string }).message}`;
+      newBox.setAttribute("aria-invalid", "true");
+      newBox.focus();
+      return;
+    }
+    if (!addNew()) return;
+    draw();
+    newBox.focus();
+    say(`Comment added. ${commentsWords(counts().open, counts().resolved)}.`);
+  });
+  newBox.addEventListener("input", clearErrors);
+
+  let result: Comment[] | null = null;
+  dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return dialog.close("cancel");
+    clearErrors();
+    takeTexts();
+    // What was typed in the new comment box and not added yet is added now: pressing Save means that was meant.
+    if (!addNew()) return;
+    const finished: Comment[] = [];
+    for (const c of ordered()) {
+      const checked = checkCommentText(c.text);
+      if (!checked.ok) {
+        draw({ id: c.id, part: "text" });
+        const box = listEl.querySelector<HTMLTextAreaElement>(`#cm-${c.id}-text`)!;
+        box.setAttribute("aria-invalid", "true");
+        errorEl.textContent = `Problem with comment ${ordered().indexOf(c) + 1}: ${checked.message.replace("Write something in the comment first. An empty comment cannot be saved.", "Write something in it, or delete it.")}`;
+        box.focus();
+        return;
+      }
+      finished.push({ ...c, text: checked.text });
+    }
+    result = finished;
+    dialog.close("ok");
+  });
+  draw();
+  await open(dialog, working.length ? (dialog.querySelector<HTMLElement>("textarea[data-comment]") ?? newBox) : newBox);
+  return dialog.returnValue === "ok" ? result : null;
+}
+
+export interface UnresolvedDialogOptions {
+  /** The open comments in the book now, in reading order. */
+  items(): UnresolvedItem[];
+  /** Resolves one, in the project. */
+  resolve(item: UnresolvedItem): void;
+}
+
+/**
+ * Every unresolved comment in the book, in reading order, each saying which topic and block it is on. A comment can be resolved here, or the author can go to its
+ * block. Returns the item to go to, or `null` if the dialog was only closed.
+ */
+export async function unresolvedDialog(options: UnresolvedDialogOptions): Promise<UnresolvedItem | null> {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "dlg-title");
+  dialog.innerHTML = `
+    <form method="dialog">
+      <h2 id="dlg-title">Unresolved comments</h2>
+      <p id="un-summary" role="status"></p>
+      <ul id="un-list" class="comment-list" aria-label="Unresolved comments in the book"></ul>
+      <p id="un-status" class="visually-hidden" role="status"></p>
+      <p><button value="cancel" id="un-close" formnovalidate>Close</button></p>
+    </form>`;
+  const listEl = dialog.querySelector<HTMLElement>("#un-list")!;
+  const summaryEl = dialog.querySelector<HTMLElement>("#un-summary")!;
+  const statusEl = dialog.querySelector<HTMLElement>("#un-status")!;
+  const say = (text: string) => { statusEl.textContent = ""; setTimeout(() => (statusEl.textContent = text), 30); };
+  let chosen: UnresolvedItem | null = null;
+
+  function draw(focusAt?: number) {
+    const items = options.items();
+    summaryEl.textContent = items.length === 0 ? "There are no unresolved comments in the book." : `${items.length} unresolved ${items.length === 1 ? "comment" : "comments"} in the book, in reading order.`;
+    listEl.replaceChildren();
+    items.forEach((item, i) => {
+      const li = document.createElement("li");
+      li.className = "comment";
+      const heading = document.createElement("h3");
+      heading.textContent = `${item.number} ${item.nodeTitle}, block ${item.blockPosition}`;
+      const where = document.createElement("p");
+      where.className = "help";
+      where.textContent = `${asSentence(item.blockWords)} Written ${commentDate(item.comment.createdAt)}.`;
+      const words = document.createElement("p");
+      words.className = "comment-text";
+      words.textContent = item.comment.text;
+      const go = document.createElement("button");
+      go.type = "button";
+      go.id = `un-${i}-go`;
+      go.textContent = "Go to the block";
+      go.setAttribute("aria-label", `Go to block ${item.blockPosition} of ${item.nodeTitle}`);
+      go.addEventListener("click", () => { chosen = item; dialog.close("goto"); });
+      const resolve = document.createElement("button");
+      resolve.type = "button";
+      resolve.id = `un-${i}-resolve`;
+      resolve.textContent = "Resolve";
+      resolve.setAttribute("aria-label", `Resolve the comment on block ${item.blockPosition} of ${item.nodeTitle}`);
+      resolve.addEventListener("click", () => {
+        options.resolve(item);
+        const left = options.items().length;
+        draw(left === 0 ? undefined : Math.min(i, left - 1));
+        if (left === 0) dialog.querySelector<HTMLElement>("#un-close")!.focus();
+        say(`Comment resolved. ${left === 0 ? "No unresolved comments are left." : `${left} left.`}`);
+      });
+      li.append(heading, where, words, go, " ", resolve);
+      listEl.append(li);
+    });
+    if (focusAt !== undefined) listEl.querySelector<HTMLElement>(`#un-${focusAt}-resolve`)?.focus();
+  }
+  draw();
+  await open(dialog, dialog.querySelector<HTMLElement>("#un-0-go") ?? dialog.querySelector<HTMLElement>("#un-close")!);
+  return dialog.returnValue === "goto" ? chosen : null;
 }
 
 export async function variablesDialog(variables: Record<string, string>): Promise<Record<string, string> | null> {

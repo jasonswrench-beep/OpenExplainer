@@ -7,7 +7,7 @@ import {
 import { chooseImages, chooseOpenPath, chooseSavePath, loadProject, saveProject } from "./project/disk.ts";
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
-import { calloutsDialog, captureDialog, confirmDialog, highlightDialog, messageDialog, moveCircleDialog, newProjectDialog, pictureViewDialog, promptText, reviewClicksDialog, variablesDialog, zoomSettingsDialog } from "./dialogs.ts";
+import { calloutsDialog, captureDialog, commentsDialog, confirmDialog, highlightDialog, messageDialog, moveCircleDialog, newProjectDialog, pictureViewDialog, promptText, reviewClicksDialog, unresolvedDialog, variablesDialog, zoomSettingsDialog } from "./dialogs.ts";
 import { circleFor, HIGHLIGHT_KINDS, highlightWords, type HighlightKind } from "./project/highlight.ts";
 import { describeClick, describeClickDetails } from "./project/clicks.ts";
 import { createCaptureClient, type CapturedPicture } from "./capture/client.ts";
@@ -18,8 +18,10 @@ import { describeEnded, describeLost } from "./capture/clicks.ts";
 import { createPageEditor } from "./page-editor.ts";
 import { entryList, pictureBox } from "./picture-marks.ts";
 import { shownPart, viewWords } from "./project/views.ts";
+import { commentsOn, commentsWords, commentTotals, openCount, replaceBlockComments, setResolved } from "./project/comments.ts";
+import { blockWords, unresolvedCount, unresolvedIn, type UnresolvedItem } from "./project/comment-list.ts";
 import { addCalloutFromClick, setCallouts } from "./project/callouts.ts";
-import { blockLabel, calloutLabel } from "./project/page.ts";
+import { blockLabel, calloutLabel, type Block } from "./project/page.ts";
 import { plainText } from "./project/text.ts";
 import { addedWords, picturesFromReview } from "./capture/review.ts";
 
@@ -80,6 +82,7 @@ app.innerHTML = `
       </section>
       <section id="pane-page" class="pane" aria-labelledby="page-heading" tabindex="-1">
         <h3 id="page-heading">Page</h3>
+        <div class="toolbar"><button type="button" id="b-unresolved">Unresolved comments</button></div>
         <div id="page-editor"></div>
         <section id="pictures-section" aria-labelledby="pictures-heading">
           <h3 id="pictures-heading">Pictures</h3>
@@ -101,6 +104,7 @@ app.innerHTML = `
         <div id="props-topic">
           <h4 id="props-topic-heading">Topic</h4>
           <p id="props-topic-line"></p>
+          <p id="props-comments-line"></p>
           <p><label>Status of this item <select id="status-select"></select></label></p>
         </div>
         <div id="props-block" aria-live="off"></div>
@@ -143,15 +147,58 @@ const pageEditor = createPageEditor({
   }),
   entries: (picture) => entryList(picture, shownPart(picture, project.zoom, previewKind)),
   marksKey: () => `${previewKind}|${JSON.stringify(project.highlight)}|${JSON.stringify(project.zoom)}`,
+  comments: (block) => editBlockComments(block),
   changed: () => { markDirty(); renderProperties(); },
   announce: (text) => announce(text),
   selectionChanged: () => renderProperties(),
 });
 
+/** The Comments dialog for one block. Nothing changes unless the author presses Save. */
+async function editBlockComments(block: Block) {
+  const node = selected();
+  if (!node?.page) return;
+  const list = await commentsDialog({ blockWords: blockWords(block), comments: commentsOn(node.page, block.id), now: () => new Date().toISOString() });
+  if (list) {
+    replaceBlockComments(node.page, block.id, list);
+    markDirty();
+    pageEditor.refresh(true);
+    renderProperties();
+    const totals = commentTotals(node.page, block.id);
+    announce(`Comments saved. ${commentsWords(totals.open, totals.resolved)} on this block.`);
+  }
+  pageEditor.focusBlockControl(block.id, "comments");
+}
+
+$("b-unresolved").addEventListener("click", async () => {
+  const pick = await unresolvedDialog({
+    items: () => unresolvedIn(project.tree),
+    resolve: (item) => {
+      const where = findNode(project.tree, item.nodeId);
+      if (where?.page && setResolved(where.page, item.comment.id, true, new Date().toISOString())) markDirty();
+    },
+  });
+  pageEditor.refresh();
+  renderProperties();
+  if (pick) goToComment(pick);
+  else $("b-unresolved").focus();
+});
+
+/** Takes the author to the block a comment is on. */
+function goToComment(item: UnresolvedItem) {
+  select(item.nodeId);
+  pageEditor.focusBlockControl(item.blockId, "comments");
+  announce(`Went to block ${item.blockPosition} of ${item.nodeTitle}.`);
+}
+
 /** The properties of the topic and of the block that has the keyboard. */
 function renderProperties() {
   const node = selected();
   const numbers = numbering(project.tree);
+  const inBook = unresolvedCount(project.tree);
+  $("b-unresolved").textContent = `Unresolved comments (${inBook})`;
+  $("props-comments-line").textContent = node
+    ? `Open comments: ${openCount(node.page)} in this topic, ${inBook} in the whole book.`
+    : `Open comments: ${inBook} in the whole book.`;
   $("props-topic-line").textContent = node
     ? `${numbers.get(node.id)} ${node.title}. ${node.pictures.length} ${node.pictures.length === 1 ? "picture" : "pictures"}, ${node.page?.blocks.length ?? 0} ${(node.page?.blocks.length ?? 0) === 1 ? "block" : "blocks"} on the page.`
     : "Nothing is selected.";

@@ -332,7 +332,11 @@ Parts, in order:
    pressing another marker) and `pictureViewDialog` (the crop region) in `src/dialogs.ts`. The typed boxes stay the exact record and everything pointed at fills them in.
    Written up in `docs/editor.md` ("Pointing at a picture"); tried in the real window (scenario `pointing`, with a real mouse and keys through the browser's input channel).
    Still to do by a person: a screen reader pass over the handles (they use `role="application"` so arrows reach them; the typed boxes are the fallback).
-6. Then comments, the check tool, previews.
+6. **Comments (DONE 2026-10-21)**: format version 8 (`Page.comments`, saved in the topic's page file), `src/project/comments.ts` (rules), `src/project/comment-list.ts` (the
+   book's unresolved list, a block in words), `commentsDialog` and `unresolvedDialog` in `src/dialogs.ts`, the Comments button on every block in `src/page-editor.ts` and
+   the Unresolved comments button and properties line in `src/main.ts`; 12 tests; `docs/format-spec.md` ("Comments"), `docs/editor.md` ("Comments"); tried in the real
+   window (scenarios `comments`, and `keyboard2` extended). Comments are never put in a preview or an export. No replies and no author names (Jason's defaults).
+7. Then the print and help site previews (Step 4's last item), the check tool (in the design spec, not on Jason's To-Do List), then Step 5.
 
 ## Still open (ask Jason, do not guess)
 

@@ -2,6 +2,7 @@
 // to add a block, move it up or down, and delete it. Nothing here is free-flowing, so every part is reachable by keyboard and has a name a screen reader can say.
 // The rules about what a page is live in src/project/page.ts and src/project/text.ts; this file only draws them and changes them.
 import { confirmDialog } from "./dialogs.ts";
+import { commentTotals } from "./project/comments.ts";
 import type { Picture, TreeNode } from "./project/model.ts";
 import { ensurePage } from "./project/model.ts";
 import {
@@ -23,6 +24,8 @@ export interface PageEditorDeps {
   entries(picture: Picture): HTMLElement | null;
   /** Changes whenever what `show` draws changes for a reason outside the pictures themselves (the circle and zoom settings, the preview). */
   marksKey(): string;
+  /** Opens the comments of a block. */
+  comments(block: Block): void | Promise<void>;
   /** The page was changed: the project now has unsaved changes. */
   changed(): void;
   announce(text: string): void;
@@ -43,6 +46,8 @@ export interface PageEditor {
   selected(): SelectedBlock | null;
   /** Puts the keyboard on the page: the first block, or the Add buttons when the page is empty. */
   focus(): void;
+  /** Puts the keyboard on one control of a block (such as its Comments button), if the page is drawn. */
+  focusBlockControl(blockId: string, role: string): void;
 }
 
 const ADDABLE: BlockType[] = ["paragraph", "heading", "picture", "procedure", "callout"];
@@ -77,7 +82,7 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
   const node = () => deps.node();
 
   function keyFor(n: TreeNode | null): string {
-    return n ? `${n.id}|${n.title}|${deps.marksKey()}|${n.pictures.map((p) => `${p.id}:${p.altText}:${p.file}:${JSON.stringify(p.callouts ?? [])}:${JSON.stringify(p.highlight ?? null)}:${JSON.stringify(p.view ?? null)}`).join(",")}` : "";
+    return n ? `${n.id}|${n.title}|${deps.marksKey()}|${n.pictures.map((p) => `${p.id}:${p.altText}:${p.file}:${JSON.stringify(p.callouts ?? [])}:${JSON.stringify(p.highlight ?? null)}:${JSON.stringify(p.view ?? null)}`).join(",")}|${JSON.stringify(n.page?.comments ?? [])}` : "";
   }
 
   function setCurrent(id: string | null) {
@@ -371,9 +376,13 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
       li.append(calloutBody(block, helpId), addMarksHelp());
     }
     const label = `${blockLabel(block.type).toLowerCase()}, block ${index + 1} of ${total}`;
+    const totals = commentTotals(n.page, block.id);
+    // The comments button says how many are still open, or that there are only resolved ones.
+    const commentsText = totals.open > 0 ? `Comments (${totals.open} open)` : totals.resolved > 0 ? `Comments (${totals.resolved} resolved)` : "Comments";
     li.append(actionRow(label, [
       { role: "up", text: "Move up", disabled: index === 0, run: () => move(block, -1) },
       { role: "down", text: "Move down", disabled: index === total - 1, run: () => move(block, 1) },
+      { role: "comments", text: commentsText, run: () => deps.comments(block) },
       { role: "delete", text: "Delete", run: () => remove(block) },
     ]));
     li.addEventListener("focusin", () => setCurrent(block.id));
@@ -405,7 +414,10 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
   async function remove(block: Block) {
     const n = node();
     if (!n?.page) return;
-    if (!isEmpty(block) && !(await confirmDialog("Delete block", `Delete this ${blockLabel(block.type).toLowerCase()} and what is in it?`, "Delete"))) return;
+    const { open, resolved } = commentTotals(n.page, block.id);
+    const noted = open + resolved;
+    const withComments = noted > 0 ? ` Its ${noted} ${noted === 1 ? "comment is" : "comments are"} deleted with it.` : "";
+    if ((!isEmpty(block) || noted > 0) && !(await confirmDialog("Delete block", `Delete this ${blockLabel(block.type).toLowerCase()} and what is in it?${withComments}`, "Delete"))) return;
     const index = n.page.blocks.findIndex((b) => b.id === block.id);
     removeBlock(n.page, block.id);
     if (currentId === block.id) currentId = null;
@@ -490,6 +502,7 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
       deps.selectionChanged();
     },
     selected,
+    focusBlockControl(blockId, role) { focusControl(blockId, role); },
     focus() {
       const first = deps.host.querySelector<HTMLElement>(".block [data-role=first]") ?? deps.host.querySelector<HTMLElement>("[data-add]");
       first?.focus();

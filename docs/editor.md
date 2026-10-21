@@ -4,7 +4,7 @@ The editor window has three panes: the chapters and topics on the left, the page
 rules about what a page is are in `docs/format-spec.md` ("The page"); this file says what the editor does and what has been tried.
 
 Status: the three panes, the block editor, the lettered callouts on pictures, the picture views and pointing at a picture with the mouse and the arrow keys are built
-(Step 4, parts 2 to 6). Comments, the check tool and the print and help site previews are not built yet. See `docs/HANDOFF.md`.
+(Step 4, parts 2 to 7), and comments on blocks. The check tool and the print and help site previews are not built yet. See `docs/HANDOFF.md`.
 
 ## The panes
 
@@ -109,6 +109,29 @@ never cut: a view only says which part of it is shown where it is used. What the
 
 The region can be typed or pointed at (see "Pointing at a picture").
 
+## Comments
+
+The rules (what a comment is, what is saved, how it is cleaned) are in `docs/format-spec.md` ("Comments") and `src/project/comments.ts`. A comment is a working note on a
+block of a page: it is never put in a preview or an export. What the editor does:
+
+- **A Comments button on every block**, next to Move up, Move down and Delete. It says how many comments are still open ("Comments (2 open)"), or that there are only
+  resolved ones ("Comments (1 resolved)"), and is named for its block ("Comments (2 open), paragraph, block 1 of 3").
+- **The Comments dialog.** It says which block it is for in a few words ("On this block: Paragraph: Press Save to keep your work safe on the disk and keep..."), gives
+  the count in words, and lists the comments, open ones first, each titled in words ("Comment 1 of 2: open, written October 21, 2026" or "Comment 2 of 2: resolved
+  October 21, 2026, written ..."), so a resolved comment is never shown by style alone. Each comment is a text box that can be reworded, with **Resolve** (or **Open it
+  again**) and **Delete**. A new one is typed in the **New comment** box and added with **Add the comment**, which empties the box and keeps the keyboard there. Words left
+  in that box when **Save the comments** is pressed are added too. An empty comment, one over 1000 letters, or an existing comment emptied by editing is explained next to
+  the box (naming the comment), the box is marked and the dialog stays open. After a resolve or a delete the keyboard stays on that comment's button or goes to its
+  neighbour, and each change is said in words. Nothing changes until Save; Cancel and Escape leave the comments as they were. The dialog says that comments are never put in
+  the book or the help site.
+- **Unresolved comments** (a button at the top of the page pane, with the count: "Unresolved comments (3)"). A dialog lists every open comment in the book in reading
+  order (topic by its number, then block, then when written), each saying its topic and block, what the block is, when it was written and its words. **Resolve** takes
+  it off the list and the keyboard stays on a Resolve button; **Go to the block** closes the dialog, selects the topic and puts the keyboard on that block's Comments
+  button.
+- **Properties.** The topic's part says "Open comments: 2 in this topic, 5 in the whole book."
+- **Deleting a block** that has comments asks first, even if the block is empty, and says "Its 1 comment is deleted with it." Deleting an empty block with no comments still
+  does not ask.
+
 ## What has been tried
 
 In the real window (a development build driven through its debugging port, with real key presses and clicks): the three panes side by side, each a
@@ -127,6 +150,15 @@ open; Add a callout, Move up and Move down (letters following the position and t
 the click button being off with its reason; Save updating the entry under the picture and on the page, being announced and returning the keyboard to the
 button; Cancel and Escape changing nothing; deleting all callouts and making one again from the click; and a project with callouts packed, unpacked and read
 by another program (the .NET zip reader) with no letters in the file.
+
+Comments, in the real window: every block with a Comments button named for its block; the dialog saying which block, an empty comment explained with the box marked, adding
+two comments (the box emptied, the keyboard kept there, the count said in words and announced), resolving one (it goes below the open ones, says "resolved" in words and the
+keyboard follows its button), opening it again, a comment emptied by editing explained with the dialog kept open, Save updating the button ("Comments (1 open)"),
+announcing and putting the keyboard back on the button, Cancel after deleting changing nothing, words left in the new comment box added by Save, and a comment on a heading;
+the properties line and the page button counting the whole book across two chapters; the Unresolved comments list in reading order with each one's topic and block, Resolve
+from the list, and Go to selecting the topic and focusing that block's Comments button; and deleting a block with a comment asking and saying the comment goes too, an empty
+block with no comment not asking, and an empty block with a comment asking. By keyboard alone: Enter on the Comments button and the Unresolved comments button, Tab reaching
+every control and never leaving either dialog, and Escape closing each and giving the keyboard back.
 
 Pointing, in the real window with a real mouse and real key presses (sent through the browser's own input channel) on a click picture: the handles on the sample named
 for a screen reader with their hint; dragging the outline (the marker came along and the handle sat where the numbers said), the marker alone, a corner, and an empty

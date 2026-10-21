@@ -9,7 +9,7 @@ import { cleanPictureView, defaultZoom, type PictureView, type ZoomSettings } fr
 
 export { newId };
 
-export const CURRENT_VERSION = 7;
+export const CURRENT_VERSION = 8;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 

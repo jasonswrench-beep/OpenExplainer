@@ -1,5 +1,6 @@
 // A topic's page: the blocks that make up what the reader sees under the topic's title, in order.
 // Everything here works on a page alone, so it can be tested without a screen. How a page is saved is in docs/format-spec.md.
+import { cleanComments, pruneComments, type Comment } from "./comments.ts";
 import { newId } from "./ids.ts";
 import { cleanRuns, type Run } from "./text.ts";
 
@@ -64,6 +65,8 @@ export type BlockType = Block["type"];
 
 export interface Page {
   blocks: Block[];
+  /** Working notes on the blocks (format version 8). Never part of what the reader sees. Left out until there is one. */
+  comments?: Comment[];
 }
 
 export const BLOCK_TYPES: { id: BlockType; label: string }[] = [
@@ -121,9 +124,12 @@ export function addBlock(page: Page, block: Block, after: number = page.blocks.l
   return at;
 }
 
+/** Removes a block, and its comments with it. */
 export function removeBlock(page: Page, id: string): Block | null {
   const at = page.blocks.findIndex((b) => b.id === id);
-  return at >= 0 ? page.blocks.splice(at, 1)[0] : null;
+  const removed = at >= 0 ? page.blocks.splice(at, 1)[0] : null;
+  if (removed) pruneComments(page);
+  return removed;
 }
 
 export function findBlock(page: Page, id: string): Block | null {
@@ -148,6 +154,7 @@ export function forgetPicture(page: Page, pictureId: string): void {
     if (block.type !== "procedure") continue;
     for (const step of block.steps) if (step.pictureId === pictureId) delete step.pictureId;
   }
+  pruneComments(page);
 }
 
 /** Does the page hold anything? An empty page is not saved. */
@@ -208,5 +215,8 @@ export function cleanPage(raw: unknown, pictureIds: Set<string> | null = null): 
     seen.add(block.id);
     page.blocks.push(block);
   }
+  // Comments stay only on blocks that are on the page.
+  const comments = cleanComments(typeof raw === "object" && raw !== null ? (raw as { comments?: unknown }).comments : undefined, seen);
+  if (comments.length > 0) page.comments = comments;
   return page;
 }

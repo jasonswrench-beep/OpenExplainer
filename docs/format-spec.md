@@ -60,7 +60,7 @@ The note is stored so that a click highlight can be drawn, moved, restyled or re
 ## The page
 
 A topic's page is what the reader sees under the topic's title: a list of **blocks**, in order. The title itself is not a block. A page is saved in
-`topics/<topic id>.json` as `{ version, blocks }`, and only when it has at least one block, so a topic with nothing on its page has no file. The
+`topics/<topic id>.json` as `{ version, blocks, comments? }`, and only when it has at least one block, so a topic with nothing on its page has no file. The
 page lives on the topic in memory (`TreeNode.page`), so it moves, indents and is deleted with the topic; `structure.json` holds no page text.
 
 Every block has an `id` (permanent, like a node's) and a `type`:
@@ -88,6 +88,20 @@ Rules enforced in code (`src/project/page.ts`), when a project is opened and whe
 - A page file whose `version` differs from the project's is refused ("do not match"), and so is a damaged one, in plain words that name the topic,
   rather than being lost. A page file for a topic that is not in the project is ignored. A topic whose id is not a safe file name (letters, digits,
   `_` and `-`) has its page left out.
+
+### Comments
+
+A page can carry **comments**: working notes an author leaves on a block, to be resolved later. They are saved in the page's own file as `comments`, a list that is left out
+until there is one, and are never part of what the reader sees (a preview or an export leaves them out). Each is `{ id, blockId, text, resolved, createdAt, resolvedAt? }`:
+
+- `blockId`: the block it is on. A comment belongs to one block of any kind (for a numbered procedure, to the whole block, not a step). When a block is deleted, or a
+  picture block goes because its picture was removed from the topic, its comments go with it.
+- `text`: the words, at most 1000 letters, line breaks made plain and the edges trimmed. A comment with no words is not kept.
+- `resolved`: true or false. `resolvedAt` is only kept while it is resolved. `createdAt` is an ISO date and time.
+
+Cleaned when a project is opened and saved (`cleanComments` in `src/project/comments.ts`): a comment on a block that is not on the page, with no words, or that is not an
+object is dropped, a repeated id gets a new one, and `resolved` is true only when it says true. The list of unresolved comments across the book is worked out from the pages
+(`src/project/comment-list.ts`), never stored.
 
 ## Lettered callouts
 
@@ -164,6 +178,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 8: a page can have comments on its blocks, saved in the page's file. A version 7 project upgrades with none. A copy of OpenExplainer that only knows version 7 refuses a version 8 project, so it can never open one and save it without the comments.
 - Version 7: a picture can have a view (cropped, or zoomed on the click), and the project keeps the zoom sizes (`zoom`). A version 6 project upgrades with the starting sizes and no views. A copy of OpenExplainer that only knows version 6 refuses a version 7 project, so it can never open one and save it without the views.
 - Version 6: a picture can have lettered callouts. A version 5 project upgrades with none. A copy of OpenExplainer that only knows version 5 refuses a version 6 project, so it can never open one and save it without the callouts.
 - Version 5: a topic can have a page, saved in its own file under `topics/`. A version 4 project upgrades with no pages. A copy of OpenExplainer that only knows version 4 refuses a version 5 project, so it can never open one and save it without the pages.

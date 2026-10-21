@@ -83,3 +83,10 @@ legend { font-weight: 600; padding: 0 0.25rem; }
 .pointer-marker { position: absolute; box-sizing: border-box; aspect-ratio: 1; min-width: 14px; border-radius: 50%; border: 2px dashed #FFD600; box-shadow: 0 0 0 1px #000; transform: translate(-50%, -50%); cursor: grab; }
 .pointer-other { position: absolute; aspect-ratio: 1; min-width: 14px; border-radius: 50%; transform: translate(-50%, -50%); cursor: pointer; }
 fieldset.co-active { border: 2px solid var(--accent); padding: calc(0.25rem - 1px) calc(0.75rem - 1px); }
+.comment-list { list-style: none; padding: 0; margin: 0.5rem 0; max-width: 46rem; }
+.comment-list li { border: 1px solid #767676; border-radius: 4px; padding: 0.4rem 0.8rem 0.7rem; margin: 0.5rem 0; }
+.comment-list li.resolved { border-style: dashed; background: #f4f6f9; }
+.comment-list h3 { margin: 0.2rem 0 0.4rem; font-size: 1rem; }
+.comment-text { white-space: pre-wrap; margin: 0.3rem 0 0.6rem; }
+.comment-list textarea { max-width: 100%; box-sizing: border-box; font: inherit; padding: 0.3rem 0.4rem; }
+#cm-new { max-width: 100%; box-sizing: border-box; font: inherit; padding: 0.3rem 0.4rem; }

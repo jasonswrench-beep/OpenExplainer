@@ -33,6 +33,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   5: (raw) => ({ ...raw, version: 6 }),
   // Version 6 to 7: the project keeps how much a zoomed picture shows, and a picture can have a view. An older project gets the starting sizes and no views.
   6: (raw) => ({ ...raw, version: 7, zoom: defaultZoom() }),
+  // Version 7 to 8: a page can have comments on its blocks. An older project has none.
+  7: (raw) => ({ ...raw, version: 8 }),
 };
 
 export function migrate(input: unknown): Project {
