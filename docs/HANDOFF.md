@@ -344,7 +344,15 @@ Parts, in order:
    uses CSS `object-view-box`, which an export for other browsers will need to replace with a cropped picture file. Jason's default: the preview flags pictures too small on paper and does
    not switch them to a crop or zoom by itself (the design says the layout switches; ask him if he wants it automatic). Not built: real page breaks and page numbers (they come with the
    PDF), search, the index and the FAQ of the help site, a quick guide preview.
-8. Then the check tool (in the design spec, not on Jason's To-Do List), then Step 5 (drawing shapes, named styles, the contrast checker), then Step 6 (export).
+8. **Step 5, marks and colours (started 2026-10-21; Jason was away and said to keep going down the checklist, so these defaults were chosen and he should confirm them)**.
+   a. **Format version 9 and the rules (DONE)**: `Picture.shapes` (arrow, text box, rectangle, numbered marker, in picture pixels, bottom to top), `project.styles` (named colour
+   sets), `src/project/contrast.ts` (hex colours, the ten swatches, WCAG 2.2 contrast: text 4.5 to 1, graphics 3 to 1, the average colour behind a mark), `src/project/shapes.ts`
+   (new marks, cleaning, arrow head, text wrapping, what a mark says, the checks), `src/project/styles.ts` (apply by copy, names, cleaning), migration 8 to 9, 18 tests,
+   `docs/format-spec.md` ("Marks drawn on a picture", "Named styles"). Defaults chosen: applying a style copies colours (no link); a marker's label is typed by the author and its letter
+   colour is black or white by contrast; a text box's fill is white; a kept low-contrast choice is recorded when a mark is saved while failing (`keptLowContrast`). b. Drawing the marks in
+   the editor, the previews and the exports, and adding them to a picture's description. NOT built. c. The Drawing dialog (add, type numbers, point with the mouse and keys, swatches,
+   contrast warnings, named styles). NOT built.
+9. Then the check tool (in the design spec, not on Jason's To-Do List), then Step 6 (export).
 
 ## Still open (ask Jason, do not guess)
 

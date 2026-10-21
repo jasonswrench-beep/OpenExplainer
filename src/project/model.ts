@@ -6,10 +6,12 @@ import { newId } from "./ids.ts";
 import { emptyPage, forgetPicture, type Page } from "./page.ts";
 import type { Callout } from "./callouts.ts";
 import { cleanPictureView, defaultZoom, type PictureView, type ZoomSettings } from "./views.ts";
+import type { Shape } from "./shapes.ts";
+import type { NamedStyle } from "./styles.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 8;
+export const CURRENT_VERSION = 9;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -74,6 +76,8 @@ export interface Picture {
   callouts?: Callout[];
   /** The part of the picture that is shown where it is used (format version 7): cropped to a region, or zoomed in on the click. Without it the whole picture is shown. */
   view?: PictureView;
+  /** Marks drawn on the picture (format version 9): arrows, text boxes, rectangles and numbered markers, from the bottom one to the top one. */
+  shapes?: Shape[];
 }
 
 export interface TreeNode {
@@ -95,6 +99,8 @@ export interface Project {
   highlight: HighlightSettings;
   /** How much a zoomed picture shows, for the book and for a quick guide (format version 7). */
   zoom: ZoomSettings;
+  /** Named sets of colours for marks (format version 9). */
+  styles: NamedStyle[];
   tree: TreeNode[];
 }
 
@@ -110,6 +116,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     variables: { PRODUCT: "", VERSION: "", COMPANY: "" },
     highlight: defaultHighlight(),
     zoom: defaultZoom(),
+    styles: [],
     tree: [],
   };
   if (template === "openstage-how-to-book") {

@@ -200,7 +200,7 @@ test("comments are saved with their topic's page and come back, and a page with 
   const back = fromFiles(files);
   assert.deepEqual(back.tree[0].children[0].page!.comments, page.comments);
   assert.equal(back.tree[1].page!.comments, undefined);
-  assert.equal(CURRENT_VERSION, 8);
+  assert.ok(CURRENT_VERSION >= 8);
   assert.ok(c);
 });
 
@@ -208,9 +208,8 @@ test("a version 7 project opens with no comments, and a bad comment in a file is
   const files = toFiles(projectWithComments().p);
   const topicFile = Object.keys(files).find((f) => f.startsWith("topics/"))!;
   const v7 = JSON.parse(files["project.json"]);
-  v7.version = 8;
   const opened = migrate({ ...v7, version: 7, tree: JSON.parse(files["structure.json"]).tree });
-  assert.equal(opened.version, 8);
+  assert.equal(opened.version, CURRENT_VERSION);
   const page = JSON.parse(files[topicFile]);
   page.comments = [{ id: "c1", blockId: page.blocks[0].id, text: "  ok  ", resolved: false, createdAt: NOW }, { id: "c2", blockId: "gone", text: "lost", resolved: false, createdAt: NOW }, { text: "no block" }];
   const files2 = { ...files, [topicFile]: JSON.stringify(page) };

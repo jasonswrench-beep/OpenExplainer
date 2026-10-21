@@ -25,7 +25,7 @@ All of these carry the same `version`. If they differ, the project is refused, b
 
 ## Pictures
 
-Each node holds a list of pictures: `{ id, file, width, height, altText, source }`, and a picture may also have `click` (a click-by-click capture, see "Click notes") `highlight` (its own choices about the click circle, see "The click highlight") `callouts` (see "Lettered callouts") and `view` (see "Picture views").
+Each node holds a list of pictures: `{ id, file, width, height, altText, source }`, and a picture may also have `click` (a click-by-click capture, see "Click notes") `highlight` (its own choices about the click circle, see "The click highlight") `callouts` (see "Lettered callouts") and `view` (see "Picture views") and `shapes` (see "Marks drawn on a picture").
 
 - `file` is the path inside the package. `width` and `height` are in pixels.
 - `altText` says what the picture shows. It is always asked for and never filled in silently. Empty means it still needs one, and the app shows it as "Needs a description".
@@ -142,6 +142,43 @@ picture's width (10 to 100; 100 shows the whole picture). Starting sizes: 50 for
 Callouts and the click circle stay in the whole picture's pixels whatever the view, so they line up in every view; a callout whose item is wholly outside the
 shown part is still in the list and is said to be outside it.
 
+## Marks drawn on a picture
+
+A picture can have **marks**: arrows, text boxes, rectangles and numbered markers. They are stored beside the picture in `shapes`, a list in the picture's own pixels from the
+bottom mark to the top one (a later mark is drawn over an earlier one), and are never burned into it, so they stay editable and the capture stays clean. They are drawn over the
+click circle and under the lettered callouts. Every mark has an `id` and `alt` (alternative text, at most 300 letters, empty when there is none yet), and may have
+`keptLowContrast: true`, set when its colours were saved with a contrast below the minimum so the choice is on record for the accessibility check. A `kind` says which:
+
+- `arrow`: `{ from, to, color, thickness }`, a straight arrow from `from` to `to` with its head at `to`. `thickness` is in picture pixels (1 to 100). An arrow with no length is dropped.
+- `text`: `{ box, text, fill, outline, textColor, size }`, a box with words in it. `fill` is a colour or `null` for none (white by default); `size` is the height of the letters in
+  picture pixels (6 to 400). The words are wrapped to the width of the box when drawn (`wrapText` in `src/project/shapes.ts`); a box smaller than 4 pixels is dropped.
+- `rectangle`: `{ box, outline, thickness, fill, seeThrough }`, an outline round an area, optionally filled (`fill` is a colour or `null`; `seeThrough` is how much shows through,
+  0 to 100, starting at 70).
+- `marker`: `{ at, label, color, size }`, a step number or a letter on a spot, one to three letters or digits (default `1`), `size` being the radius in picture pixels. The label is black
+  or white, whichever reads better on `color`, so it is not stored.
+
+A colour is six hex digits with a leading `#` in capital letters (`#C62828`); anything else becomes the starting red. Points are whole pixels kept on the picture; boxes are cut to it.
+A new mark starts near the middle of the picture with sizes that follow its width (a line about 0.3 percent of the width across, letters about 1.2 percent high), so it looks the same at
+any picture size.
+
+**What a mark says for a reader who cannot see it** (`shapeWords`, `shapesDescription`): a text box says its words (and its description after them), a marker says its label (and its
+description), an arrow or a rectangle says its description. They are added to the picture's description as "Marks: ...", after what the author wrote. An arrow or a rectangle with no
+alternative text is said to need one.
+
+**Contrast** (`src/project/contrast.ts`) is worked out as WCAG 2.2 says. Text must reach 4.5 to 1 against its fill, and the parts of a graphic (an arrow, an outline, a marker) 3 to 1 against
+the picture behind them (an average of the picture under the mark, so the check says "about"). The checker is always on and only warns: a mark can keep any colour. It is cleaned and checked
+every time, and `keptLowContrast` is the record of a kept choice. Ratios are said to one decimal place and rounded down, so 4.49 is never said to be 4.5.
+
+Cleaned when a project is opened and saved: a mark of an unknown kind, with a point that is not a number, or too small is dropped; numbers are cut to the picture and kept in range; a colour
+that is not one becomes the starting one; a repeated id gets a new one; and a picture with none has no `shapes`.
+
+## Named styles
+
+`project.json` has `styles`, a list of named sets of colours: `{ id, name, fill, outline, textColor }`. A red box with white lettering saved as "Warning" is one. A style is applied by
+**copying** its colours onto a mark (an arrow takes the outline colour; a marker takes the fill, or the outline when there is none; a text box takes all three; a rectangle takes the fill and
+the outline), so a mark never depends on a style and every picture is complete by itself. A name is at most 40 letters and no two styles have the same name, capitals aside. A style's own
+colours get the same contrast check as a mark's (its words on its fill). Cleaned when a project is opened and saved.
+
 ## The click highlight
 
 A transparent circle can be drawn on the spot of a click, so the reader sees where to click. It is never burned into a picture: it is drawn from the
@@ -178,6 +215,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 9: a picture can have marks drawn on it (`shapes`), and the project keeps named styles (`styles`). A version 8 project upgrades with none. A copy of OpenExplainer that only knows version 8 refuses a version 9 project, so it can never open one and save it without the marks.
 - Version 8: a page can have comments on its blocks, saved in the page's file. A version 7 project upgrades with none. A copy of OpenExplainer that only knows version 7 refuses a version 8 project, so it can never open one and save it without the comments.
 - Version 7: a picture can have a view (cropped, or zoomed on the click), and the project keeps the zoom sizes (`zoom`). A version 6 project upgrades with the starting sizes and no views. A copy of OpenExplainer that only knows version 6 refuses a version 7 project, so it can never open one and save it without the views.
 - Version 6: a picture can have lettered callouts. A version 5 project upgrades with none. A copy of OpenExplainer that only knows version 5 refuses a version 6 project, so it can never open one and save it without the callouts.

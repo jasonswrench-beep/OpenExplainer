@@ -5,6 +5,8 @@ import { cleanClicks } from "./clicks.ts";
 import { cleanHighlight, cleanTreeHighlights, defaultHighlight } from "./highlight.ts";
 import { cleanTreeCallouts } from "./callouts.ts";
 import { cleanTreeViews, cleanZoom, defaultZoom } from "./views.ts";
+import { cleanTreeShapes } from "./shapes.ts";
+import { cleanStyles } from "./styles.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -35,6 +37,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   6: (raw) => ({ ...raw, version: 7, zoom: defaultZoom() }),
   // Version 7 to 8: a page can have comments on its blocks. An older project has none.
   7: (raw) => ({ ...raw, version: 8 }),
+  // Version 8 to 9: a picture can have marks drawn on it, and the project keeps named styles. An older project has none.
+  8: (raw) => ({ ...raw, version: 9, styles: [] }),
 };
 
 export function migrate(input: unknown): Project {
@@ -51,8 +55,9 @@ export function migrate(input: unknown): Project {
   }
   // A click note and the circle's settings are checked every time a project is opened, whatever version it was saved as.
   const project = raw as unknown as Project;
-  if (Array.isArray(project.tree)) project.tree = cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(project.tree as TreeNode[]))));
+  if (Array.isArray(project.tree)) project.tree = cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(project.tree as TreeNode[])))));
   project.highlight = cleanHighlight(project.highlight);
   project.zoom = cleanZoom(project.zoom);
+  project.styles = cleanStyles(project.styles);
   return project;
 }
