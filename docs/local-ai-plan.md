@@ -16,7 +16,8 @@ downloads the first time the author turns the built-in model on; drafts and writ
 | 3. The runtime and Test the AI | **Built 2026-10-21 and tried with the real model.** See below. |
 | 4. Draft callout sentences, the review list, format 14 | **Built 2026-10-21 and tried with the real model.** Jason confirmed the five points. See below. |
 | 5. Draft a procedure from the clicks | **Built 2026-10-22 and tried with real clicks.** Jason confirmed the five points. See below. |
-| 6 to 8 | Not started. |
+| 6. Chapter text, suggested boxes, a consistency check | **Planned 2026-10-22 (below); waiting for Jason's yes to the five points at the end of the plan.** |
+| 7 to 8 | Not started. |
 
 ### What part 1 is
 
@@ -249,6 +250,59 @@ that it works with AI help off. In the real window by keyboard: the button with 
 3. **One step per click picture, in order; names from the author's callouts first, then Windows' name where it is kept, else the kind only; no typing, no result lines; steps with no name are flagged.** **Yes.**
 4. **Accept adds a new numbered procedure at the end of the topic's page, each step with its picture; format version 15.** **Yes.**
 5. **The model reading the pictures is a separate, optional next part, not part of this one.** It would need a second download from the same Apache 2.0 repository (the picture reader, 672 MB, pinned like the model; I have its size and fingerprint), would only ever read pictures on this PC, and could write the result lines and name controls Windows leaves unnamed. It would be slower (each picture adds seconds on this PC, more on a laptop), and a 4-billion-parameter model's reading of small screen text is unproven, so I would try it on real captures and show you before building any screens. **Decide after you have seen this part.**
+
+### Part 6: the plan (2026-10-22, before any code)
+
+**What the author will be able to do.** Three things, each its own small step, tried and committed one at a time:
+
+1. **A chapter opener and a chapter summary (6a).** On a chapter, **Draft an opener** writes two or three sentences for the top of the chapter ("After this chapter, you will be able to save your work, print a page and close the program."). On a topic the author has made for the purpose
+   (called Summary, last in the chapter), **Draft a chapter summary** writes a short paragraph restating what the chapter's other topics say. Both wait in Drafts. Accept adds the opener as the first paragraph of the chapter's page, and the summary as a paragraph on the Summary topic's page.
+2. **Suggested boxes (6b).** On a topic, **Suggest boxed notes** proposes up to three Caution, Design Tip, Power Tip, Time Saver or Bright Idea boxes, each resting on one sentence the topic's own text already says. The list shows that sentence, lets the author choose the kind and change the words, and says
+   **Suggested** on every entry. Accept adds the box right after the block that holds the sentence.
+3. **A consistency check with no AI (6c).** In the book check, new notes (ignorable like the others): a control name written in a step or paragraph that does not match the name captured for it ("Save as" against "Save as..."); a step whose verb does not suit the kind of control ("Press the OK button" when OK is a button and the book says Click);
+   and a word the author asked to avoid. A **Words to avoid** list joins the writing-style notes ("file", use "document").
+
+**What I found by trying the real model first (2026-10-22).** I wrote a made-up chapter of three topics with paragraphs and steps, gave the built-in model the writing-style notes "Say click for buttons and choose for menu items. Call the thing the reader works on a document, never a file. Keep sentences short.", and asked for each job twice.
+
+- **An opener** took 3.5 and 7.8 seconds and read well: "After this chapter, you will be able to save your work, print a page, and close the program. You can choose File to access saving or printing options, and you can click buttons to complete these tasks." One of the two said "you will click buttons like Save as and Close", which is
+  wrong (Save as is a menu item), so a draft needs reading, but it never added a feature the text lacks.
+- **A summary** took 5.4 and 8.0 seconds and restated the text correctly both times (it even copied the text's "press the OK button").
+- **Suggested boxes**: asked to return JSON in which each box carries the exact sentence it rests on, the real server returned valid JSON every time (it can be forced to; it is a feature of the program, `response_format`), and **every sentence was found word for word in the topic's text**. So a box cannot be invented: the program can check it. But the model chose the *kind* badly:
+  it called a warning that work is lost a Design Tip once (a Caution the second time), called "The Print window lets you pick the printer" a Power Tip, and called "Printing can take a few minutes" a Time Saver. Each run took 17 to 19 seconds for three boxes.
+- **A consistency pass** is where it failed. Shown the same text and notes, it listed six problems: four were wrong (it said "Choose File" should be "Click File", the opposite of the notes, which say to choose menu items), one real problem was found ("Press the OK button" should be "Click"), and it **missed** two real ones
+  (the text says "existing file" although the notes say never a file, and "Save" against "the Save button"). The second run was wrong in the same ways. Each run took about 20 seconds. Every quote it gave was word for word in the text, so the places were right; the judgments were not.
+
+So the plan follows what the model is good at (writing from text it is given) and keeps it away from what it is not good at (judging text against rules):
+
+- The opener, summary and box wording come from the model, checked in code and read by the author.
+- The kind of box is for the author to choose, with a rule that makes it a Caution when the sentence says work can be lost, replaced, overwritten, deleted or cannot be undone.
+- The consistency check is rules, which are exact, instant and need no AI (so it works with AI help off), and it shows the exact words and place, like the rest of the book check.
+- Matching **tense and voice** to the style notes is **dropped**: neither a rule nor this model can do it reliably. The style notes still steer the opener, summary and boxes.
+
+**The guards.** The model is given words only: the chapter's or topic's own text (paragraphs, headings, steps, boxes), the titles, and the writing-style notes. Nothing else, and it all stays on this PC. Every answer is checked in code before it is kept:
+
+- **Opener and summary**: plain sentences only (an opener of 2 to 3 sentences up to 70 words, a summary of 3 to 5 sentences up to 120 words), no quotation marks, lists or formatting, and no capitalised name that is not in the chapter's own text (the same check the callout sentences have).
+- **Boxes**: valid JSON of the expected shape; the "evidence" sentence found word for word in the topic's text; the box text one or two short sentences with no capitalised name that is not in the topic's text; at most three; none that repeats a box already on the page.
+- Each draft remembers what it was made from, and the list says who wrote it, as now.
+
+**What changes in the saved project (format version 16, once, at the start of 6a).** `drafts.json` gains two kinds: `chapter-text` (`{ nodeId, role: "opener" | "summary", text }`, one per topic and role) and `box` (`{ nodeId, kind, text, evidence, blockId }`, a handful per topic). `project.json` gains `avoidWords`, a list of
+`{ avoid, use }` pairs (each at most 60 letters, at most 100 pairs, left out while empty), edited in the Writing style box. A version 15 project upgrades unchanged; `docs/format-spec.md` is updated in the same commit. The consistency notes are worked out from the book every time and never stored.
+
+**Where the code goes.** `src/ai/chapter-text.ts` (the messages, the checks and the job for openers and summaries), `src/ai/boxes.ts` (the same for boxes, with the evidence check and the caution rule), `src/project/consistency.ts` (the three rules), `src/project/drafts.ts` (the new kinds and their Accept), `src/drafts-dialog.ts` (the entries), `src/style-dialog.ts` (the word list),
+`src/project/checks.ts` (the new notes), buttons in `src/main.ts`, tests, and the format spec.
+
+**How I will try it.** Unit tests for every check (a good answer; a made-up name; a box whose evidence is not in the text; a long answer; two sentences), the caution rule, the three consistency rules on made-up books, accepting each kind into the page (the opener first, the summary last, a box right after its block), format 16 and a version 15 project opening, and nothing in any export. In the real
+window by keyboard for each new entry, and once for each job with the real model on a made-up chapter and then on the real pages I make from real clicks. I show you the real sentences before calling any step done.
+
+**Cost.** On this PC an opener or summary takes about 4 to 8 seconds and a topic's boxes about 6 to 7 seconds; a slower PC takes longer, so each job has a progress line and a Stop button.
+
+**Five points for Jason to confirm** (my defaults in bold):
+
+1. **The opener goes on the chapter's page and the summary goes on a topic the author makes called Summary**, because a chapter's own page prints before its topics, so a summary there would come first. (The other way is a new place on the chapter after its topics, which is a bigger change to the book layout.) **Summary topic.**
+2. **Suggested boxes rest on a sentence the topic already says, the author chooses the kind in the list, and a rule makes it a Caution when work can be lost.** **Yes.**
+3. **The consistency check is rules, not the model**, as new ignorable notes in the book check, plus a **Words to avoid** list in Writing style. The try showed the model gets it wrong more often than right. **Yes.**
+4. **Tense and voice matching is dropped.** **Yes.**
+5. **One format change (version 16) at the start of 6a covers the two new kinds of draft and the word list.** **Yes.**
 
 ## 1. What the author will see
 
