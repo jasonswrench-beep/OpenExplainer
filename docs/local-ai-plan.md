@@ -14,7 +14,8 @@ downloads the first time the author turns the built-in model on; drafts and writ
 | 1. Settings and the connector | **Built 2026-10-21.** See below. |
 | 2. The model download | **Built and tried 2026-10-21**, first against a stand-in download site, then for real with Jason's yes (below). The model is on this PC. |
 | 3. The runtime and Test the AI | **Built 2026-10-21 and tried with the real model.** See below. |
-| 4 to 8 | Not started. |
+| 4. Draft callout sentences, the review list, format 14 | **Planned 2026-10-21 (below); waiting for Jason's yes to the five points at the end of the plan.** |
+| 5 to 8 | Not started. |
 
 ### What part 1 is
 
@@ -92,6 +93,65 @@ downloads the first time the author turns the built-in model on; drafts and writ
 - Windows briefly shows a second, empty `llama-server.exe` (no command line, no threads, the same memory) a few seconds after the model loads. It disappears by itself within a minute and holds no port; it looks like a memory snapshot taken by Windows security software.
   The tests count only processes that have their options.
 - **Not tried:** the program on an ARM64 PC; a PC with much less memory (the program would likely fail to load and say why in its log; the dialog only warns); an installer (none exists yet); security software that might quarantine unsigned DLLs; speed on an ordinary laptop.
+
+### Part 4: the plan (2026-10-21, before any code)
+
+**What the author will be able to do.** Capture clicks in a program as now. Each click picture already gets its first callout automatically (a marker on the clicked item, named from what Windows said, with the sentence empty).
+Press **Draft callout text with AI** (on a picture, or on a whole topic) and the built-in model writes a one-sentence explanation for each callout that has none ("Click Save to keep your work in a file."). Nothing goes
+into the book yet. The sentences wait in a list, **AI drafts**, where the author reads each one, can change the words, and presses **Accept** or **Reject**. Only an accepted sentence becomes the callout's real sentence. Until then it is not in
+the editor's text, the previews, the book check or any export, because it is not stored where the text is.
+
+**What I tried first (the real model, this PC, 2026-10-21).** I gave the built-in model seven made-up click notes with a rule sheet and a style note, and read what it wrote. Each took 1.3 to 3.4 seconds.
+It writes fluent, short, correct-sounding sentences when the clues are good:
+
+- Save button with Ctrl+S and "Saves the active document": "Click the Save button to store your current work file."
+- Combo box named "Font size": "Choose a font size from this combo box to change your text appearance."
+- Edit box named "Search" described as "Type the words to look for.": "Type the words you want to find in this search box."
+
+But when the clues are thin it **makes things up instead of saying so**, even though it was told to answer NEEDS INFO: a pane with no name became "Choose the text in this pane to change its formatting", and a button named "Button1" became "Click Button1 to
+print your document now." So the guard that stops a made-up sentence cannot be an instruction to the model. It is in code (below), and the author also sees what the model was given.
+
+**How a draft is made (words only, nothing else).**
+
+1. For each callout on the picture whose sentence is empty, the program collects the clues in words: the callout's name; if it is the callout made from the click, the clicked item's kind ("button", "menu item"), keyboard shortcut,
+   access key and the description Windows gave; the names of the other callouts on the same picture; the sentences already written for them (so the new one matches); the topic's title and its chapter's title; and the project's writing-style notes.
+   No picture, no typed text (a click capture never keeps any), and nothing at all for a password box.
+2. **The thin-clues rule, in code**: a callout is drafted only if it has a real name (not empty, not just a number, not a placeholder such as "Button1", "pane" or "unknown") or Windows gave a description of at least three words.
+   Otherwise no draft is made and the list says "Needs a name: there is nothing in the capture to write from." The program never asks the model to guess.
+3. One request per callout, with a progress line ("Drafting 2 of 5") and a Stop button, so a slow PC can be stopped and nothing is half-written. On this PC about 2 seconds each.
+4. **The answer is checked in code before it is kept**: one sentence, 3 to 30 words, no line breaks, no quotation marks, only the marks the editor knows (**bold** for a control name), and any bold control name in it must be a name from the capture
+   (the callout's own or another callout's on the picture). A sentence that fails is thrown away and counted ("1 draft was thrown away because it mentioned a control that is not in the capture").
+5. Each kept draft remembers what it was given and which model wrote it, and the review list shows both, so the author can judge whether the clues were enough.
+
+**The review list (AI drafts).** A toolbar button **AI drafts** with the count in words ("AI drafts: 3 waiting"). It opens a list. Each entry says where it is ("1.2 Saving your work, picture 1, callout A: Save"), shows
+**Now:** (the sentence there at the moment, or "nothing yet") and **Draft:** (an editable box with the sentence), has a fold-out "What the AI was given", and three buttons: **Accept**, **Reject** and **Go to the picture**. One at a time; there is no
+"accept all", because the design says the author accepts or rejects each one. After Accept or Reject the keyboard moves to the next entry and the count is announced. Escape closes the list and gives the keyboard back to the button. A draft whose callout has
+been deleted, or whose picture has gone, disappears by itself. If the author has written their own sentence since, the entry shows it under **Now:** so replacing it is a choice, not an accident. The book check gains one note, "N AI drafts are waiting for review".
+
+**The writing-style notes.** A **Writing style** button beside Project variables opens a box (up to 2000 letters) for the project: the voice, the words to use ("Say click for buttons, choose for menu items"), how a step reads. The model reads it before every draft.
+It is empty to begin with. It is stored in the project, so it travels with the book and with an MCP assistant.
+
+**What changes in the saved project (format version 14).** `project.json` gains `writingStyle` (a text, left out when empty). A new file `drafts.json` holds the waiting drafts, `{ version, drafts }`, and exists only when there are drafts. A draft is
+`{ id, kind, pictureId, calloutId, text, clues, madeAt, model }`; `kind` is `callout-sentence` now and leaves room for the procedure drafts of part 5. Cleaning, as for everything else: a draft for a callout or picture that is not there, with no text, or of an unknown kind is dropped,
+text is cut to 300 letters, and only the newest draft for one callout is kept. Version 13 projects open unchanged (the migration only adds the empty values). `docs/format-spec.md` is updated in the same commit. **Drafts are never in an export**
+(help site, JSON with images, Markdown, Word, PDF, guides): they are not part of the tree the exports read. The project file itself keeps them.
+
+**Where the code goes.** `src/project/drafts.ts` (the rules: add, accept, reject, clean, list, count), `src/ai/drafting.ts` (the clues, the thin-clues rule, the messages for the model, the checks, the job), `src/drafts-dialog.ts` (the review list),
+`src/style-dialog.ts` (writing style), buttons in `src/main.ts` and the picture list. All of the logic has no screen in it, so it is tried with a fake model.
+
+**How I will try it.** Unit tests for the rules and the clues and checks (thin clues make no draft; a password box makes none; a made-up control name is thrown away; a long or two-sentence answer is thrown away), for drafting with the fake model (good answer, bad
+answers, Stop in the middle), for format 14 (round trip, version 13 opens, drafts cleaned, never in an export, opened and saved by the MCP server without loss). In the real window: the review list by keyboard with drafts put in directly (Accept, Reject, edit then Accept, a deleted callout,
+Tab with no trap, Escape), and once with the real model on a made-up click picture. The result is shown to Jason as real sentences before it is called done.
+
+**What it will not do yet.** It does not look at the picture (see the first point below), does not write names (a thin name is "needs a name", not a guess), does not write procedures (part 5), and does not draft a whole book in one go (the MCP draft tool, part 8).
+
+**Five points for Jason to confirm** (my defaults in bold):
+
+1. **Words only for now.** The model Qwen 3.5 can also read pictures, but that needs a second download (about 672 MB) and is slower; I would add it later as an option that is off to begin with, and only for pictures the author chooses. **Yes, words only now.**
+2. **Drafts live in their own file, `drafts.json`**, not beside each topic as the first outline said. It is simpler to list, to keep out of every export, and it leaves room for other kinds of draft. **Yes.**
+3. **The author accepts or rejects each draft, can change its words first, and there is no "accept all".** **Yes.**
+4. **The buttons**: Draft callout text on each picture and on each topic; AI drafts (with the count) and Writing style in the toolbar. **Yes.**
+5. **Names are not drafted** when Windows gave none: they are marked "needs a name". **Yes.**
 
 ## 1. What the author will see
 
