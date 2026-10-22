@@ -12,7 +12,7 @@ downloads the first time the author turns the built-in model on; drafts and writ
 | Part | State |
 | --- | --- |
 | 1. Settings and the connector | **Built 2026-10-21.** See below. |
-| 2. The model download | **Built 2026-10-21 and tried against a stand-in download site only.** The first real 2.7 GB download waits for Jason's yes. See below. |
+| 2. The model download | **Built and tried 2026-10-21**, first against a stand-in download site, then for real with Jason's yes (below). The model is on this PC. |
 | 3. The runtime and Test the AI | Not started. |
 | 4 to 8 | Not started. |
 
@@ -47,7 +47,16 @@ downloads the first time the author turns the built-in model on; drafts and writ
   scenario `aidownload` in the real window (against the stand-in site, with the data folder pointed at a scratch folder by `OPENEXPLAINER_DATA_DIR`, which a development build honours).
 - Checked against the real site with **headers only** (no model data): the address answers any web page's origin and redirects to a second address, which allows any origin, supports "Range" (answers 206 with a Content-Range) and exposes the headers
   the downloader reads. So a download straight from the app's page works. The second address is signed and expires after about an hour; every retry starts again from the first address, so a long or paused download is fine.
-- Not tried: a real download; the speed on a slow connection; Windows' own reaction to 2.7 GB written in pieces (an antivirus program may scan the file as it grows); what happens when the PC sleeps mid-download.
+- **The first real download, 2026-10-21 (Jason said yes), in the dev app with the normal data folder** (`%LOCALAPPDATA%\org.openexplainer.app\models`): 2,740,937,888 bytes in about 50 seconds from
+  Hugging Face in one request with no retry (35 to 69 MB a second by the growth of the file on disk, about 55 on average). The check at the end worked out the pinned SHA-256 and the file was accepted; Windows' own
+  `Get-FileHash` gave the same fingerprint independently, and the licence copy matched its pinned fingerprint too. Nothing odd happened: no warning from the PC, no stalled progress, and the words ("Downloading: 1.3 GB of 2.7 GB (46%).
+  About a minute left.", then "Checking that the file is the right one: 54%.") read as intended. One thing found: the check took 57 seconds because a development build does not optimise anything; with the `sha2` crate optimised
+  even in development builds (a three-line change in `src-tauri/Cargo.toml`) it takes 2.4 seconds, in line with Windows' own 3.3 seconds. A release build was always fast.
+  A freshly started app showed "Ready." for the model from the files and the note alone.
+- **Resume against the real site, also 2026-10-21:** the half-finished file was made 5 MB short, and Resume made exactly one request, `Range: bytes=2735937888-`, through the real redirect to the signed second address, fetched the last
+  5 MB, checked the whole file and finished in 3.4 seconds. The result was byte for byte the same file (matched the pinned fingerprint and the earlier copy).
+- Not tried: the speed on a slow connection; a pause and resume in the middle of a long real download (the 5 MB resume used the same code); an antivirus program scanning the file as it grows (none interfered here); what happens when the PC
+  sleeps mid-download; the signed address expiring during one very long download (every retry starts again from the first address, so it should cope).
 
 ### To check against the real `llama-server` in part 3 (the fake cannot prove these)
 

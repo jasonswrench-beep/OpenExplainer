@@ -26,6 +26,10 @@ sha2 = "0.10"
 webview2-com = "0.39"
 windows = { version = "0.62", features = ["Win32_Storage_FileSystem", "Win32_System_SystemInformation"] }
 
+# Checking the 2.7 GB model file took a minute in a development build, where nothing is optimised; with this crate optimised even there it takes a few seconds, as in a release build.
+[profile.dev.package.sha2]
+opt-level = 3
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
