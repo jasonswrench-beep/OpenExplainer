@@ -15,7 +15,7 @@ import type { Draft } from "./drafts.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 14;
+export const CURRENT_VERSION = 15;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -115,7 +115,7 @@ export interface Project {
   paper: PaperSettings;
   /** Notes about voice and wording that the AI reads before every draft (format version 14). Empty to begin with. */
   writingStyle: string;
-  /** Sentences the AI proposed that wait for the author to accept or reject them (format version 14). Kept apart from the real text; saved in drafts.json. */
+  /** Proposals that wait for the author to accept or reject them: sentences the AI wrote for callouts (format version 14) and procedures made from clicks (format version 15). Kept apart from the real text; saved in drafts.json. */
   drafts: Draft[];
   tree: TreeNode[];
 }

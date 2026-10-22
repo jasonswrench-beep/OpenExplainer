@@ -15,7 +15,7 @@ downloads the first time the author turns the built-in model on; drafts and writ
 | 2. The model download | **Built and tried 2026-10-21**, first against a stand-in download site, then for real with Jason's yes (below). The model is on this PC. |
 | 3. The runtime and Test the AI | **Built 2026-10-21 and tried with the real model.** See below. |
 | 4. Draft callout sentences, the review list, format 14 | **Built 2026-10-21 and tried with the real model.** Jason confirmed the five points. See below. |
-| 5. Draft a procedure from the clicks | **Planned 2026-10-22 (below); waiting for Jason's yes to the five points at the end of the plan.** |
+| 5. Draft a procedure from the clicks | **Built 2026-10-22 and tried with real clicks.** Jason confirmed the five points. See below. |
 | 6 to 8 | Not started. |
 
 ### What part 1 is
@@ -171,6 +171,23 @@ Tab with no trap, Escape), and once with the real model on a made-up click pictu
 3. **The author accepts or rejects each draft, can change its words first, and there is no "accept all".** **Yes.**
 4. **The buttons**: Draft callout text on each picture and on each topic; AI drafts (with the count) and Writing style in the toolbar. **Yes.**
 5. **Names are not drafted** when Windows gave none: they are marked "needs a name". **Yes.**
+
+### What part 5 is
+
+Built as planned below; Jason confirmed the five points (steps written by rules, the list renamed Drafts, one step per click picture with the name rules, Accept adds a procedure to the end of the page with format 15, and the model reading pictures as a separate later part).
+
+- **The rules** (`src/project/procedure-draft.ts`, no screen and no AI; a test checks it imports nothing from `src/ai`): `stepFor` writes a step from a click picture's note, `controlName` finds the name (the author's callout on the clicked item first, then Windows' name), `planProcedure` picks the click pictures that are not already in a step
+  on the page, in order, and `draftProcedure` puts the draft in the project (refusing, in words, if one is already waiting for the topic or there is nothing to make it from). `src/project/click-item.ts` now holds the two rules the sentences and the steps share (`isRealName`, `isClickItem`).
+- **Format 15**: `drafts.json` gains the `procedure` kind (`docs/format-spec.md` "Drafts and writing style"). `acceptDraft` adds a numbered procedure block at the end of the topic's page, each step with its picture and control marks; the (possibly edited) words of every step are used, an empty step is refused in words.
+- **The screens**: the button **Draft a procedure from the clicks** (in Pictures, on if the topic has a click picture) makes the draft at once and opens the list on it. The list is now **Drafts** (the toolbar button reads "Drafts (n waiting)"). A procedure entry says who made it ("Made by rules from the click notes, with no AI") and where it will go, shows each step in its own box
+  labelled with its picture ("Step 2 (picture 2)"), what the step was made from, and "Needs your attention: ..." on a step with no name; Accept reads "Add the 3 steps to the page of ...". A sentence entry says "Written by the AI". The book check notes a waiting procedure draft.
+- **A fault found and fixed on the way**: a project saved by an older program with page text could not be opened by a newer one ("the project files do not match each other"), because the page files were compared with the upgraded version instead of the version the project was saved with. It existed since pages were
+  introduced and showed up when the format number moved. Fixed in `src/project/files.ts` and tested (`tests/procedure-draft.test.ts` opens projects saved as formats 5, 8, 12 and 14; the same fix makes a JSON export from an older version import). If any project of yours was refused with that message after 2026-10-21, it is fine in the file: open it again.
+- **Tests**: `tests/procedure-draft.test.ts` (14: every kind of item, names, flags, password, special characters, the plan, drafting, accepting and refusing, cleaning, format 15 and old projects, the book check, no export, no AI); the older drafts tests follow the two kinds; scenarios `procedure` (the entry by keyboard, edit, Accept, Reject, both refusals, Tab, Go to) and `procedurereal`
+  (real clicks on a made-up window).
+- **Real run (real clicks on a made-up window, 2026-10-22)**: three clicks gave "1. Click [[Save]]. 2. Tick [[Remember me]]. 3. Click the window." The first two were named by the callouts made from the click (taken from Windows' names); the third, a click on the empty part of the window, has no name and is flagged. Accepting put one numbered
+  procedure of three steps, each with its picture, at the end of the page.
+- **Not tried**: a procedure of dozens of steps; a screen reader; the model writing or polishing steps (decided against, above) and the model reading the pictures (point 5, a separate optional part).
 
 ### Part 5: the plan (2026-10-22, before any code)
 

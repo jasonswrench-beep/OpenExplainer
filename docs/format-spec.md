@@ -6,12 +6,12 @@ Read this before touching anything that reads or writes a project. Change it in 
 
 A saved project is ONE file named after the project, such as `Test1.openexplainer`. It is a standard zip package
 (stored without compression, so pictures are not compressed twice), written and read by `src/project/zip.ts` and
-`src/project/package.ts`. Any zip program can open it for inspection. Inside it, the current format holds two files, a page file for each topic that has a page, a file of AI drafts when any are waiting, and a picture folder:
+`src/project/package.ts`. Any zip program can open it for inspection. Inside it, the current format holds two files, a page file for each topic that has a page, a file of drafts when any are waiting, and a picture folder:
 
-- `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others), `highlight` (the look of the click circle, see "The click highlight"), `zoom`, `styles`, `checks`, `guides` (see "Short guides") and `paper` (see "Paper settings") and `writingStyle` (see "AI drafts and writing style"; left out while empty).
+- `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others), `highlight` (the look of the click circle, see "The click highlight"), `zoom`, `styles`, `checks`, `guides` (see "Short guides") and `paper` (see "Paper settings") and `writingStyle` (see "Drafts and writing style"; left out while empty).
 - `structure.json`: `version` and `tree`, the chapters and topics (each with its status, pictures and, if it has any, its index terms, see "The book index").
 - `topics/<topic id>.json`: the page of a topic, only for a topic that has something on its page (see "The page").
-- `drafts.json`: the AI drafts waiting for the author, `{ version, drafts }`, only when there is at least one (see "AI drafts and writing style").
+- `drafts.json`: the AI drafts waiting for the author, `{ version, drafts }`, only when there is at least one (see "Drafts and writing style").
 - `images/`: one file per picture, named `images/<picture id>.png` or `.jpg`. Only pictures a topic still uses are saved.
 
 All of these carry the same `version`. If they differ, the project is refused, because they come from different saves.
@@ -202,24 +202,40 @@ terms the book still supports, drops software terms it no longer supports and ad
 line the author left alone as the software's, makes any other line the author's, and remembers a software term whose line was deleted in `removed`; writing it again makes it the author's. Cleaned when a project is opened
 and saved (`cleanTreeIndex`): terms that are text and usable, each key once, `by` known (else the software's), and `removed` keys that are text and not terms.
 
-## AI drafts and writing style
+## Drafts and writing style
 
-Format version 14. **Drafts** are sentences the AI proposed for callouts, kept apart from the real text until the author accepts them, one at a time. They are saved in `drafts.json` as `{ version, drafts }`, a file that exists only while at least one
-draft is waiting, and that carries the same `version` as every other file (a different one, or a damaged file, refuses the project in plain words). A draft is `{ id, kind, pictureId, calloutId, text, clues, madeAt, model }`:
+Formats 14 and 15. **Drafts** are proposals kept apart from the real text until the author accepts them, one at a time. They are saved in `drafts.json` as `{ version, drafts }`, a file that exists only while at least one draft is waiting, and that carries the same
+`version` as every other file of the save (a different one, or a damaged file, refuses the project in plain words). There are two kinds, told apart by `kind`; a kind this program does not know is dropped when a project is opened.
 
-- `kind`: `callout-sentence` (a one-sentence explanation for a callout that has none). Other kinds are dropped when a project is opened, so a later kind (procedure drafts) never reaches an older program.
+A **sentence** draft (`callout-sentence`, format 14) is a one-sentence explanation the AI wrote for a callout: `{ id, kind, pictureId, calloutId, text, clues, madeAt, model }`.
+
 - `pictureId`, `calloutId`: the callout it is for. A draft for a picture or callout that is not in the project is dropped.
 - `text`: the proposed sentence, white space squeezed, at most 300 letters, never empty.
 - `clues`: what the model was given, one plain line each (at most 14 lines of 300 letters), so the reviewer can judge whether it had enough. `madeAt`: an ISO date and time. `model`: the model's file name.
-- Only the newest draft for one callout is kept. Ids are unique.
+- Only the newest draft for one callout is kept.
 
-A draft is **not part of the tree**, so no preview, no check of the text, no index and no export reads it. It becomes real only through `acceptDraft` (`src/project/drafts.ts`): the (possibly edited) sentence replaces the callout's `description` and the draft
-is removed, and nothing else changes; `rejectDraft` removes it. There is no way to accept every draft at once. Drafts are never in any export (help site, JSON with images, Markdown, Word, PDF, guides). The saved project file keeps them.
+A **procedure** draft (`procedure`, format 15) is a numbered procedure made from a topic's click pictures, written by rules from the click notes (no AI; `src/project/procedure-draft.ts`): `{ id, kind, nodeId, steps, madeAt, by }`.
 
-`project.json` has `writingStyle` (format version 14): the author's notes about voice and wording, which the AI reads before every draft. Plain text, line breaks kept, trailing spaces taken off, at most 2000 letters, left out while empty. The JSON export carries it
-(an AI outside the app may read it) and a JSON import brings it back.
+- `nodeId`: the topic it is for; a draft for a topic that is not there is dropped. Only the newest draft for one topic is kept.
+- `steps`: a list of `{ pictureId, text, from, flag? }`, at most 60, in the order of the topic's pictures. `pictureId` is one of the topic's pictures (a step whose picture has gone is dropped); `text` is the step as the author edits it, with `[[Control name]]` marks, at most 300 letters, never empty;
+  `from` says in plain words what the step was made from; `flag` is set (in words) when the step needs the author's attention, such as a control with no name. A draft with no usable step is dropped.
+- `by`: `"rule"` for the wording written by the rules, or `"model"` if a later part has the model write it.
+- **The rules**: one step for each click picture of the topic that is not already in a step on its page, in the order of the pictures. The wording follows the kind of item clicked (button "Click [[Save]].", menu item "Choose [[Save as...]].", menu "Open the [[File]] menu.", check box "Tick [[X]].",
+  radio button "Select [[X]].", combo box "Open the [[X]] list.", text box "Click the [[X]] box.", tab "Click the [[X]] tab.", link "Click the [[X]] link.", list or tree item "Select [[X]].", a password box "Click the password box."); a double-click, right-click or middle-click changes the verb.
+  The name is the name of the author's callout on the clicked item, else the name Windows gave (kept only for buttons, check boxes, combo boxes, menus, menu items, radio buttons, sliders, spin boxes and split buttons), else none: then the step says what kind of control it is ("Click the text box.") and is flagged.
+  It never writes typing or keys (a click capture records none) and never writes a result line.
 
-The book check notes each waiting draft (`ai-draft`, a note, not a problem). Cleaned when a project is opened and saved (`cleanDrafts`, `cleanWritingStyle`). The drafting itself, which words the model is given and how its answer is checked, is in `docs/local-ai-plan.md`.
+A draft is **not part of the tree**, so no preview, no check of the text, no index and no export reads it. It becomes real only through `acceptDraft` (`src/project/drafts.ts`). A sentence draft's words replace the callout's `description`. A procedure draft is added as a new `procedure` block
+at the end of the topic's page, each step with its picture and its `[[marks]]` made into control runs. Either way the draft is removed and nothing else changes; `rejectDraft` removes it. There is no way to accept every draft at once. Drafts are never in any export (help site, JSON with images,
+Markdown, Word, PDF, guides). The saved project file keeps them.
+
+`project.json` has `writingStyle` (format version 14): the author's notes about voice and wording, which the AI reads before every sentence. Plain text, line breaks kept, trailing spaces taken off, at most 2000 letters, left out while empty. The JSON export carries it (an AI outside the app may
+read it) and a JSON import brings it back.
+
+The book check notes each waiting draft (`ai-draft`, a note, not a problem). Cleaned when a project is opened and saved (`cleanDrafts`, `cleanWritingStyle`). How the sentences are drafted, which words the model is given and how its answer is checked, is in `docs/local-ai-plan.md`.
+
+**Opening an older project.** The page files and the drafts file of a save carry the version that save had, and they are compared with the version in the project's own files, not with the version the project is upgraded to. (Before 2026-10-22 they were compared with the upgraded version, so a project with
+page text saved by an older program was refused with "do not match each other". That was a fault, and it is fixed; `tests/procedure-draft.test.ts` opens projects saved as formats 5, 8, 12 and 14.)
 
 ## Paper settings
 
@@ -283,6 +299,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 15: `drafts.json` can hold a second kind of draft, a numbered procedure made from a topic's click pictures. A version 14 project upgrades unchanged. A copy of OpenExplainer that only knows version 14 refuses a version 15 project, so it can never open one and drop the procedure drafts.
 - Version 14: the project keeps writing-style notes for the AI (`writingStyle`), and AI drafts wait in their own file (`drafts.json`). A version 13 project upgrades with no notes and no drafts. A copy of OpenExplainer that only knows version 13 refuses a version 14 project, so it can never open one and save it without the drafts.
 - Version 13: a topic can have index terms (`index`), and the index of the book is worked out from them. A version 12 project upgrades with none. A copy of OpenExplainer that only knows version 12 refuses a version 13 project, so it can never open one and save it without the terms.
 - Version 12: the project keeps choices about the printed book (`paper`), with an automatic zoom for pictures that would print too small, off to begin with. A version 11 project upgrades with it off. A copy of OpenExplainer that only knows version 11 refuses a version 12 project, so it can never open one and save it without the choice.

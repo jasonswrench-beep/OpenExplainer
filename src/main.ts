@@ -36,6 +36,7 @@ import { draftsDialog } from "./drafts-dialog.ts";
 import { draftCalloutText } from "./drafting-ui.ts";
 import { styleDialog } from "./style-dialog.ts";
 import { acceptDraft, draftCount, draftRows, rejectDraft, type DraftRow } from "./project/drafts.ts";
+import { draftProcedure } from "./project/procedure-draft.ts";
 import { aiStatusWords } from "./ai/settings.ts";
 import { modelState, watchModel } from "./ai/model-state.ts";
 import { buildBookIndex, indexSummary, setTermLines, termLines, updateBookIndex, updateTopicIndex } from "./project/book-index.ts";
@@ -75,7 +76,7 @@ app.innerHTML = `
       <button type="button" id="b-import-export">Import an export</button>
       <button type="button" id="b-vars">Project variables</button>
       <button type="button" id="b-style">Writing style</button>
-      <button type="button" id="b-drafts">AI drafts</button>
+      <button type="button" id="b-drafts">Drafts</button>
       <button type="button" id="b-guides">Guides</button>
       <button type="button" id="b-index">Index</button>
       <button type="button" id="b-ai">AI help</button>
@@ -130,6 +131,7 @@ app.innerHTML = `
             <button type="button" id="b-import">Import pictures into the selected item</button>
             <button type="button" id="b-capture">Capture into the selected item</button>
             <button type="button" id="b-draft-topic">Draft callout text for this topic</button>
+            <button type="button" id="b-procedure">Draft a procedure from the clicks</button>
             <button type="button" id="b-highlight">Click circle settings</button>
             <button type="button" id="b-zoom">Zoom settings</button>
             <label>Show the pictures as in the
@@ -559,7 +561,7 @@ function renderHeading() {
   document.title = `${dirty ? "* " : ""}${project.name} - OpenExplainer`;
   $("folder-line").textContent = filePath ? `Saved file: ${filePath}` : "Not saved to a file yet.";
   const waiting = draftCount(project);
-  $("b-drafts").textContent = waiting > 0 ? `AI drafts (${waiting} waiting)` : "AI drafts";
+  $("b-drafts").textContent = waiting > 0 ? `Drafts (${waiting} waiting)` : "Drafts";
 }
 
 // ---- Drawing the tree --------------------------------------------------------------------
@@ -746,6 +748,7 @@ function renderPictures() {
   $<HTMLButtonElement>("b-import").disabled = !node;
   $<HTMLButtonElement>("b-capture").disabled = !node;
   $<HTMLButtonElement>("b-draft-topic").disabled = !node || !node.pictures.some((p) => (p.callouts ?? []).length > 0);
+  $<HTMLButtonElement>("b-procedure").disabled = !node || !node.pictures.some((p) => p.click);
   $("page-heading").textContent = node ? `Page of ${node.title}` : "Page";
   $("pictures-empty").textContent = !node
     ? "Select a chapter or topic to see or add its pictures."
@@ -1370,7 +1373,7 @@ function goToIssue(issue: Issue) {
     case "missing-file": case "picture-unplaced": pick("remove"); break;
     case "empty-block": if (issue.blockId) pageEditor.focusBlockControl(issue.blockId, "first"); break;
     case "empty-topic": pageEditor.focus(); break;
-    case "ai-draft": announce("Opening AI drafts."); void openDrafts(); return;
+    case "ai-draft": announce("Opening Drafts."); void openDrafts(); return;
   }
   announce(`Went to ${issue.where}.`);
 }
@@ -1383,7 +1386,7 @@ $("b-vars").addEventListener("click", async () => {
   announce("Variables updated");
 });
 
-// ---- Writing style and AI drafts ------------------------------------------------------------------------------
+// ---- Writing style and drafts ------------------------------------------------------------------------------
 $("b-style").addEventListener("click", async () => {
   const result = await styleDialog(project.writingStyle);
   if (result !== null && result !== project.writingStyle) {
@@ -1399,20 +1402,36 @@ async function draftFor(nodeId: string, pictureId: string | undefined, back: () 
   const run = await draftCalloutText(project, nodeId, pictureId);
   if (run && run.made > 0) {
     markDirty();
-    announce(`${run.made} ${run.made === 1 ? "draft is" : "drafts are"} waiting in AI drafts.`);
+    announce(`${run.made} ${run.made === 1 ? "draft is" : "drafts are"} waiting in Drafts.`);
   }
   renderHeading();
   if (run?.openDrafts) await openDrafts();
   else back();
 }
 
-/** The list of drafts waiting. The author accepts or rejects each one; accepted words become the callout's sentence. */
-async function openDrafts() {
+/** Makes a numbered procedure draft from a topic's click pictures (by rules, no AI), then lets the author look at it. */
+async function draftProcedureFor(nodeId: string) {
+  const made = draftProcedure(project, nodeId, new Date().toISOString());
+  if (!made.ok) {
+    await messageDialog("Draft a procedure", made.words);
+    $("b-procedure").focus();
+    return;
+  }
+  markDirty();
+  renderHeading();
+  const n = made.draft.steps.length;
+  announce(`A numbered procedure of ${n} ${n === 1 ? "step" : "steps"} is waiting in Drafts.${made.flagged > 0 ? ` ${made.flagged} ${made.flagged === 1 ? "step has" : "steps have"} no name and need your attention.` : ""}`);
+  await openDrafts(made.draft.id);
+}
+
+/** The list of drafts waiting. The author accepts or rejects each one; an accepted sentence becomes the callout's sentence, and an accepted procedure is added to the end of the topic's page. */
+async function openDrafts(focus?: string) {
   const go = await draftsDialog({
+    focus,
     rows: () => draftRows(project),
-    accept: (id, text) => {
+    accept: (id, texts) => {
       const before = project.drafts.length;
-      const result = acceptDraft(project, id, text);
+      const result = acceptDraft(project, id, texts);
       if (result.ok) {
         markDirty();
         renderPictures();
@@ -1433,13 +1452,17 @@ async function openDrafts() {
 function goToDraft(row: DraftRow) {
   if (viewMode !== "edit") setViewMode("edit", { announce: false });
   select(row.nodeId);
-  document.querySelector<HTMLElement>(`[data-callouts="${row.pictureId}"]`)?.focus();
+  if (row.draft.kind === "callout-sentence") document.querySelector<HTMLElement>(`[data-callouts="${row.draft.pictureId}"]`)?.focus();
+  else $("b-procedure").focus();
   announce(`Went to ${row.where}.`);
 }
 
 $("b-drafts").addEventListener("click", () => void openDrafts());
 $("b-draft-topic").addEventListener("click", () => {
   if (selectedId) void draftFor(selectedId, undefined, () => $("b-draft-topic").focus());
+});
+$("b-procedure").addEventListener("click", () => {
+  if (selectedId) void draftProcedureFor(selectedId);
 });
 
 // ---- Find and replace --------------------------------------------------------------------

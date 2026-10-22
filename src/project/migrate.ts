@@ -53,6 +53,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   12: (raw) => ({ ...raw, version: 13 }),
   // Version 13 to 14: the project keeps writing-style notes for the AI, and AI drafts wait in their own file. An older project has neither.
   13: (raw) => ({ ...raw, version: 14, writingStyle: "" }),
+  // Version 14 to 15: drafts.json can hold a second kind of draft, a numbered procedure made from clicks. An older project has none.
+  14: (raw) => ({ ...raw, version: 15 }),
 };
 
 export function migrate(input: unknown): Project {

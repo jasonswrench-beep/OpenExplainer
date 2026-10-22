@@ -1,17 +1,22 @@
-// AI drafts: sentences the built-in model has proposed for callouts, kept apart from the real text until the author accepts them. A draft is not in the tree, so no preview, no check of the
-// words, no index and no export can see it; it becomes real text only through `acceptDraft`, which the author asks for, one draft at a time. Drafts are saved with the project in drafts.json
-// (format version 14) so they wait there until they are looked at. The project's writing-style notes, which the model reads before every draft, are kept here too.
+// Drafts: proposals kept apart from the real text until the author accepts them. Two kinds:
+//   - a sentence the AI wrote for a callout (format version 14);
+//   - a numbered procedure made from a topic's click pictures, written by rules from the click notes (format version 15, `procedure-draft.ts`).
+// A draft is not in the tree, so no preview, no check of the words, no index and no export can see it; it becomes real only through `acceptDraft`, which the author asks for, one draft at a time.
+// Drafts are saved with the project in drafts.json so they wait there until they are looked at. The project's writing-style notes, which the AI reads before every sentence, are kept here too.
 // Everything here works without a screen.
 import { MOST_TEXT, letterFor, type Callout } from "./callouts.ts";
-import { numbering, type Picture, type Project, type TreeNode } from "./model.ts";
+import { ensurePage, findNode, numbering, type Picture, type Project, type TreeNode } from "./model.ts";
 import { newId } from "./ids.ts";
+import { makeBlock, type ProcedureBlock, type Step } from "./page.ts";
+import { parseMarks } from "./text.ts";
 
-export type DraftKind = "callout-sentence";
-export const DRAFT_KINDS: readonly DraftKind[] = ["callout-sentence"];
+export type DraftKind = "callout-sentence" | "procedure";
+export const DRAFT_KINDS: readonly DraftKind[] = ["callout-sentence", "procedure"];
 
-export interface Draft {
+/** A sentence the AI proposed for a callout. */
+export interface SentenceDraft {
   id: string;
-  kind: DraftKind;
+  kind: "callout-sentence";
   /** The picture and the callout on it that the draft is for. */
   pictureId: string;
   calloutId: string;
@@ -25,9 +30,40 @@ export interface Draft {
   model: string;
 }
 
+/** One proposed step of a procedure. */
+export interface ProcedureStep {
+  /** The click picture this step is for. */
+  pictureId: string;
+  /** The step as the author edits it, with `[[Control name]]` marks. */
+  text: string;
+  /** What the step was made from, in plain words. */
+  from: string;
+  /** Set (in words) when the step needs the author's attention, such as a control that has no name. */
+  flag?: string;
+}
+
+/** A numbered procedure proposed for a topic, to be added to the end of its page when accepted. */
+export interface ProcedureDraft {
+  id: string;
+  kind: "procedure";
+  /** The topic it is for. */
+  nodeId: string;
+  steps: ProcedureStep[];
+  madeAt: string;
+  /** Who wrote the wording: the rules ("rule"), or the model ("model"). */
+  by: "rule" | "model";
+}
+
+export type Draft = SentenceDraft | ProcedureDraft;
+
+export const isSentence = (d: Draft): d is SentenceDraft => d.kind === "callout-sentence";
+export const isProcedure = (d: Draft): d is ProcedureDraft => d.kind === "procedure";
+
 /** The most lines of clues, and the longest line, kept with a draft. */
 export const MOST_CLUE_LINES = 14;
 export const MOST_CLUE_TEXT = 300;
+/** The most steps in a procedure draft. */
+export const MOST_STEPS = 60;
 /** The longest writing-style note. */
 export const MOST_STYLE = 2000;
 
@@ -60,8 +96,49 @@ export function findCallout(tree: TreeNode[], pictureId: string, calloutId: stri
   return null;
 }
 
+const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** A draft cleaned as one of its kind, or `null` if nothing usable is left. */
+function cleanOne(item: unknown, tree: TreeNode[], id: string): Draft | null {
+  if (typeof item !== "object" || item === null) return null;
+  const d = item as Record<string, unknown>;
+  if (d.kind === "callout-sentence") {
+    if (typeof d.pictureId !== "string" || typeof d.calloutId !== "string") return null;
+    if (!findCallout(tree, d.pictureId, d.calloutId)) return null;
+    const text = squeeze(d.text, MOST_TEXT);
+    if (text === "") return null;
+    const clues = (Array.isArray(d.clues) ? d.clues : []).map((c) => squeeze(c, MOST_CLUE_TEXT)).filter((c) => c !== "").slice(0, MOST_CLUE_LINES);
+    return { id, kind: "callout-sentence", pictureId: d.pictureId, calloutId: d.calloutId, text, clues, madeAt: squeeze(d.madeAt, 40), model: squeeze(d.model, 100) };
+  }
+  if (d.kind === "procedure") {
+    if (typeof d.nodeId !== "string") return null;
+    const node = findNode(tree, d.nodeId);
+    if (!node) return null;
+    const have = new Set(node.pictures.map((p) => p.id));
+    const steps: ProcedureStep[] = [];
+    for (const raw of Array.isArray(d.steps) ? d.steps : []) {
+      if (typeof raw !== "object" || raw === null) continue;
+      const s = raw as Record<string, unknown>;
+      if (typeof s.pictureId !== "string" || !have.has(s.pictureId)) continue;
+      const text = squeeze(s.text, MOST_TEXT);
+      if (text === "") continue;
+      const step: ProcedureStep = { pictureId: s.pictureId, text, from: squeeze(s.from, MOST_CLUE_TEXT) };
+      const flag = squeeze(s.flag, 200);
+      if (flag) step.flag = flag;
+      steps.push(step);
+      if (steps.length >= MOST_STEPS) break;
+    }
+    if (steps.length === 0) return null;
+    return { id, kind: "procedure", nodeId: d.nodeId, steps, madeAt: squeeze(d.madeAt, 40), by: d.by === "model" ? "model" : "rule" };
+  }
+  return null;
+}
+
+/** What makes two drafts stand in for the same thing, so only the newest is kept: one sentence for a callout, one procedure for a topic. */
+const keyOf = (d: Draft): string => (isSentence(d) ? `s:${d.calloutId}` : `p:${d.nodeId}`);
+
 /**
- * Drafts as they should be kept: only kinds this program knows, only for a callout that is there, with some words, cut to length, each id once, and only the newest draft for one callout.
+ * Drafts as they should be kept: only kinds this program knows, only for a callout or topic that is there, with some words, cut to length, each id once, and only the newest draft for one callout or topic.
  * Anything else is dropped. Used when a project is opened and saved.
  */
 export function cleanDrafts(raw: unknown, tree: TreeNode[]): Draft[] {
@@ -69,48 +146,38 @@ export function cleanDrafts(raw: unknown, tree: TreeNode[]): Draft[] {
   const seen = new Set<string>();
   const kept: Draft[] = [];
   for (const item of raw) {
-    if (typeof item !== "object" || item === null) continue;
-    const d = item as Record<string, unknown>;
-    if (!DRAFT_KINDS.includes(d.kind as DraftKind)) continue;
-    if (typeof d.pictureId !== "string" || typeof d.calloutId !== "string") continue;
-    if (!findCallout(tree, d.pictureId, d.calloutId)) continue;
-    const text = squeeze(d.text, MOST_TEXT);
-    if (text === "") continue;
-    let id = typeof d.id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(d.id) ? d.id : newId();
+    const wanted = typeof item === "object" && item !== null ? (item as { id?: unknown }).id : undefined;
+    let id = typeof wanted === "string" && SAFE_ID.test(wanted) ? wanted : newId();
     if (seen.has(id)) id = newId();
+    const one = cleanOne(item, tree, id);
+    if (!one) continue;
     seen.add(id);
-    const clues = (Array.isArray(d.clues) ? d.clues : []).map((c) => squeeze(c, MOST_CLUE_TEXT)).filter((c) => c !== "").slice(0, MOST_CLUE_LINES);
-    kept.push({ id, kind: d.kind as DraftKind, pictureId: d.pictureId, calloutId: d.calloutId, text, clues, madeAt: squeeze(d.madeAt, 40), model: squeeze(d.model, 100) });
+    kept.push(one);
   }
-  // The newest draft for a callout wins: it is the later one in the list.
-  return kept.filter((d, i) => !kept.slice(i + 1).some((later) => later.kind === d.kind && later.calloutId === d.calloutId));
+  // The newest draft wins: it is the later one in the list.
+  return kept.filter((d, i) => !kept.slice(i + 1).some((later) => keyOf(later) === keyOf(d)));
 }
 
-/** Puts a draft in the project, in place of any draft already waiting for the same callout. Answers with the draft as kept, or `null` if the callout is not there or the sentence is empty. */
-export function addDraft(project: Project, draft: Omit<Draft, "id"> & { id?: string }): Draft | null {
-  if (!findCallout(project.tree, draft.pictureId, draft.calloutId)) return null;
-  const text = squeeze(draft.text, MOST_TEXT);
-  if (text === "") return null;
-  const kept: Draft = {
-    id: draft.id && /^[A-Za-z0-9_-]{1,64}$/.test(draft.id) ? draft.id : newId(),
-    kind: draft.kind,
-    pictureId: draft.pictureId,
-    calloutId: draft.calloutId,
-    text,
-    clues: draft.clues.map((c) => squeeze(c, MOST_CLUE_TEXT)).filter((c) => c !== "").slice(0, MOST_CLUE_LINES),
-    madeAt: squeeze(draft.madeAt, 40),
-    model: squeeze(draft.model, 100),
-  };
-  project.drafts = [...project.drafts.filter((d) => !(d.kind === kept.kind && d.calloutId === kept.calloutId)), kept];
+export type NewDraft = Omit<SentenceDraft, "id"> & { id?: string } | Omit<ProcedureDraft, "id"> & { id?: string };
+
+/** Puts a draft in the project, in place of any draft already waiting for the same callout or topic. Answers with the draft as kept, or `null` if what it is for is not there or there is nothing in it. */
+export function addDraft(project: Project, draft: NewDraft): Draft | null {
+  const [kept] = cleanDrafts([{ ...draft, id: draft.id ?? newId() }], project.tree);
+  if (!kept) return null;
+  project.drafts = [...project.drafts.filter((d) => keyOf(d) !== keyOf(kept)), kept];
   return kept;
 }
 
-/** One waiting draft with where it is, for the review list. */
-export interface DraftRow {
-  draft: Draft;
+/** Fields every waiting draft has in the list. */
+interface RowBase {
   nodeId: string;
   /** The topic's number and title, such as "2.1 Saving your work". */
   where: string;
+}
+
+/** One waiting sentence with where it is, for the list. */
+export interface SentenceRow extends RowBase {
+  draft: SentenceDraft;
   pictureId: string;
   /** "picture 1": the picture's place among its topic's pictures. */
   pictureWords: string;
@@ -120,21 +187,37 @@ export interface DraftRow {
   now: string;
 }
 
-/** The waiting drafts, in the order of the book (topic by topic, picture by picture, callout by callout). A draft whose callout has gone is left out. */
+/** One waiting procedure with where it is going, for the list. */
+export interface ProcedureRow extends RowBase {
+  draft: ProcedureDraft;
+  /** "picture 3": each step's picture's place among the topic's pictures. */
+  pictureWords: string[];
+  /** How many blocks the topic's page has now. */
+  blocksNow: number;
+}
+
+export type DraftRow = SentenceRow | ProcedureRow;
+
+/** The waiting drafts, in the order of the book (topic by topic; a topic's procedure first, then its callouts picture by picture). A draft whose callout or topic has gone is left out. */
 export function draftRows(project: Project): DraftRow[] {
   const numbers = numbering(project.tree);
   const rows: DraftRow[] = [];
   const walk = (nodes: TreeNode[]) => {
     for (const node of nodes) {
+      const where = `${numbers.get(node.id) ?? ""} ${node.title}`.trim();
+      const plan = project.drafts.find((d): d is ProcedureDraft => isProcedure(d) && d.nodeId === node.id);
+      if (plan) {
+        rows.push({ draft: plan, nodeId: node.id, where, pictureWords: plan.steps.map((s) => `picture ${node.pictures.findIndex((p) => p.id === s.pictureId) + 1}`), blocksNow: node.page?.blocks.length ?? 0 });
+      }
       node.pictures.forEach((picture, p) => {
         (picture.callouts ?? []).forEach((callout, c) => {
-          const draft = project.drafts.find((d) => d.pictureId === picture.id && d.calloutId === callout.id);
+          const draft = project.drafts.find((d): d is SentenceDraft => isSentence(d) && d.pictureId === picture.id && d.calloutId === callout.id);
           if (!draft) return;
           const letter = letterFor(c);
           rows.push({
             draft,
             nodeId: node.id,
-            where: `${numbers.get(node.id) ?? ""} ${node.title}`.trim(),
+            where,
             pictureId: picture.id,
             pictureWords: `picture ${p + 1}`,
             calloutWords: callout.name.trim() ? `${letter}: ${callout.name.trim()}` : letter,
@@ -149,37 +232,75 @@ export function draftRows(project: Project): DraftRow[] {
   return rows;
 }
 
-/** How many drafts are waiting (those whose callout is still there). */
+/** How many drafts are waiting (those whose callout or topic is still there). */
 export function draftCount(project: Project): number {
   return draftRows(project).length;
 }
 
-/** Throws away drafts whose callout is gone. */
+/** Is a procedure draft waiting for this topic? */
+export function procedureWaiting(project: Project, nodeId: string): boolean {
+  return draftRows(project).some((r) => isProcedure(r.draft) && r.nodeId === nodeId);
+}
+
+/** Throws away drafts whose callout or topic is gone. */
 export function pruneDrafts(project: Project): void {
   project.drafts = cleanDrafts(project.drafts, project.tree);
 }
 
-export type AcceptResult = { ok: true; where: string; calloutWords: string } | { ok: false; words: string };
+export type AcceptResult = { ok: true; where: string; words: string } | { ok: false; words: string };
 
 /**
- * The author accepts a draft, perhaps after changing its words: the sentence becomes the callout's real sentence (replacing what was there) and the draft is gone. Nothing else changes.
- * `text` is the sentence to use; without it the draft's own is used.
+ * The author accepts a draft, perhaps after changing its words. `texts` are the words to use, one for a sentence and one for each step of a procedure; a missing one means the draft's own.
+ * A sentence becomes the callout's real sentence (replacing what was there). A procedure becomes a numbered procedure block at the end of the topic's page, each step with its picture. The draft is gone either way
+ * and nothing else changes.
  */
-export function acceptDraft(project: Project, draftId: string, text?: string): AcceptResult {
+export function acceptDraft(project: Project, draftId: string, texts?: string | string[]): AcceptResult {
   const draft = project.drafts.find((d) => d.id === draftId);
   if (!draft) return { ok: false, words: "That draft is no longer waiting." };
-  const place = findCallout(project.tree, draft.pictureId, draft.calloutId);
-  if (!place) {
-    project.drafts = project.drafts.filter((d) => d.id !== draftId);
-    return { ok: false, words: "The callout this draft was for is gone, so the draft was dropped." };
-  }
-  const sentence = squeeze(text ?? draft.text, MOST_TEXT);
-  if (sentence === "") return { ok: false, words: "A sentence is needed. Write one, or reject the draft." };
-  place.callout.description = sentence;
-  project.drafts = project.drafts.filter((d) => d.id !== draftId);
+  const given = texts === undefined ? [] : Array.isArray(texts) ? texts : [texts];
   const numbers = numbering(project.tree);
-  const name = place.callout.name.trim();
-  return { ok: true, where: `${numbers.get(place.node.id) ?? ""} ${place.node.title}`.trim(), calloutWords: name ? `${letterFor(place.index)}: ${name}` : letterFor(place.index) };
+  const drop = () => { project.drafts = project.drafts.filter((d) => d.id !== draftId); };
+
+  if (isSentence(draft)) {
+    const place = findCallout(project.tree, draft.pictureId, draft.calloutId);
+    if (!place) {
+      drop();
+      return { ok: false, words: "The callout this draft was for is gone, so the draft was dropped." };
+    }
+    const sentence = squeeze(given[0] ?? draft.text, MOST_TEXT);
+    if (sentence === "") return { ok: false, words: "A sentence is needed. Write one, or reject the draft." };
+    place.callout.description = sentence;
+    drop();
+    const where = `${numbers.get(place.node.id) ?? ""} ${place.node.title}`.trim();
+    const name = place.callout.name.trim();
+    const what = name ? `${letterFor(place.index)}: ${name}` : letterFor(place.index);
+    return { ok: true, where, words: `Accepted for callout ${what} in ${where}.` };
+  }
+
+  const node = findNode(project.tree, draft.nodeId);
+  if (!node) {
+    drop();
+    return { ok: false, words: "The topic this draft was for is gone, so the draft was dropped." };
+  }
+  const have = new Set(node.pictures.map((p) => p.id));
+  const steps: Step[] = [];
+  for (let i = 0; i < draft.steps.length; i++) {
+    const planned = draft.steps[i];
+    if (!have.has(planned.pictureId)) continue; // the picture has gone since: the step loses it
+    const text = squeeze(given[i] ?? planned.text, MOST_TEXT);
+    if (text === "") return { ok: false, words: `Step ${i + 1} has no words. Write it, or reject the draft.` };
+    steps.push({ id: newId(), text: parseMarks(text), pictureId: planned.pictureId });
+  }
+  if (steps.length === 0) {
+    drop();
+    return { ok: false, words: "The pictures this procedure was made from are gone, so the draft was dropped." };
+  }
+  const block = makeBlock("procedure") as ProcedureBlock;
+  block.steps = steps;
+  ensurePage(node).blocks.push(block);
+  drop();
+  const where = `${numbers.get(node.id) ?? ""} ${node.title}`.trim();
+  return { ok: true, where, words: `Added a numbered procedure of ${steps.length} ${steps.length === 1 ? "step" : "steps"} to the end of the page of ${where}.` };
 }
 
 /** The author rejects a draft: it is gone and nothing else changes. */

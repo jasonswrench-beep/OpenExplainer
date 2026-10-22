@@ -7,45 +7,17 @@
 //   - every answer is checked before it is kept (`checkSentence`): one plain sentence, and no capitalised name that is not in the clues;
 //   - a kept draft carries the clues it was given, so the author sees them in the review list and can judge.
 // Nothing here touches the screen; the model is reached through the `ask` it is handed.
-import { letterFor, type Callout, type CalloutRect } from "../project/callouts.ts";
-import { addDraft, type CalloutPlace } from "../project/drafts.ts";
-import { numbering, type Picture, type Project, type TreeNode } from "../project/model.ts";
+import { letterFor } from "../project/callouts.ts";
+import { isClickItem, isRealName } from "../project/click-item.ts";
+import { addDraft, isSentence, type CalloutPlace } from "../project/drafts.ts";
+import { numbering, type Project, type TreeNode } from "../project/model.ts";
 import { AiError, type AiErrorCode, type Answer, type AskOptions, type ChatMessage } from "./types.ts";
 
 // ---- Is there anything real to write from? ------------------------------------------------------------------------------------
 
-/** Names that are not names: a number, only punctuation, or what a program calls a part of itself when it has no better word. */
-const PLACEHOLDER = /^(button|pane|window|item|unknown|static|text|edit|group|custom|tab|document|image|icon|list|menu|toolbar|panel|label|control|element|dialog|titlebar|title bar|client|screen|area|box|field|view|frame)\s*\d*$/i;
-
-/** Does this name say what the thing is? */
-export function isRealName(name: string): boolean {
-  const n = name.replace(/\s+/g, " ").trim();
-  if (n.length < 2) return false;
-  if (/^[\d\W_]+$/.test(n)) return false;
-  return !PLACEHOLDER.test(n);
-}
+export { isRealName };
 
 const wordCount = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
-
-const area = (r: CalloutRect) => r.width * r.height;
-
-/** How much of the smaller of two rectangles is covered by the other, from 0 to 1. */
-function overlap(a: CalloutRect, b: CalloutRect): number {
-  const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
-  const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-  if (w <= 0 || h <= 0) return 0;
-  return (w * h) / Math.max(1, Math.min(area(a), area(b)));
-}
-
-/** Is this callout the one made from the click (so what Windows said about the clicked item is about it)? */
-function isClickItem(picture: Picture, callout: Callout): boolean {
-  const click = picture.click;
-  if (!click) return false;
-  const bounds = click.target?.bounds;
-  if (bounds) return overlap(callout.target, bounds) >= 0.5;
-  const t = callout.target;
-  return click.x >= t.x && click.x <= t.x + t.width && click.y >= t.y && click.y <= t.y + t.height;
-}
 
 /** The chain of topics from a chapter down to the topic with this id. */
 function pathTo(tree: TreeNode[], id: string): TreeNode[] {
@@ -196,7 +168,7 @@ export async function draftCallouts(job: DraftJob): Promise<DraftReport> {
     (picture.callouts ?? []).forEach((callout, index) => {
       if (callout.description.trim() !== "") return;
       const label = `${letterFor(index)}${callout.name.trim() ? ` (${callout.name.trim()})` : ""}`;
-      if (job.project.drafts.some((d) => d.pictureId === picture.id && d.calloutId === callout.id)) {
+      if (job.project.drafts.some((d) => isSentence(d) && d.pictureId === picture.id && d.calloutId === callout.id)) {
         report.alreadyWaiting++;
         return;
       }
@@ -249,7 +221,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 /** What happened, in plain sentences, for the author. */
 export function reportWords(report: DraftReport): string[] {
   const lines: string[] = [];
-  if (report.made > 0) lines.push(`${plural(report.made, "sentence was", "sentences were")} drafted. They wait in AI drafts until you accept or reject each one.`);
+  if (report.made > 0) lines.push(`${plural(report.made, "sentence was", "sentences were")} drafted. They wait in Drafts until you accept or reject each one.`);
   if (report.stopped) lines.push(report.stopped.code === "cancelled" ? "The drafting was stopped." : report.stopped.words);
   if (report.skipped.length > 0) {
     const list = report.skipped.slice(0, 5).map((s) => `callout ${s.callout} in ${s.where} (it ${s.why})`).join("; ");

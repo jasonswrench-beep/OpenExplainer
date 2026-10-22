@@ -62,7 +62,7 @@ function attachPages(tree: TreeNode[], files: Record<string, string>, version: n
 }
 
 /** Reads drafts.json, if there is one, and puts the drafts on the project. A damaged file is refused rather than lost. */
-function attachDrafts(project: Project, files: Record<string, string>): void {
+function attachDrafts(project: Project, files: Record<string, string>, savedVersion: number): void {
   const text = files[DRAFTS_FILE];
   if (text === undefined) return;
   let parsed: { version?: unknown; drafts?: unknown };
@@ -71,7 +71,7 @@ function attachDrafts(project: Project, files: Record<string, string>): void {
   } catch {
     throw new Error("The file of AI drafts is damaged, so the project was not opened. Nothing was changed.");
   }
-  if (!parsed || parsed.version !== project.version) throw new Error("The project files do not match each other. They may be from different saves.");
+  if (!parsed || parsed.version !== savedVersion) throw new Error("The project files do not match each other. They may be from different saves.");
   project.drafts = cleanDrafts(parsed.drafts, project.tree);
 }
 
@@ -96,8 +96,9 @@ export function fromFiles(files: Record<string, string>): Project {
   if (!header || !structure) throw new Error("This folder is missing project.json or structure.json.");
   if (header.version !== structure.version) throw new Error("The project files do not match each other. They may be from different saves.");
   const project = migrate({ ...header, tree: structure.tree as TreeNode[] });
-  attachPages(project.tree, files, project.version);
-  attachDrafts(project, files);
+  // Every file of one save carries the version it was saved with, so the page and draft files are compared with that, not with the version the project has been upgraded to.
+  attachPages(project.tree, files, header.version);
+  attachDrafts(project, files, header.version);
   return project;
 }
 

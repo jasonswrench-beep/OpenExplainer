@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { addNode, createProject, type Picture, type Project } from "../src/project/model.ts";
-import { findCallout } from "../src/project/drafts.ts";
+import { findCallout, type SentenceDraft } from "../src/project/drafts.ts";
 import { buildMessages, checkSentence, cluesFor, draftCallouts, isRealName, reportWords, type Clues } from "../src/ai/drafting.ts";
 import { AiError } from "../src/ai/types.ts";
 import type { Answer, AskOptions, ChatMessage } from "../src/ai/types.ts";
@@ -174,15 +174,15 @@ test("drafting writes a draft for each callout that has no sentence and enough t
   assert.deepEqual(report.skipped.map((s) => s.callout), ["C", "D (Button1)"]);
   assert.match(report.skipped[0].why, /has no name/);
   assert.equal(report.thrownAway.length + report.alreadyWaiting, 0);
-  assert.deepEqual(project.drafts.map((d) => [d.calloutId, d.text, d.model, d.madeAt]), [
+  assert.deepEqual((project.drafts as SentenceDraft[]).map((d) => [d.calloutId, d.text, d.model, d.madeAt]), [
     ["c-save", "Click Save to keep your work in a file.", "Qwen3.5-4B-Q4_K_M.gguf", "2026-10-21T12:00:00.000Z"],
     ["c-open", "Opens a file from your computer.", "Qwen3.5-4B-Q4_K_M.gguf", "2026-10-21T12:00:00.000Z"],
   ]);
-  assert.ok(project.drafts[0].clues.includes('Item: button named "Save"'), "each draft keeps the clues it was given");
+  assert.ok((project.drafts[0] as SentenceDraft).clues.includes('Item: button named "Save"'), "each draft keeps the clues it was given");
   assert.equal(JSON.stringify(project.tree), before, "the book itself did not change");
   assert.deepEqual(progress, ["0/2 Drafting 1 of 2: callout A (Save) in 1.1 Saving your work", "1/2 Drafting 2 of 2: callout A (Open) in 1.1 Saving your work", "2/2 Finished."]);
   assert.deepEqual(reportWords(report), [
-    "2 sentences were drafted. They wait in AI drafts until you accept or reject each one.",
+    "2 sentences were drafted. They wait in Drafts until you accept or reject each one.",
     "2 callouts were left alone because there is nothing in the capture to write from: callout C in 1.1 Saving your work (it has no name, and Windows gave no description of it); callout D (Button1) in 1.1 Saving your work (it has the name \"Button1\", which does not say what it is, and Windows gave no description of it). Give them names first.",
   ]);
 });
@@ -252,7 +252,7 @@ test("callouts that already have a draft waiting are left alone, and one picture
   const only = await draftCallouts(job(project, topicId, ask, { pictureId: "p2" }));
   assert.equal(only.made, 1);
   assert.equal(asked, 1);
-  assert.deepEqual(project.drafts.map((d) => d.pictureId), ["p2"]);
+  assert.deepEqual((project.drafts as SentenceDraft[]).map((d) => d.pictureId), ["p2"]);
   const again = await draftCallouts(job(project, topicId, ask));
   assert.equal(again.alreadyWaiting, 1, "Open already has one");
   assert.equal(again.made, 1, "Save gets one");

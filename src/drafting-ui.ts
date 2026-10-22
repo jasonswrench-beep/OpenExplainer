@@ -1,5 +1,5 @@
 // Drafting callout text from the author's side: check that the built-in model is ready, show a small window with a Stop button while the sentences are written one by one, and say at the end,
-// in plain words, what was drafted, what was left alone and why. The drafting itself is src/ai/drafting.ts. Nothing here touches a draft after it is made: the author deals with those in AI drafts.
+// in plain words, what was drafted, what was left alone and why. The drafting itself is src/ai/drafting.ts. Nothing here touches a draft after it is made: the author deals with those in Drafts.
 import { invoke } from "@tauri-apps/api/core";
 import { messageDialog, open } from "./dialogs.ts";
 import { appConnector } from "./ai/app.ts";
@@ -44,7 +44,7 @@ export async function draftCalloutText(project: Project, nodeId: string, picture
       <h2 id="dlg-title">${TITLE}</h2>
       <p id="draft-progress" role="status">Starting the model. The first time this can take half a minute.</p>
       <div id="draft-report" hidden></div>
-      <p><button type="button" id="draft-stop">Stop</button> <button value="drafts" id="draft-open" hidden>Open AI drafts</button> <button value="close" id="draft-close" hidden>Close</button></p>
+      <p><button type="button" id="draft-stop">Stop</button> <button value="drafts" id="draft-open" hidden>Open Drafts</button> <button value="close" id="draft-close" hidden>Close</button></p>
     </form>`;
   const progress = dialog.querySelector<HTMLElement>("#draft-progress")!;
   const reportEl = dialog.querySelector<HTMLElement>("#draft-report")!;

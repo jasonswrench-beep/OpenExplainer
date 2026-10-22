@@ -34,7 +34,7 @@ export const CHECK_KINDS: CheckKindInfo[] = [
   { id: "picture-unplaced", group: "book", severity: "note", title: "Pictures that are not on their page" },
   { id: "variable-unused", group: "book", severity: "note", title: "Variables that are not used" },
   { id: "print-small", group: "accessibility", severity: "note", title: "Pictures too small to read on paper" },
-  { id: "ai-draft", group: "book", severity: "note", title: "AI drafts waiting for review" },
+  { id: "ai-draft", group: "book", severity: "note", title: "Drafts waiting for review" },
 ];
 
 export const kindInfo = (kind: CheckKind): CheckKindInfo => CHECK_KINDS.find((k) => k.id === kind)!;
@@ -116,6 +116,9 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
       const placed = placedPictureIds(node.page);
       const blocks = node.page?.blocks ?? [];
       const nothingOnPage = blocks.every(blockIsEmpty);
+      if (project.drafts.some((d) => d.kind === "procedure" && d.nodeId === node.id)) {
+        add({ ...base, key: `ai-draft:${node.id}:procedure`, kind: "ai-draft", words: `A draft of a numbered procedure is waiting for "${where}". It is not in the book until you accept it.`, fix: "Open Drafts and accept or reject it." });
+      }
 
       if (nothingOnPage && node.children.length === 0) {
         add({ ...base, key: `empty-topic:${node.id}`, kind: "empty-topic", words: `"${where}" has nothing on its page.`, fix: "Write something on the page, or delete the topic." });
@@ -148,8 +151,8 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
         }
         for (const callout of picture.callouts ?? []) {
           const letter = (picture.callouts ?? []).indexOf(callout);
-          if (project.drafts.some((d) => d.pictureId === picture.id && d.calloutId === callout.id)) {
-            add({ ...pic, key: `ai-draft:${picture.id}:${callout.id}`, kind: "ai-draft", words: `An AI draft is waiting for callout ${String.fromCharCode(65 + (letter % 26))}${callout.name.trim() ? ` ("${callout.name.trim()}")` : ""} on the picture "${label}" in "${where}". It is not in the book until you accept it.`, fix: "Open AI drafts and accept or reject it." });
+          if (project.drafts.some((d) => d.kind === "callout-sentence" && d.pictureId === picture.id && d.calloutId === callout.id)) {
+            add({ ...pic, key: `ai-draft:${picture.id}:${callout.id}`, kind: "ai-draft", words: `A draft is waiting for callout ${String.fromCharCode(65 + (letter % 26))}${callout.name.trim() ? ` ("${callout.name.trim()}")` : ""} on the picture "${label}" in "${where}". It is not in the book until you accept it.`, fix: "Open Drafts and accept or reject it." });
           }
           const name = `callout ${String.fromCharCode(65 + (letter % 26))}`;
           if (callout.name.trim() === "") add({ ...pic, key: `callout-name:${picture.id}:${callout.id}`, kind: "callout-name", words: `The ${name} on the picture "${label}" in "${where}" has no name.`, fix: "Open Callouts for the picture and give it a name." });

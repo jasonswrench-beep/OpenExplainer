@@ -180,3 +180,5 @@ fieldset.co-active { border: 2px solid var(--accent); padding: calc(0.25rem - 1p
 .draft-row { border-top: 1px solid #b8b8b8; padding: 0.6rem 0; }
 .draft-row h3 { margin: 0 0 0.3rem; font-size: 1rem; }
 .draft-row textarea { width: 100%; box-sizing: border-box; }
+.draft-steps { padding-left: 1.4rem; }
+.draft-steps li { margin: 0.5rem 0; }
