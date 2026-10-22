@@ -98,6 +98,10 @@ test("a question reaches the model with the password, the right settings and no 
     assert.equal(fake.requests[1].body.max_tokens, 512, "a short default");
     assert.equal(fake.requests[1].body.temperature, 0.7);
     assert.equal(again.text, "Saves the project to a file.");
+    assert.equal("response_format" in fake.requests[1].body, false, "an answer is shaped only when asked");
+    const schema = { type: "object", properties: { boxes: { type: "array" } }, required: ["boxes"] };
+    await answerer.ask(ask, { jsonSchema: schema });
+    assert.deepEqual(fake.requests[2].body.response_format, { type: "json_schema", json_schema: { name: "answer", strict: true, schema } }, "the model program is told the shape the answer must have");
   } finally {
     await fake.close();
   }

@@ -33,7 +33,7 @@ import { indexDialog } from "./index-dialog.ts";
 import { mcpDialog } from "./mcp-dialog.ts";
 import { aiDialog } from "./ai-dialog.ts";
 import { draftsDialog } from "./drafts-dialog.ts";
-import { draftCalloutText, draftChapterTextFor } from "./drafting-ui.ts";
+import { draftBoxesFor, draftCalloutText, draftChapterTextFor } from "./drafting-ui.ts";
 import type { ChapterTextRole } from "./ai/chapter-text.ts";
 import { styleDialog } from "./style-dialog.ts";
 import { acceptDraft, draftCount, draftRows, rejectDraft, type DraftRow } from "./project/drafts.ts";
@@ -124,7 +124,7 @@ app.innerHTML = `
           <button type="button" role="tab" id="tab-guide" aria-selected="false" aria-controls="panel-preview" tabindex="-1">Guide preview</button>
         </div>
         <div id="panel-edit" role="tabpanel" aria-labelledby="tab-edit">
-        <div class="toolbar"><button type="button" id="b-unresolved">Unresolved comments</button> <button type="button" id="b-opener">Draft an opener for this chapter</button> <button type="button" id="b-summary">Draft a chapter summary here</button></div>
+        <div class="toolbar"><button type="button" id="b-unresolved">Unresolved comments</button> <button type="button" id="b-opener">Draft an opener for this chapter</button> <button type="button" id="b-summary">Draft a chapter summary here</button> <button type="button" id="b-boxes">Suggest boxed notes for this topic</button></div>
         <div id="page-editor"></div>
         <section id="pictures-section" aria-labelledby="pictures-heading">
           <h3 id="pictures-heading">Pictures</h3>
@@ -752,6 +752,7 @@ function renderPictures() {
   $<HTMLButtonElement>("b-procedure").disabled = !node || !node.pictures.some((p) => p.click);
   $<HTMLButtonElement>("b-opener").disabled = !node;
   $<HTMLButtonElement>("b-summary").disabled = !node;
+  $<HTMLButtonElement>("b-boxes").disabled = !node;
   $("page-heading").textContent = node ? `Page of ${node.title}` : "Page";
   $("pictures-empty").textContent = !node
     ? "Select a chapter or topic to see or add its pictures."
@@ -1457,6 +1458,7 @@ function goToDraft(row: DraftRow) {
   select(row.nodeId);
   if (row.draft.kind === "callout-sentence") document.querySelector<HTMLElement>(`[data-callouts="${row.draft.pictureId}"]`)?.focus();
   else if (row.draft.kind === "chapter-text") $(row.draft.role === "opener" ? "b-opener" : "b-summary").focus();
+  else if (row.draft.kind === "box") $("b-boxes").focus();
   else $("b-procedure").focus();
   announce(`Went to ${row.where}.`);
 }
@@ -1483,6 +1485,20 @@ async function draftChapterFor(role: ChapterTextRole) {
 }
 $("b-opener").addEventListener("click", () => void draftChapterFor("opener"));
 $("b-summary").addEventListener("click", () => void draftChapterFor("summary"));
+
+/** Suggests boxed notes for the selected topic, then lets the author look at them. */
+async function suggestBoxesFor() {
+  if (!selectedId) return;
+  const run = await draftBoxesFor(project, selectedId);
+  if (run && run.made > 0) {
+    markDirty();
+    announce(`${run.made} suggested ${run.made === 1 ? "box is" : "boxes are"} waiting in Drafts.`);
+  }
+  renderHeading();
+  if (run?.openDrafts) await openDrafts();
+  else $("b-boxes").focus();
+}
+$("b-boxes").addEventListener("click", () => void suggestBoxesFor());
 
 // ---- Find and replace --------------------------------------------------------------------
 const findInput = $<HTMLInputElement>("find-input");

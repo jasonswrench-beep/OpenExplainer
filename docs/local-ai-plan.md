@@ -16,7 +16,7 @@ downloads the first time the author turns the built-in model on; drafts and writ
 | 3. The runtime and Test the AI | **Built 2026-10-21 and tried with the real model.** See below. |
 | 4. Draft callout sentences, the review list, format 14 | **Built 2026-10-21 and tried with the real model.** Jason confirmed the five points. See below. |
 | 5. Draft a procedure from the clicks | **Built 2026-10-22 and tried with real clicks.** Jason confirmed the five points. See below. |
-| 6. Chapter text, suggested boxes, a consistency check | Jason confirmed the five points 2026-10-22. **6a (opener and summary, format 16) built 2026-10-22 and tried with the real model.** 6b (suggested boxes) and 6c (consistency check) not started. |
+| 6. Chapter text, suggested boxes, a consistency check | Jason confirmed the five points 2026-10-22. **6a (opener and summary, format 16) and 6b (suggested boxes) built 2026-10-22 and tried with the real model.** 6c (consistency check) not started. |
 | 7 to 8 | Not started. |
 
 ### What part 1 is
@@ -273,6 +273,28 @@ Built as planned below (Jason confirmed all five points of part 6); the first of
   - Summary, run 2: "You choose File menu items and click buttons to save, print, or close the program. Saving over an existing file replaces it, so you use Save as to keep both versions. You choose Print to send a page to your printer and can pick the printer and number of copies in the window. Printing a long document takes a few minutes, and you must click OK after choosing Print. The X button closes the program, but if you have unsaved changes, you lose them if you choose Do not save." (The facts are in the text, but "you must click OK" turns a step into a rule; it is a draft for a reader to judge.)
   Accepting the opener put it first on the chapter's page and the summary at the end of the Summary topic's page. Nothing was added to the book without Accept.
 - **Not tried**: a chapter of dozens of topics (the material is cut, and the entry says so in its "given" lines); a screen reader; a different model.
+
+### What part 6b is
+
+Built as planned below; the second of three steps, committed on its own. No format change (the `box` draft kind came with format 16 in 6a).
+
+- **The job** (`src/ai/boxes.ts`; no screen): `topicMaterial` gives the model one topic's words and finds the sentences of its paragraphs a box could rest on (5 to 60 words; not steps, headings or boxes), `buildBoxMessages` writes the question, `checkBoxes` decides which boxes may be kept, `draftBoxes` makes the drafts after at most two tries.
+  The model is asked for JSON in an exact shape (a new `jsonSchema` option on the question, sent to the model program as `response_format`; the real server returned valid JSON every time, and the program checks it again). `evidence` comes first in each box so the model copies the sentence before it writes the note.
+- **The checks in code**: the evidence must be one whole sentence of a paragraph of the topic, word for word (white space aside), so a box cannot be made up; it must not already be inside a box on the page; the note is one or two plain sentences of 4 to 45 words with no quotation marks, that do not just repeat the evidence, and with no
+  capitalised word in mid-sentence that is not in the topic, its title or the style notes; the same sentence is suggested once; at most three, in page order; a sentence that already has a suggestion waiting is not suggested again.
+- **The kind of box**: a rule makes it a **Caution** when the sentence or the note says work can be lost, replaced, overwritten or deleted, or cannot be undone (`warnsOfLoss`). Otherwise the model's kind is a starting choice, except that a Caution the rule does not back starts as a **Design Tip**, because the real model called nearly every sentence a Caution
+  ("Printing a long document can take a few minutes"). The entry in Drafts says which it was ("because the sentence says work can be lost or replaced (a rule, not the model)", "the model's suggestion", or "The model said Caution, but the sentence does not say work can be lost, so it starts as Design Tip") and the author chooses the kind in the list.
+- **The screens**: the button **Suggest boxed notes for this topic** above the page editor. It says why first if it cannot go ahead (suggestions already waiting for the topic, no paragraph text to rest on, AI help off or the model not on this PC), then opens the same small window as the other jobs. In Drafts each suggestion says **Suggested**, shows the sentence it rests on and where the box will go (right after the block that holds it),
+  has a kind menu and an editable box; Accept reads "Add this box to the page of ...". These entries and their Accept came with 6a and are unchanged.
+- **Tests**: `tests/boxes.test.ts` (11: the loss rule, the sentences a box can rest on, what is possible, the message, a good answer, every refusal, well-formedness and the limit of three, the job, two tries, an honest empty answer, a stop, duplicates) and an added check in `tests/ai.test.ts` that the schema reaches the model program as asked and nowhere else; scenario `chapters` now also checks the three refusals of the button
+  (a suggestion waiting, AI off, no paragraphs), and `boxesreal` runs the real model.
+- **Real run (real model, the made-up chapter "Working with documents", 2026-10-22).** The first wording ("say what the evidence says in the way that helps the reader most") let the model add things the topic never says: for "Printing a long document can take a few minutes." it wrote "Do not worry if your screen goes blank; the printer is likely still working in the background." The wording now asks for the sentence said again in other words, adding nothing, with two small examples.
+  With it, two full runs of three topics each (6 to 16 s a topic on this PC):
+  - Saving your work, both runs: "Overwriting a file with Save deletes the old version, so choose Save as to keep both copies." resting on "Saving over an existing file replaces it, so use Save as to keep both versions." Kind: Caution, by the rule. ("deletes" is a little stronger than "replaces".)
+  - Printing a page, run 1: "Your printer may need several minutes to finish printing a long document." (Design Tip; the model said Caution) and "You can select which printer to use and how many copies to print from this window." (Design Tip). Run 2: the first of those only.
+  - Closing the program, run 1: "Choosing Do not save causes your unsaved changes to disappear." Run 2: "...to be lost." Both Caution, by the rule, resting on "If you choose Do not save, those changes are lost."
+  Accepting the first suggestion of each topic put a box of the chosen kind right after the paragraph it rests on (`paragraph, callout:caution, procedure`). Nothing was added to a page without Accept.
+- **Not tried**: a topic with dozens of paragraphs (the text given to the model is cut at about 6000 letters and the entry says so); a topic where the model finds nothing (tested with a stand-in model only).
 
 ### Part 6: the plan (2026-10-22, before any code)
 

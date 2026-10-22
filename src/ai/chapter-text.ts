@@ -22,7 +22,7 @@ export interface Material {
 }
 
 /** Cuts a text at the end of a sentence before `most` letters, or at a space. */
-function cutAt(text: string, most: number): string {
+export function cutAt(text: string, most: number): string {
   if (text.length <= most) return text;
   const head = text.slice(0, most);
   const end = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "));

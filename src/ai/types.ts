@@ -15,6 +15,8 @@ export interface AskOptions {
   timeoutMs?: number;
   /** Lets the author cancel: aborting this stops the wait at once. */
   signal?: AbortSignal;
+  /** A JSON schema the answer must follow. The built-in model program is told to produce exactly this, so the answer is valid JSON of this shape every time (tried on the real model); the caller still checks it. */
+  jsonSchema?: object;
 }
 
 export interface Answer {

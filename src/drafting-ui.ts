@@ -4,6 +4,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { messageDialog, open } from "./dialogs.ts";
 import { appConnector } from "./ai/app.ts";
+import { boxReportWords, boxesPossible, draftBoxes } from "./ai/boxes.ts";
 import { chapterReportWords, chapterTextPossible, draftChapterText, type ChapterTextRole } from "./ai/chapter-text.ts";
 import { draftCallouts, reportWords } from "./ai/drafting.ts";
 import { modelSource, modelState } from "./ai/model-state.ts";
@@ -138,5 +139,20 @@ export async function draftChapterTextFor(project: Project, nodeId: string, role
   return runDraftWindow(title, async (tools) => {
     const report = await draftChapterText({ project, nodeId, role, ask: tools.ask, model: tools.model, now: () => new Date().toISOString(), signal: tools.signal, onProgress: tools.progress });
     return { made: report.made ? 1 : 0, lines: chapterReportWords(report, role) };
+  });
+}
+
+/** Suggests boxed notes for a topic, each resting on a sentence the topic already says. Says why not, and returns `null`, if it cannot be done here. */
+export async function draftBoxesFor(project: Project, nodeId: string): Promise<DraftRun | null> {
+  const title = "Suggest boxed notes";
+  const possible = boxesPossible(project, nodeId);
+  if (!possible.ok) {
+    await messageDialog(title, possible.words);
+    return null;
+  }
+  if (!(await aiReady(title))) return null;
+  return runDraftWindow(title, async (tools) => {
+    const report = await draftBoxes({ project, nodeId, ask: tools.ask, model: tools.model, now: () => new Date().toISOString(), signal: tools.signal, onProgress: tools.progress });
+    return { made: report.made, lines: boxReportWords(report) };
   });
 }

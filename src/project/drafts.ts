@@ -323,6 +323,11 @@ export function procedureWaiting(project: Project, nodeId: string): boolean {
   return draftRows(project).some((r) => isProcedure(r.draft) && r.nodeId === nodeId);
 }
 
+/** Are suggested boxes waiting for this topic? */
+export function boxWaiting(project: Project, nodeId: string): boolean {
+  return draftRows(project).some((r) => isBox(r.draft) && r.nodeId === nodeId);
+}
+
 /** Throws away drafts whose callout or topic is gone. */
 export function pruneDrafts(project: Project): void {
   project.drafts = cleanDrafts(project.drafts, project.tree);

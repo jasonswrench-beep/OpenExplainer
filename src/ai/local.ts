@@ -64,6 +64,7 @@ export function createLocalAnswerer(connection: Connection, deps: LocalDeps = {}
         ...SAMPLING,
         stream: false,
         chat_template_kwargs: { enable_thinking: false },
+        ...(options.jsonSchema ? { response_format: { type: "json_schema", json_schema: { name: "answer", strict: true, schema: options.jsonSchema } } } : {}),
       });
       const controller = new AbortController();
       let timedOut = false;
