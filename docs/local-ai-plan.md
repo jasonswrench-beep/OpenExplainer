@@ -15,7 +15,8 @@ downloads the first time the author turns the built-in model on; drafts and writ
 | 2. The model download | **Built and tried 2026-10-21**, first against a stand-in download site, then for real with Jason's yes (below). The model is on this PC. |
 | 3. The runtime and Test the AI | **Built 2026-10-21 and tried with the real model.** See below. |
 | 4. Draft callout sentences, the review list, format 14 | **Built 2026-10-21 and tried with the real model.** Jason confirmed the five points. See below. |
-| 5 to 8 | Not started. |
+| 5. Draft a procedure from the clicks | **Planned 2026-10-22 (below); waiting for Jason's yes to the five points at the end of the plan.** |
+| 6 to 8 | Not started. |
 
 ### What part 1 is
 
@@ -170,6 +171,67 @@ Tab with no trap, Escape), and once with the real model on a made-up click pictu
 3. **The author accepts or rejects each draft, can change its words first, and there is no "accept all".** **Yes.**
 4. **The buttons**: Draft callout text on each picture and on each topic; AI drafts (with the count) and Writing style in the toolbar. **Yes.**
 5. **Names are not drafted** when Windows gave none: they are marked "needs a name". **Yes.**
+
+### Part 5: the plan (2026-10-22, before any code)
+
+**What the author will be able to do.** Capture clicks in a program as now. Then press **Draft a procedure from the clicks** on the topic. A numbered procedure is proposed, one step for each click picture in the order they were taken, such as
+"1. Choose File. 2. Choose Save as. 3. Click the File name box. 4. Click Save." with each step's picture attached and each control name marked the way the editor marks control names. It waits in the list of drafts, where the author can change the words of any step
+and then presses **Accept**, which adds the numbered procedure to the end of the topic's page, or **Reject**.
+
+**What I found by trying the real model first (2026-10-22).** I gave the built-in model six made-up clicks (a File menu item, Save as, the File name box, the Save as type list, Save, a check box) and the plain wording a rule would give for each, and asked for the step.
+Four of the six came back word for word the same as the plain wording. One was made worse (it changed "Choose Save as" to "Click Save as" and added a purpose the clues did not give). One list step changed from "Open the list" to "Click the list". When I asked
+for the whole procedure in one go, it **invented steps that were never captured**: "Type a name in File name" and "Select a type from Save as type". A click capture never records typing, so the model was guessing, and plausibly, which is the dangerous kind.
+Reading only words, the model adds very little to a step that a rule can already write exactly.
+
+So the plan is built around that: **the steps are written by rules from the click notes**, which are exact, instant and need no AI (the button works with AI help off), and the model is not asked to reword them. Where the model could really help is by *seeing* the picture
+(to write what happens next, such as "The Save as window opens", and to name a control Windows would not name). That is a separate, optional part (see point 5).
+
+**The rules for a step.** Each click picture of the topic that is not already in a step on its page gives one step, in the order of the pictures. The wording follows the kind of item that was clicked:
+
+| Item | Step |
+| --- | --- |
+| button, or an unknown kind | Click [[Save]]. |
+| menu item | Choose [[Save as...]]. |
+| menu | Open the [[File]] menu. |
+| check box | Tick [[Remember me]]. |
+| radio button | Select [[Landscape]]. |
+| combo box | Open the [[Save as type]] list. |
+| text box | Click the [[File name]] box. |
+| tab | Click the [[Layout]] tab. |
+| link | Click the [[Learn more]] link. |
+| list item, tree item | Select [[Report.docx]]. |
+| a double-click, a right-click | Double-click [[Open]]. / Right-click [[Open]]. |
+| a password box | Click the password box. |
+
+**Where the control's name comes from.** First the name of the callout on that picture that sits on the clicked item (the author's own name for it, if they have changed it), then the name Windows gave. Windows keeps a name only for buttons, check boxes, combo boxes, menus,
+menu items, radio buttons, sliders, spin boxes and split buttons (a privacy rule in the capture helper), so a text box, a link, a tab or a list item arrives with its kind only. A step with no name says what it can: "Click the text box." The review list flags those steps
+("no name was available; type it in") so the author fills the name in. A click with neither a name nor a kind becomes "Click the item shown." and is flagged the same way.
+
+**What it will not do.** It never writes about typing or keys that were pressed (a click capture does not record them; the author adds "Type a name" by hand), never writes the result lines ("The Format pane opens.") because it cannot know what happened, and never merges several clicks into one step
+(a step holds one picture). Pictures that are not click pictures are left out, and so are click pictures that are already used in a step on the page.
+
+**The review list.** The list becomes **Drafts** (the button reads "Drafts (n waiting)") because this kind of draft is not written by the AI, and every entry says who wrote it: "Written by rule from the click notes" or "Written by the built-in model". A procedure entry says
+where it will go ("Will be added as a numbered procedure at the end of the page of 1.1 Saving your work"), and shows each step with its picture number in its own editable box, a line under each saying what it was made from ("Click on the button Save, access key Alt+S" or
+"callout A: File name"), and a flag on steps with no name. The buttons are **Accept** (adds the procedure to the page, with each step's picture, and the draft goes), **Reject** and **Go to the topic**. The steps cannot be added to or removed in the list; the author does that in the editor after accepting.
+If a draft is already waiting for the topic, drafting again says so and does nothing. The book check notes a waiting procedure draft like it does a sentence draft.
+
+**What changes in the saved project (format version 15).** `drafts.json` gains a second kind of draft, `procedure`: `{ id, kind: "procedure", nodeId, steps, madeAt, by }`, where `steps` is a list of `{ pictureId, text, from, flag? }` (`text` is the step as the author types it, with `[[Control]]` marks;
+`from` the plain line it was made from; `flag` set when the step has no name) and `by` is `"rule"` (or `"model"` if a later part writes one). A sentence draft keeps its shape. Cleaning, as before: a draft for a topic that is not there, with no steps, or whose pictures have gone is dropped; a step whose picture has gone is dropped;
+steps are limited to 60, each at most 300 letters; only the newest draft for one topic is kept. Because a kind this program does not know would be dropped silently by an older copy, the version is bumped to 15 (a version 14 project upgrades unchanged), and `docs/format-spec.md` is updated in the same commit. Drafts are still in no export.
+
+**Where the code goes.** `src/project/procedure-draft.ts` (the rules: which pictures, the wording by kind, where each name comes from, the flags; no screen, no AI), `src/project/drafts.ts` (the new kind: clean, accept into the page, list), `src/drafts-dialog.ts` (the procedure entry),
+`src/main.ts` (the button on the topic and the rename to Drafts), tests, and the format spec.
+
+**How I will try it.** Unit tests for every row of the table, the order, names from callouts before Windows' names, the flags, a password box, pictures already in a step, the draft's cleaning and round trip (and a version 14 project opening as 15), accepting into the page (the procedure block, each step's picture and marks, the page's other blocks untouched), and
+that it works with AI help off. In the real window by keyboard: the button with no click pictures (says so), a real draft with several steps, editing a step, Accept (the page now has the procedure with its pictures), Reject, a second press while one waits. Then I show you the real steps from a real capture before calling it done.
+
+**Five points for Jason to confirm** (my defaults in bold):
+
+1. **The steps are written by rules, not by the model**, because the real try showed the model adds little from words alone, can make a step worse, and invents typing. The button works with AI help off. (The other ways: let the model reword each step with strict checks, which I tried and do not recommend; or go straight to the model reading the pictures, which is point 5.) **Rules.**
+2. **The list is renamed Drafts**, with who wrote each one on every entry. **Yes.**
+3. **One step per click picture, in order; names from the author's callouts first, then Windows' name where it is kept, else the kind only; no typing, no result lines; steps with no name are flagged.** **Yes.**
+4. **Accept adds a new numbered procedure at the end of the topic's page, each step with its picture; format version 15.** **Yes.**
+5. **The model reading the pictures is a separate, optional next part, not part of this one.** It would need a second download from the same Apache 2.0 repository (the picture reader, 672 MB, pinned like the model; I have its size and fingerprint), would only ever read pictures on this PC, and could write the result lines and name controls Windows leaves unnamed. It would be slower (each picture adds seconds on this PC, more on a laptop), and a 4-billion-parameter model's reading of small screen text is unproven, so I would try it on real captures and show you before building any screens. **Decide after you have seen this part.**
 
 ## 1. What the author will see
 
