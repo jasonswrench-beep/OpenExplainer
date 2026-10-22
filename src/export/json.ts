@@ -58,6 +58,7 @@ export function buildJsonExport(project: Project, assets: Assets, options: JsonE
     styles: project.styles,
     guides: project.guides,
     paper: project.paper,
+    ...(project.writingStyle ? { writingStyle: project.writingStyle } : {}),
     tree: exportNodes(project.tree, numbers, options.comments === true),
   };
   const files: Record<string, Uint8Array> = { [BOOK_FILE]: encoder.encode(JSON.stringify(book, null, 2) + "\n") };
@@ -104,7 +105,7 @@ export function readJsonExport(files: Record<string, Uint8Array>): { project: Pr
       return { ...rest, children: strip(children) };
     });
   const tree = strip(book.tree);
-  const header = { version, name: book.name, template: book.template, variables: book.variables, highlight: book.highlight, zoom: book.zoom, styles: book.styles, guides: book.guides, paper: book.paper };
+  const header = { version, name: book.name, template: book.template, variables: book.variables, highlight: book.highlight, zoom: book.zoom, styles: book.styles, guides: book.guides, paper: book.paper, writingStyle: book.writingStyle };
   const project = fromFiles({
     [PROJECT_FILE]: JSON.stringify(header),
     [STRUCTURE_FILE]: JSON.stringify({ version, tree }),

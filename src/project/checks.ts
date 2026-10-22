@@ -10,7 +10,7 @@ import { forPaper, MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
 
 export type CheckKind =
   | "picture-alt" | "mark-alt" | "mark-contrast" | "callout-name" | "callout-description"
-  | "empty-topic" | "empty-block" | "missing-file" | "picture-unplaced" | "variable-empty" | "variable-unused" | "print-small";
+  | "empty-topic" | "empty-block" | "missing-file" | "picture-unplaced" | "variable-empty" | "variable-unused" | "print-small" | "ai-draft";
 
 export interface CheckKindInfo {
   id: CheckKind;
@@ -34,6 +34,7 @@ export const CHECK_KINDS: CheckKindInfo[] = [
   { id: "picture-unplaced", group: "book", severity: "note", title: "Pictures that are not on their page" },
   { id: "variable-unused", group: "book", severity: "note", title: "Variables that are not used" },
   { id: "print-small", group: "accessibility", severity: "note", title: "Pictures too small to read on paper" },
+  { id: "ai-draft", group: "book", severity: "note", title: "AI drafts waiting for review" },
 ];
 
 export const kindInfo = (kind: CheckKind): CheckKindInfo => CHECK_KINDS.find((k) => k.id === kind)!;
@@ -147,6 +148,9 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
         }
         for (const callout of picture.callouts ?? []) {
           const letter = (picture.callouts ?? []).indexOf(callout);
+          if (project.drafts.some((d) => d.pictureId === picture.id && d.calloutId === callout.id)) {
+            add({ ...pic, key: `ai-draft:${picture.id}:${callout.id}`, kind: "ai-draft", words: `An AI draft is waiting for callout ${String.fromCharCode(65 + (letter % 26))}${callout.name.trim() ? ` ("${callout.name.trim()}")` : ""} on the picture "${label}" in "${where}". It is not in the book until you accept it.`, fix: "Open AI drafts and accept or reject it." });
+          }
           const name = `callout ${String.fromCharCode(65 + (letter % 26))}`;
           if (callout.name.trim() === "") add({ ...pic, key: `callout-name:${picture.id}:${callout.id}`, kind: "callout-name", words: `The ${name} on the picture "${label}" in "${where}" has no name.`, fix: "Open Callouts for the picture and give it a name." });
           if (callout.description.trim() === "") add({ ...pic, key: `callout-description:${picture.id}:${callout.id}`, kind: "callout-description", words: `The ${name}${callout.name.trim() ? ` ("${callout.name.trim()}")` : ""} on the picture "${label}" in "${where}" has no sentence about it.`, fix: "Open Callouts for the picture and write a sentence." });

@@ -382,3 +382,10 @@ attribute), so `[hidden]` now always hides.
 
 Not tried: the Drawing dialog with a screen reader (it has about 90 controls with three marks, so it needs a person's judgement), picture views and callouts with a screen reader, a book of 200 topics in the print preview (it draws the whole book each time), a view on a very small or very large picture by eye, and a callout on a very small or very large picture by eye; saving a project with pages through the app's own Save and Open (the format has unit tests, including packing and unpacking and every way a page file
 can be wrong); a screen reader; keyboard-only use start to finish by a person; many blocks (a page of 200); and print or help site output, which is not built.
+
+## AI drafts and writing style
+
+Both are optional; everything works by hand with no AI. **Writing style** (beside Project variables) opens a box for notes about how the book should read (up to 2000 letters); the AI reads them before every draft. **Draft callout text** (on each picture that has callouts, and for the
+selected topic) asks the built-in model for a one-sentence explanation of each callout that has none. It needs AI help set to the built-in model and the model downloaded; if not, it says so. A callout is drafted only if there is something real to write from (a real name, or a description Windows
+gave); the others are named in the report and left alone. The drafts wait in **AI drafts (n waiting)**: for each one you see where it is, the sentence now, an editable box with the draft, a fold-out of what the AI was given, and **Accept**, **Reject** and **Go to the picture**. Accepting makes the
+words the callout's sentence; nothing is accepted for you, and drafts are in no preview or export. Keyboard: Tab through the entries, Enter on a button; after Accept or Reject the keyboard moves to the next entry; Escape closes the list. See `docs/local-ai-plan.md` and `docs/format-spec.md`.

@@ -12,9 +12,12 @@ import { cleanStyles } from "./styles.ts";
 import { cleanChecks } from "./checks.ts";
 import { cleanGuides } from "./guides.ts";
 import { cleanTreeIndex } from "./book-index.ts";
+import { cleanDrafts, cleanWritingStyle } from "./drafts.ts";
 
 export const PROJECT_FILE = "project.json";
 export const STRUCTURE_FILE = "structure.json";
+/** The AI drafts that are waiting for the author (format version 14), only when there are some. */
+export const DRAFTS_FILE = "drafts.json";
 /** A topic's page is saved as topics/<its id>.json, and only when it has something on it. */
 export const TOPICS_FOLDER = "topics/";
 
@@ -58,15 +61,32 @@ function attachPages(tree: TreeNode[], files: Record<string, string>, version: n
   }
 }
 
+/** Reads drafts.json, if there is one, and puts the drafts on the project. A damaged file is refused rather than lost. */
+function attachDrafts(project: Project, files: Record<string, string>): void {
+  const text = files[DRAFTS_FILE];
+  if (text === undefined) return;
+  let parsed: { version?: unknown; drafts?: unknown };
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("The file of AI drafts is damaged, so the project was not opened. Nothing was changed.");
+  }
+  if (!parsed || parsed.version !== project.version) throw new Error("The project files do not match each other. They may be from different saves.");
+  project.drafts = cleanDrafts(parsed.drafts, project.tree);
+}
+
 export function toFiles(project: Project): Record<string, string> {
-  const { tree: rawTree, ...header } = project;
+  const { tree: rawTree, drafts: rawDrafts, writingStyle: rawStyle, ...header } = project;
   // Click notes are checked on the way out too, so a password box can never be written to a file.
   const tree = cleanTreeIndex(cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(rawTree))))));
+  const writingStyle = cleanWritingStyle(rawStyle);
   const files: Record<string, string> = {
-    [PROJECT_FILE]: JSON.stringify({ ...header, highlight: cleanHighlight(header.highlight), zoom: cleanZoom(header.zoom), styles: cleanStyles(header.styles), checks: cleanChecks(header.checks), guides: cleanGuides(header.guides, tree), paper: cleanPaper(header.paper) }, null, 2) + "\n",
+    [PROJECT_FILE]: JSON.stringify({ ...header, highlight: cleanHighlight(header.highlight), zoom: cleanZoom(header.zoom), styles: cleanStyles(header.styles), checks: cleanChecks(header.checks), guides: cleanGuides(header.guides, tree), paper: cleanPaper(header.paper), ...(writingStyle ? { writingStyle } : {}) }, null, 2) + "\n",
     [STRUCTURE_FILE]: JSON.stringify({ version: project.version, tree: withoutPages(tree) }, null, 2) + "\n",
   };
   pageFiles(tree, project.version, files);
+  const drafts = cleanDrafts(rawDrafts, tree);
+  if (drafts.length > 0) files[DRAFTS_FILE] = JSON.stringify({ version: project.version, drafts }, null, 2) + "\n";
   return files;
 }
 
@@ -77,6 +97,7 @@ export function fromFiles(files: Record<string, string>): Project {
   if (header.version !== structure.version) throw new Error("The project files do not match each other. They may be from different saves.");
   const project = migrate({ ...header, tree: structure.tree as TreeNode[] });
   attachPages(project.tree, files, project.version);
+  attachDrafts(project, files);
   return project;
 }
 

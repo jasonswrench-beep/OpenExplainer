@@ -14,7 +14,7 @@ downloads the first time the author turns the built-in model on; drafts and writ
 | 1. Settings and the connector | **Built 2026-10-21.** See below. |
 | 2. The model download | **Built and tried 2026-10-21**, first against a stand-in download site, then for real with Jason's yes (below). The model is on this PC. |
 | 3. The runtime and Test the AI | **Built 2026-10-21 and tried with the real model.** See below. |
-| 4. Draft callout sentences, the review list, format 14 | **Planned 2026-10-21 (below); waiting for Jason's yes to the five points at the end of the plan.** |
+| 4. Draft callout sentences, the review list, format 14 | **Built 2026-10-21 and tried with the real model.** Jason confirmed the five points. See below. |
 | 5 to 8 | Not started. |
 
 ### What part 1 is
@@ -93,6 +93,24 @@ downloads the first time the author turns the built-in model on; drafts and writ
 - Windows briefly shows a second, empty `llama-server.exe` (no command line, no threads, the same memory) a few seconds after the model loads. It disappears by itself within a minute and holds no port; it looks like a memory snapshot taken by Windows security software.
   The tests count only processes that have their options.
 - **Not tried:** the program on an ARM64 PC; a PC with much less memory (the program would likely fail to load and say why in its log; the dialog only warns); an installer (none exists yet); security software that might quarantine unsigned DLLs; speed on an ordinary laptop.
+
+### What part 4 is
+
+Built as planned below; Jason confirmed the five points (words only, `drafts.json`, accept or reject each one with no accept-all, the button places, no name drafting).
+
+- **Format 14**: `project.writingStyle` and `drafts.json`; `docs/format-spec.md` "AI drafts and writing style"; a version 13 project opens with neither. `src/project/drafts.ts` holds the rules (clean, add, list, accept, reject, count), `src/project/files.ts` and `migrate.ts` the saving and upgrading.
+- **The drafting** (`src/ai/drafting.ts`): the clues for a callout (`cluesFor`), the thin-clues rule (`isRealName`), the messages for the model (`buildMessages`), the check of every answer (`checkSentence`), and the job (`draftCallouts`, one request per callout, Stop between and during, a
+  report in plain words). The clues about the clicked item (kind, shortcut, access key, Windows' description) go only to the callout that is on that item; another callout on the picture gets its name and the picture's other names.
+- **The screens**: `src/drafts-dialog.ts` (AI drafts: where it is, Now, an editable Draft sentence, a fold-out of what the AI was given, Accept, Reject, Go to the picture; the keyboard moves to the next entry; the number left is said in words; Escape closes),
+  `src/drafting-ui.ts` (checks AI help is on with the built-in model ready, then a small window with Stop and a report), `src/style-dialog.ts` (Writing style, up to 2000 letters), and in `src/main.ts` the toolbar buttons **AI drafts (n waiting)** and **Writing style**,
+  **Draft callout text** on each picture that has callouts, and **Draft callout text for this topic**. The book check lists each waiting draft as a note, and Go to opens the list.
+- **Tests**: `tests/drafts.test.ts` (12: the rules, format 14 round trip, version 13 opens, damaged or mismatched file refused, never in the JSON export, the book check note), `tests/drafting.test.ts` (12: names, clues, thin clues, password box, the messages, the answer checks, the job with a fake model
+  including bad answers, a problem, Stop, drafts already waiting, one picture); scenario `drafts` in the real window (28 checks, by keyboard, no model needed) and `draftreal` with the **real model**. A development build has a small hook (`__oe_test`, left out of a real build) so a test can put a made-up project into the window.
+- **Real run (this PC, the real model, 2026-10-21)**: a click picture with five callouts (Save with its click details, Cancel, File name, one with no name, one called "Button1") and the style note "Speak to the reader as you. Say click for buttons. Keep sentences short."
+  Three drafts in about 9 seconds including the model starting: "Clicking this Save button saves your current document using the keyboard shortcut Ctrl+S." / "Clicking Cancel stops saving your current file." / "Clicking this text box lets you type a name for your file."
+  The two with nothing to go on were left alone and named in the report. Accepting the first made it the callout's sentence; the others stayed drafts. Stop in the middle ended the run and said so. The sentences are plausible but plain; a 4-billion-parameter model reading words only will not
+  know what a control does beyond its name and what Windows said, so the author's review is the point. They vary a little from run to run.
+- **Not tried**: drafting for a whole book at once (a topic is the largest unit); a long run on a slow PC; many callouts (the job is one request each, so 30 callouts is about a minute on this PC); the picture as a clue (not built, by decision); a screen reader pass.
 
 ### Part 4: the plan (2026-10-21, before any code)
 

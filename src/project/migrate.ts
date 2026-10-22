@@ -10,6 +10,7 @@ import { cleanStyles } from "./styles.ts";
 import { cleanChecks } from "./checks.ts";
 import { cleanGuides } from "./guides.ts";
 import { cleanTreeIndex } from "./book-index.ts";
+import { cleanDrafts, cleanWritingStyle } from "./drafts.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -50,6 +51,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   11: (raw) => ({ ...raw, version: 12, paper: { autoZoom: false } }),
   // Version 12 to 13: a topic can have index terms. An older project has none; the first pass is made when the author asks.
   12: (raw) => ({ ...raw, version: 13 }),
+  // Version 13 to 14: the project keeps writing-style notes for the AI, and AI drafts wait in their own file. An older project has neither.
+  13: (raw) => ({ ...raw, version: 14, writingStyle: "" }),
 };
 
 export function migrate(input: unknown): Project {
@@ -73,5 +76,10 @@ export function migrate(input: unknown): Project {
   project.checks = cleanChecks(project.checks);
   project.guides = cleanGuides(project.guides, project.tree ?? []);
   project.paper = cleanPaper(project.paper);
-  return project;
+  const writingStyle = cleanWritingStyle(project.writingStyle);
+  // Drafts are read from their own file after this (files.ts); any that arrive here are cleaned against the tree.
+  const drafts = cleanDrafts(project.drafts, project.tree ?? []);
+  // The parts in the order a new project has them, so a project that is saved and opened again is the same in every way.
+  const { tree, writingStyle: _style, drafts: _drafts, ...rest } = project;
+  return { ...rest, writingStyle, drafts, tree } as Project;
 }

@@ -11,10 +11,11 @@ import type { NamedStyle } from "./styles.ts";
 import { emptyCheckSettings, type CheckSettings } from "./checks.ts";
 import type { Guide } from "./guides.ts";
 import type { TopicIndex } from "./book-index.ts";
+import type { Draft } from "./drafts.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 13;
+export const CURRENT_VERSION = 14;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -112,6 +113,10 @@ export interface Project {
   guides: Guide[];
   /** Choices about the printed book (format version 12). */
   paper: PaperSettings;
+  /** Notes about voice and wording that the AI reads before every draft (format version 14). Empty to begin with. */
+  writingStyle: string;
+  /** Sentences the AI proposed that wait for the author to accept or reject them (format version 14). Kept apart from the real text; saved in drafts.json. */
+  drafts: Draft[];
   tree: TreeNode[];
 }
 
@@ -131,6 +136,8 @@ export function createProject(name: string, template: Project["template"] = "emp
     checks: emptyCheckSettings(),
     guides: [],
     paper: defaultPaper(),
+    writingStyle: "",
+    drafts: [],
     tree: [],
   };
   if (template === "openstage-how-to-book") {

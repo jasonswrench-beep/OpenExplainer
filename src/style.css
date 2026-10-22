@@ -174,3 +174,9 @@ fieldset.co-active { border: 2px solid var(--accent); padding: calc(0.25rem - 1p
 #ck-groups h3 { margin: 1rem 0 0.2rem; }
 #ck-groups h4 { margin: 0.8rem 0 0.3rem; font-size: 1rem; }
 #ck-ignored { margin: 1rem 0; }
+
+/* The AI drafts dialog: one entry for each draft waiting, with a wide box for the sentence. */
+.drafts-list { list-style: none; padding: 0; margin: 0; max-height: 60vh; overflow: auto; }
+.draft-row { border-top: 1px solid #b8b8b8; padding: 0.6rem 0; }
+.draft-row h3 { margin: 0 0 0.3rem; font-size: 1rem; }
+.draft-row textarea { width: 100%; box-sizing: border-box; }
