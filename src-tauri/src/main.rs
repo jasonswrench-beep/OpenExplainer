@@ -3,6 +3,7 @@
 mod ai;
 mod capture;
 mod config;
+mod llama;
 mod mcp;
 mod models;
 mod pdf;
@@ -13,6 +14,7 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .manage(capture::CaptureState::default())
         .manage(mcp::McpState::default())
+        .manage(llama::RuntimeState::default())
         .setup(|app| {
             // Pictures a capture made but nobody collected (a run that was stopped) are cleared out after an hour.
             capture::sweep_old_pictures(&capture::capture_folder(), std::time::Duration::from_secs(3600));
@@ -58,8 +60,17 @@ fn main() {
             models::ai_model_hash,
             models::ai_model_save_record,
             models::ai_model_write_licence,
-            models::ai_model_read_licence
+            models::ai_model_read_licence,
+            llama::ai_runtime_start,
+            llama::ai_runtime_stop,
+            llama::ai_runtime_status
         ])
-        .run(tauri::generate_context!())
-        .expect("OpenExplainer could not start.");
+        .build(tauri::generate_context!())
+        .expect("OpenExplainer could not start.")
+        .run(|app, event| {
+            // The model's program goes when OpenExplainer does (a Windows job makes sure of it even if this never runs).
+            if let tauri::RunEvent::Exit = event {
+                llama::stop_all(app);
+            }
+        });
 }

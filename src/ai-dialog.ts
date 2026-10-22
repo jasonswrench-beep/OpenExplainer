@@ -9,6 +9,8 @@ import { confirmDialog, messageDialog, open } from "./dialogs.ts";
 import { getDownloader, modelSource } from "./ai/model-state.ts";
 import { modelStateOf, type DownloadState, type DownloadStatus } from "./ai/download.ts";
 import { sizeInWords } from "./ai/model-info.ts";
+import { appConnector } from "./ai/app.ts";
+import { AiError } from "./ai/types.ts";
 import { aiStatusWords, cleanAiSettings, type AiChoice, type AiSettings } from "./ai/settings.ts";
 
 const STATUS_WORDS: Record<DownloadStatus, string> = {
@@ -76,6 +78,10 @@ export async function aiDialog(): Promise<AiSettings | null> {
         <button type="button" id="ai-delete">Delete the model</button>
         <button type="button" id="ai-licence">Show the licence text</button>
       </p>
+      <h3 id="ai-test-heading">Test the AI</h3>
+      <p class="help" id="ai-test-help">Asks the built-in model for one short sentence so you can see that it works. The first time it can take half a minute while the model loads. Nothing is saved or sent anywhere.</p>
+      <p><button type="button" id="ai-test" aria-describedby="ai-test-help">Test the AI</button> <button type="button" id="ai-test-stop" hidden>Stop the test</button></p>
+      <p id="ai-test-result" role="status"></p>
       <p id="ai-announce" class="visually-hidden" role="status"></p>
       <p id="ai-error" role="alert" class="error"></p>
       <p><button value="ok" id="ai-save">Save</button> <button value="cancel" formnovalidate>Cancel</button></p>
@@ -179,6 +185,42 @@ export async function aiDialog(): Promise<AiSettings | null> {
     $("ai-licence").focus();
   });
 
+  // ---- Test the AI: one short sentence from the built-in model, with a way to stop while it loads
+  let testing: AbortController | null = null;
+  $("ai-test").addEventListener("click", async () => {
+    if (chosen() !== "builtin") {
+      $("ai-test-result").textContent = "Choose Built-in model on this PC first, then test it.";
+      $("ai-builtin").focus();
+      return;
+    }
+    const controller = new AbortController();
+    testing = controller;
+    const started = Date.now();
+    $("ai-test").hidden = true;
+    $("ai-test-stop").hidden = false;
+    $("ai-test-stop").focus();
+    $("ai-test-result").textContent = "Starting the model. The first time this can take half a minute.";
+    try {
+      const answer = await appConnector({ choice: "builtin" }).ask(
+        [
+          { role: "system", content: "You write short, clear sentences for software documentation." },
+          { role: "user", content: "Write one short sentence that welcomes a new author to OpenExplainer, a tool for making how-to books from screen captures." },
+        ],
+        { maxTokens: 60, temperature: 0.7, signal: controller.signal },
+      );
+      const seconds = ((Date.now() - started) / 1000).toFixed(1);
+      $("ai-test-result").textContent = `The built-in model answered in ${seconds} seconds${answer.truncated ? " (cut short)" : ""}: "${answer.text}" This was only a test; nothing was saved.`;
+    } catch (error) {
+      $("ai-test-result").textContent = error instanceof AiError ? (error.code === "cancelled" ? "The test was stopped." : error.message) : `The test could not be done. ${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      testing = null;
+      $("ai-test-stop").hidden = true;
+      $("ai-test").hidden = false;
+      if (dialog.isConnected) $("ai-test").focus();
+    }
+  });
+  $("ai-test-stop").addEventListener("click", () => testing?.abort());
+
   let result: AiSettings | null = null;
   dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -194,7 +236,10 @@ export async function aiDialog(): Promise<AiSettings | null> {
     result = next;
     dialog.close("ok");
   });
-  dialog.addEventListener("close", unsubscribe);
+  dialog.addEventListener("close", () => {
+    unsubscribe();
+    testing?.abort();
+  });
   await open(dialog, start);
   return dialog.returnValue === "ok" ? result : null;
 }

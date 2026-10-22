@@ -13,7 +13,7 @@ downloads the first time the author turns the built-in model on; drafts and writ
 | --- | --- |
 | 1. Settings and the connector | **Built 2026-10-21.** See below. |
 | 2. The model download | **Built and tried 2026-10-21**, first against a stand-in download site, then for real with Jason's yes (below). The model is on this PC. |
-| 3. The runtime and Test the AI | Not started. |
+| 3. The runtime and Test the AI | **Built 2026-10-21 and tried with the real model.** See below. |
 | 4 to 8 | Not started. |
 
 ### What part 1 is
@@ -58,15 +58,40 @@ downloads the first time the author turns the built-in model on; drafts and writ
 - Not tried: the speed on a slow connection; a pause and resume in the middle of a long real download (the 5 MB resume used the same code); an antivirus program scanning the file as it grows (none interfered here); what happens when the PC
   sleeps mid-download; the signed address expiring during one very long download (every retry starts again from the first address, so it should cope).
 
-### To check against the real `llama-server` in part 3 (the fake cannot prove these)
+### What part 3 is
 
-- That the app's page may call `http://127.0.0.1:<port>` from the webview (browser rules about which pages may call which addresses). If not, the call goes through the shell instead.
-- That `chat_template_kwargs` with `enable_thinking: false`, `top_k` and `presence_penalty` are accepted as sent.
-- What the real server answers while the model loads (the code treats 503 as "still loading").
+- **The program**: llama.cpp's `llama-server`, build b11803 (MIT), pinned in `tools/ai-runtime.json` with the SHA-256 of both zips (they matched GitHub's published fingerprints). `Get AI Runtime.bat` (`tools/get-ai-runtime.mjs`) downloads the zip for this
+  PC's kind of processor (or `x64` / `arm64` on the command line), checks the size and fingerprint, keeps only what the server needs (23 files, 45 MB unpacked for x64; the zip also holds benchmarking, quantizing and speech tools that are left out),
+  adds the licence texts (also pinned), and puts them in `src-tauri/runtime/llama`. That folder is not in git (a note, `README.txt`, keeps it there) and is listed in `bundle.resources` of `src-tauri/tauri.conf.json`, so the installer carries it as a `llama` folder;
+  a build copies it beside the program (checked: `target/release/llama` has all of it). The ARM64 zip was downloaded and its contents read, but nothing of it can be run on this PC.
+- **The read-through of the zip** (section 5.2 said this was still to do): 52 files for x64 and 38 for ARM64; none is code-signed; the only licence file inside is the LLVM OpenMP one (Apache 2.0 with LLVM exceptions), so the llama.cpp MIT
+  licence and nlohmann/json's are fetched from the repository at the same build, pinned, and copied beside the program. llama.cpp's own README lists what else is built in: cpp-httplib (MIT), stb, miniaudio and subprocess.h (public domain), plus small
+  hashing code (public domain and BSD). All are permissive and `NOTICE` lists them.
+- **`src-tauri/src/llama.rs`**: finds the program (beside OpenExplainer: `llama` in the resource folder or next to the exe; a development build also honours `OPENEXPLAINER_LLAMA_DIR` and the project's `src-tauri/runtime/llama`), starts it hidden with
+  `--host 127.0.0.1`, a free port, `--api-key <fresh password>`, `--no-webui --no-slots --parallel 1 --reasoning off --cache-ram 256 --cors-headers authorization,content-type`, a context size and a thread count, writes its log to `llama-server.log` in the app's
+  data folder, waits until it answers (up to 3 minutes) and says where it is. Starting it again while it runs with the same model hands back the same place. **It is tied to OpenExplainer with a Windows job, so it ends when OpenExplainer ends, even if
+  OpenExplainer is killed outright** (tried).
+- **`src/ai/runtime.ts`, `app.ts`**: starts the program the first time something is asked of the built-in model, shares it, stops it after ten minutes of nothing, stops it if the author cancels while it is loading, never starts it for a model that is not there and
+  checked, and makes the password (32 random letters and digits). The connector now starts a program that has gone away once more before giving up. Threads are half the processor's, between 2 and 8 (a real test below).
+- **Test the AI** in the AI help dialog: asks the model for one short sentence and shows it with the time it took ("The built-in model answered in 5.1 seconds: ... This was only a test; nothing was saved."). If No AI is chosen it says to choose the built-in model
+  first and puts the keyboard on that choice. **Stop the test** appears with the keyboard on it while the model loads; closing the dialog also stops the test. The keyboard goes back to Test when it ends.
+- **The page's security policy** (`app.security.csp`) now allows the page to reach the model site (`https://huggingface.co` and `https://*.hf.co`, where it is sent on to) and `http://127.0.0.1:*` (the model's program), and nothing else. This
+  also fixes part 2 for the installed program: the policy had no `connect-src`, so a release build would have refused the download. Development builds do not apply the policy, which is why it was not seen before. Tried in a release build.
+- Tests: `tests/ai-runtime.test.ts` (8) with the fake program; 4 Rust tests (the options, the password rule, a free port and the health check, the end of a log); scenarios `aitest` (the real model, the real program, in the real window) and `aikill`; a release-build
+  check (`real_release.mjs`, scratch) of the policy and Test the AI.
 
-The rules this follows: everything in the app works by hand with no AI (design spec section 7); the AI drafts and the
-author decides; nothing leaves the PC unless the author chose a cloud service; open model weights are audited file by
-file before they are downloaded (`CLAUDE.md`).
+**What the real program showed (this PC: 24 cores, 32 threads):**
+
+- The model loads in about 13 seconds the first time (cold disk) and 2 to 3 seconds after that; the program uses about 4.3 GB of memory with an 8192-token context.
+- It writes about 10 to 12 words (tokens) a second whatever the thread count (4 to 24 tried; 8 was best at 12): speed is limited by how fast memory can be read, not by the processor's cores. A one-sentence test takes 2 to 5 seconds, a four-step procedure about 5 seconds.
+  A modest laptop will be slower, perhaps half as fast; this is a guess.
+- Thinking is off two ways (the program's `--reasoning off` and `chat_template_kwargs: {"enable_thinking": false}` in each request); with thinking on, the model spends its whole allowance thinking and returns an empty answer, which the connector reports as unusable.
+- Its answers use `**bold**` for control names, which is the same mark the editor uses. No password gives 401 and `/health` needs none. The web page at `/` is off (404). The slot list is off (501).
+- Until the model is loaded the program does not listen at all (a connection is refused, not a 503), so the app waits by trying `/health`.
+- The page may call it: the preflight shows `Access-Control-Allow-Headers: *`, which browsers do not accept for the `Authorization` header, so the program is started with `--cors-headers authorization,content-type`. Tried in the dev app and a release build: it works.
+- Windows briefly shows a second, empty `llama-server.exe` (no command line, no threads, the same memory) a few seconds after the model loads. It disappears by itself within a minute and holds no port; it looks like a memory snapshot taken by Windows security software.
+  The tests count only processes that have their options.
+- **Not tried:** the program on an ARM64 PC; a PC with much less memory (the program would likely fail to load and say why in its log; the dialog only warns); an installer (none exists yet); security software that might quarantine unsigned DLLs; speed on an ordinary laptop.
 
 ## 1. What the author will see
 
@@ -160,14 +185,14 @@ three 3 GB files to compare. If the first real test reads badly, swapping is a o
 | --- | --- |
 | Program | `llama-server` from llama.cpp, `github.com/ggml-org/llama.cpp`, licence **MIT** (repository `LICENSE`). Its own third-party notice folder `licenses/` holds `LICENSE-jsonhpp`. |
 | Builds | Prebuilt Windows zips exist for both our targets: `llama-bNNNNN-bin-win-cpu-x64.zip` (about 24 MB) and `llama-bNNNNN-bin-win-cpu-arm64.zip` (about 12.7 MB). Today's newest build is `b11803`. Graphics-card builds (Vulkan, CUDA) also exist and are left for later. |
-| Still to check at build time | The contents of the zip I pick (every DLL and licence file it carries) and its SHA-256, which I will record in `NOTICE` and pin. I did not download it because you asked for the plan first. |
-| Versions | llama.cpp publishes a new build many times a day and marks them all "pre-release". I will pin one tested build, not follow the newest. |
+| The zip, read in part 3 | Build `b11803`: the x64 zip holds 52 files (62 MB unpacked), the ARM64 zip 38 (28 MB). Both fingerprints matched what GitHub publishes and are pinned in `tools/ai-runtime.json`. Nothing in them is signed. The only licence file inside is the LLVM OpenMP one (Apache 2.0 with LLVM exceptions); the llama.cpp MIT licence and nlohmann/json's are fetched from the repository at the same build and shipped beside the program. The server needs 23 of the files (45 MB); the rest are benchmark, quantizing, speech and command-line tools. `NOTICE` lists all of it. |
+| Versions | llama.cpp publishes a new build many times a day and marks them all "pre-release". One tested build is pinned (`b11803`), not the newest. |
 
 ### 5.3 Result
 
 On what I could read, the weights, their conversion and the runtime are all permissive (Apache 2.0, Apache 2.0, MIT).
-Nothing is GPL, AGPL or restricted. The one thing I could not settle without downloading is the list of files inside the
-llama.cpp zip, which is a step in part 3 below and will be recorded in `NOTICE` before the zip is committed or shipped.
+Nothing is GPL, AGPL or restricted. The files inside the llama.cpp zip were read in part 3 (above) and are recorded in `NOTICE`;
+they are permissive too (MIT, Apache 2.0 with LLVM exceptions, public domain, BSD).
 
 Sources: [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B), [its LICENSE](https://huggingface.co/Qwen/Qwen3.5-4B/blob/main/LICENSE),
 [unsloth GGUF](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF), [lmstudio-community GGUF](https://huggingface.co/lmstudio-community/Qwen3.5-4B-GGUF),

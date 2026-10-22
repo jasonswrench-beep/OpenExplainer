@@ -11,11 +11,12 @@
   },
   "app": {
     "windows": [],
-    "security": { "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:" }
+    "security": { "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost https://huggingface.co https://*.hf.co http://127.0.0.1:*" }
   },
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.png", "icons/icon.ico"]
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "resources": { "runtime/llama/*": "llama/" }
   }
 }

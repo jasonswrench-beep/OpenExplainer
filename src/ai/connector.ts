@@ -8,6 +8,8 @@ import { AiError, type Answer, type Answerer, type AskOptions, type ChatMessage 
 /** Starts the built-in model's program if it is not running, and says where it is. Throws an `AiError` ("not-ready") if the model is not on this PC. */
 export interface LocalServer {
   ensureRunning(signal?: AbortSignal): Promise<Connection>;
+  /** Called when the program did not answer, so the next question starts it again instead of trusting where it was. */
+  reset?(): void;
 }
 
 export interface ConnectorDeps extends LocalDeps {
@@ -35,8 +37,19 @@ export function createConnector(settings: AiSettings, deps: ConnectorDeps = {}):
       return {
         name: "built-in",
         async ask(messages: ChatMessage[], options?: AskOptions): Promise<Answer> {
-          const connection = await server.ensureRunning(options?.signal);
-          return createLocalAnswerer(connection, { fetch: deps.fetch }).ask(messages, options);
+          // If the program has gone away since it was last used (stopped from outside, or it crashed), it is started again, once, before giving up.
+          for (let attempt = 0; ; attempt++) {
+            const connection = await server.ensureRunning(options?.signal);
+            try {
+              return await createLocalAnswerer(connection, { fetch: deps.fetch }).ask(messages, options);
+            } catch (error) {
+              if (error instanceof AiError && error.code === "unreachable") {
+                server.reset?.();
+                if (attempt === 0) continue;
+              }
+              throw error;
+            }
+          }
         },
       };
     }

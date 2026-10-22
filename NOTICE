@@ -34,3 +34,14 @@ The built-in AI model is not part of this program. The program offers to downloa
 - The file Qwen3.5-4B-Q4_K_M.gguf, a smaller copy of that model made by Unsloth, Apache License 2.0 (as stated on its page). https://huggingface.co/unsloth/Qwen3.5-4B-GGUF
   Pinned to commit e87f176479d0855a907a41277aca2f8ee7a09523, 2,740,937,888 bytes, SHA-256 00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4.
 - The licence text is downloaded and kept beside the model, and can be read from the AI help dialog. The audit is in docs/local-ai-plan.md.
+
+The program that runs the built-in AI model is carried with OpenExplainer (the installer takes the folder src-tauri/runtime/llama, which "Get AI Runtime.bat" fills; nothing of it is kept in git). It is llama.cpp's llama-server,
+build b11803 (2026-10-21, commit a37cc4610), the official Windows CPU build for x64 and for ARM64, pinned in tools/ai-runtime.json by SHA-256 (x64 68a11f1f0ab78587bfc42071d2dbd4aa1b621357ddc375c1ee25a24e76d27954,
+ARM64 315288ba2131fb18bb6776f9a1234de1d37d83c43ada9db7b54b761f783dd6ec). Only the files the server needs are kept (llama-server.exe, llama-server-impl.dll, llama.dll, llama-common.dll, ggml.dll, ggml-base.dll, the ggml-cpu*.dll
+files, mtmd.dll, libomp.dll), with these licence texts, which are copied beside them:
+
+- llama.cpp and ggml, MIT License, Copyright (c) 2023-2026 The ggml authors. https://github.com/ggml-org/llama.cpp (LICENSE-llama.cpp.txt)
+- nlohmann/json, MIT License, Copyright (c) 2013-2025 Niels Lohmann (LICENSE-jsonhpp.txt)
+- LLVM OpenMP runtime (libomp.dll), Apache License v2.0 with LLVM Exceptions (LICENSE-LLVM-OpenMP, from the official zip)
+- Also built into llama-server, as llama.cpp's own README lists: cpp-httplib (Yuji Hirose, MIT), stb (Sean Barrett and others, public domain), miniaudio (David Reid, public domain), subprocess.h (public domain),
+  and small hashing code (public domain and BSD). None of it is GPL, AGPL or LGPL. The read-through is in docs/local-ai-plan.md section 5.2.

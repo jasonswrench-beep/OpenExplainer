@@ -7,3 +7,6 @@ Test captures/
 *.log
 .DS_Store
 Thumbs.db
+# The AI program carried with the app is fetched by Get AI Runtime.bat, not kept in git.
+src-tauri/runtime/llama/*
+!src-tauri/runtime/llama/README.txt

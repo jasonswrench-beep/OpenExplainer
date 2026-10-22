@@ -33,7 +33,7 @@ It may join the same product suite later, but not now.
 
 ### Architecture
 
-- TypeScript throughout, with a Tauri shell. Rust only where native Windows needs it: the capture helper, and one small part of the shell that asks the browser engine to print a page to a PDF (`src-tauri/src/pdf.rs`, agreed with Jason on 2026-10-21).
+- TypeScript throughout, with a Tauri shell. Rust only where native Windows needs it: the capture helper, and one small part of the shell that asks the browser engine to print a page to a PDF (`src-tauri/src/pdf.rs`, agreed with Jason on 2026-10-21), and two small parts for the built-in AI model that need Windows: keeping its files and reading the PC's disk space and memory (`models.rs`), and starting and stopping the program that runs it (`llama.rs`).
 - No Python in the product.
 - Windows first, building for both ARM and x64.
 - The capture helper is its own process, with a timeout, an always-visible Cancel, and it never captures itself.

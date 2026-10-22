@@ -59,6 +59,16 @@ fn models_folder(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(folder)
 }
 
+/// Where the finished model file is, if it is there. Used by the program that runs the model.
+pub(crate) fn model_path(app: &AppHandle, file: &str) -> Result<PathBuf, String> {
+    let path = files_in(&models_folder(app)?, file)?.model;
+    if path.is_file() {
+        Ok(path)
+    } else {
+        Err("The model is not on this PC yet. Download it from the AI help dialog first.".into())
+    }
+}
+
 fn size_of(path: &Path) -> Option<u64> {
     std::fs::metadata(path).ok().filter(|m| m.is_file()).map(|m| m.len())
 }
