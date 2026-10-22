@@ -11,6 +11,7 @@ import { cleanChecks } from "./checks.ts";
 import { cleanGuides } from "./guides.ts";
 import { cleanTreeIndex } from "./book-index.ts";
 import { cleanDrafts, cleanWritingStyle } from "./drafts.ts";
+import { cleanAvoidWords } from "./avoid-words.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -55,6 +56,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   13: (raw) => ({ ...raw, version: 14, writingStyle: "" }),
   // Version 14 to 15: drafts.json can hold a second kind of draft, a numbered procedure made from clicks. An older project has none.
   14: (raw) => ({ ...raw, version: 15 }),
+  // Version 15 to 16: drafts.json can hold chapter openers, summaries and suggested boxes, and the project keeps a list of words to avoid. An older project has none.
+  15: (raw) => ({ ...raw, version: 16, avoidWords: [] }),
 };
 
 export function migrate(input: unknown): Project {
@@ -82,6 +85,7 @@ export function migrate(input: unknown): Project {
   // Drafts are read from their own file after this (files.ts); any that arrive here are cleaned against the tree.
   const drafts = cleanDrafts(project.drafts, project.tree ?? []);
   // The parts in the order a new project has them, so a project that is saved and opened again is the same in every way.
-  const { tree, writingStyle: _style, drafts: _drafts, ...rest } = project;
-  return { ...rest, writingStyle, drafts, tree } as Project;
+  const avoidWords = cleanAvoidWords(project.avoidWords);
+  const { tree, writingStyle: _style, avoidWords: _avoid, drafts: _drafts, ...rest } = project;
+  return { ...rest, writingStyle, avoidWords, drafts, tree } as Project;
 }

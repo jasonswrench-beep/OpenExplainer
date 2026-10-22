@@ -12,10 +12,11 @@ import { emptyCheckSettings, type CheckSettings } from "./checks.ts";
 import type { Guide } from "./guides.ts";
 import type { TopicIndex } from "./book-index.ts";
 import type { Draft } from "./drafts.ts";
+import type { AvoidWord } from "./avoid-words.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 15;
+export const CURRENT_VERSION = 16;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -115,7 +116,9 @@ export interface Project {
   paper: PaperSettings;
   /** Notes about voice and wording that the AI reads before every draft (format version 14). Empty to begin with. */
   writingStyle: string;
-  /** Proposals that wait for the author to accept or reject them: sentences the AI wrote for callouts (format version 14) and procedures made from clicks (format version 15). Kept apart from the real text; saved in drafts.json. */
+  /** Words the book should not use and what to use instead, for the consistency check (format version 16). Empty to begin with. */
+  avoidWords: AvoidWord[];
+  /** Proposals that wait for the author to accept or reject them: sentences the AI wrote for callouts (format version 14), procedures made from clicks (format version 15), and chapter openers, summaries and suggested boxes (format version 16). Kept apart from the real text; saved in drafts.json. */
   drafts: Draft[];
   tree: TreeNode[];
 }
@@ -137,6 +140,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     guides: [],
     paper: defaultPaper(),
     writingStyle: "",
+    avoidWords: [],
     drafts: [],
     tree: [],
   };

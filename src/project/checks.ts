@@ -119,6 +119,13 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
       if (project.drafts.some((d) => d.kind === "procedure" && d.nodeId === node.id)) {
         add({ ...base, key: `ai-draft:${node.id}:procedure`, kind: "ai-draft", words: `A draft of a numbered procedure is waiting for "${where}". It is not in the book until you accept it.`, fix: "Open Drafts and accept or reject it." });
       }
+      for (const d of project.drafts) {
+        if (d.kind === "chapter-text" && d.nodeId === node.id) {
+          add({ ...base, key: `ai-draft:${node.id}:${d.role}`, kind: "ai-draft", words: `A draft of ${d.role === "opener" ? "an opener" : "a summary"} is waiting for "${where}". It is not in the book until you accept it.`, fix: "Open Drafts and accept or reject it." });
+        } else if (d.kind === "box" && d.nodeId === node.id) {
+          add({ ...base, key: `ai-draft:${node.id}:box:${d.id}`, kind: "ai-draft", words: `A suggested box is waiting for "${where}". It is not in the book until you accept it.`, fix: "Open Drafts and accept or reject it." });
+        }
+      }
 
       if (nothingOnPage && node.children.length === 0) {
         add({ ...base, key: `empty-topic:${node.id}`, kind: "empty-topic", words: `"${where}" has nothing on its page.`, fix: "Write something on the page, or delete the topic." });

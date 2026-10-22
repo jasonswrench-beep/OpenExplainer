@@ -145,7 +145,7 @@ test("rejecting a draft removes it and changes nothing else", () => {
 
 test("drafts.json exists only when there are drafts, the notes only when written, and both come back", () => {
   const p = book();
-  assert.equal(CURRENT_VERSION, 15);
+  assert.equal(CURRENT_VERSION, 16);
   let files = toFiles(p);
   assert.ok(!(DRAFTS_FILE in files), "no drafts, no file");
   assert.ok(!("writingStyle" in JSON.parse(files[PROJECT_FILE])), "no notes, no entry");
@@ -200,7 +200,7 @@ test("a project that is saved and opened again has the same parts in the same or
   p.writingStyle = "Notes.";
   addDraft(p, draft("p1", "p1-c0"));
   assert.equal(keys(fromFiles(toFiles(p))), keys(p));
-  assert.equal(keys(createProject("New")), "version,name,template,variables,highlight,zoom,styles,checks,guides,paper,writingStyle,drafts,tree");
+  assert.equal(keys(createProject("New")), "version,name,template,variables,highlight,zoom,styles,checks,guides,paper,writingStyle,avoidWords,drafts,tree");
 });
 
 test("drafts survive being saved as a project file and opened again", async () => {

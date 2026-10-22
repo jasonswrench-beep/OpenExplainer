@@ -242,15 +242,15 @@ test("a procedure draft is cleaned when a project is opened: topic, pictures, wo
   assert.equal((cleanDrafts([{ kind: "procedure", nodeId: id, steps: many }], project.tree)[0] as ProcedureDraft).steps.length, 60);
 });
 
-test("format 15: a procedure draft is saved in drafts.json and comes back, and projects saved before it open", () => {
+test("a procedure draft is saved in drafts.json and comes back, and projects saved before it open", () => {
   const a = click({ role: "menu item", name: "File" });
   const b = click({ role: "text box" });
   const { project, id } = topicWith(a, b);
   draftProcedure(project, id, "2026-10-22T09:00:00.000Z");
-  assert.equal(CURRENT_VERSION, 15);
+  assert.ok(CURRENT_VERSION >= 15);
   const files = toFiles(project);
   const saved = JSON.parse(files[DRAFTS_FILE]);
-  assert.equal(saved.version, 15);
+  assert.equal(saved.version, CURRENT_VERSION);
   assert.equal(saved.drafts[0].kind, "procedure");
   assert.ok(!files[STRUCTURE_FILE].includes("Choose [[File]]"), "the words are not in the tree");
   const back = fromFiles(files);
@@ -266,7 +266,7 @@ test("format 15: a procedure draft is saved in drafts.json and comes back, and p
   for (const [name, text] of Object.entries(toFiles(old))) as14[name] = JSON.stringify({ ...JSON.parse(text), version: 14 });
   assert.ok(Object.keys(as14).some((f) => f.startsWith("topics/")) && DRAFTS_FILE in as14);
   const opened = fromFiles(as14);
-  assert.equal(opened.version, 15);
+  assert.equal(opened.version, CURRENT_VERSION);
   assert.equal(opened.tree[0].page!.blocks.length, 1);
   assert.equal(opened.drafts.length, 1);
   // The same protection as before: a page or draft file from a different save is still refused.

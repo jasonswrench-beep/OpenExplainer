@@ -1,17 +1,20 @@
-// Drafts: proposals kept apart from the real text until the author accepts them. Two kinds:
+// Drafts: proposals kept apart from the real text until the author accepts them. Five kinds:
 //   - a sentence the AI wrote for a callout (format version 14);
-//   - a numbered procedure made from a topic's click pictures, written by rules from the click notes (format version 15, `procedure-draft.ts`).
+//   - a numbered procedure made from a topic's click pictures, written by rules from the click notes (format version 15, `procedure-draft.ts`);
+//   - the opener of a chapter or the summary of its topics, written by the AI (format version 16, `ai/chapter-text.ts`);
+//   - a boxed note (Caution, Design Tip and so on) the AI suggests, resting on a sentence the topic already says (format version 16, `ai/boxes.ts`).
 // A draft is not in the tree, so no preview, no check of the words, no index and no export can see it; it becomes real only through `acceptDraft`, which the author asks for, one draft at a time.
 // Drafts are saved with the project in drafts.json so they wait there until they are looked at. The project's writing-style notes, which the AI reads before every sentence, are kept here too.
 // Everything here works without a screen.
 import { MOST_TEXT, letterFor, type Callout } from "./callouts.ts";
 import { ensurePage, findNode, numbering, type Picture, type Project, type TreeNode } from "./model.ts";
 import { newId } from "./ids.ts";
-import { makeBlock, type ProcedureBlock, type Step } from "./page.ts";
+import { CALLOUT_KINDS, calloutLabel, makeBlock, type Block, type CalloutBlock, type CalloutKind, type ParagraphBlock, type ProcedureBlock, type Step } from "./page.ts";
 import { parseMarks } from "./text.ts";
+import { blockText } from "./page-text.ts";
 
-export type DraftKind = "callout-sentence" | "procedure";
-export const DRAFT_KINDS: readonly DraftKind[] = ["callout-sentence", "procedure"];
+export type DraftKind = "callout-sentence" | "procedure" | "chapter-text" | "box";
+export const DRAFT_KINDS: readonly DraftKind[] = ["callout-sentence", "procedure", "chapter-text", "box"];
 
 /** A sentence the AI proposed for a callout. */
 export interface SentenceDraft {
@@ -54,16 +57,51 @@ export interface ProcedureDraft {
   by: "rule" | "model";
 }
 
-export type Draft = SentenceDraft | ProcedureDraft;
+/** The opener of a chapter (two or three sentences for the top of its page) or a summary of its topics (a short paragraph for the end of a topic's page), written by the AI. */
+export interface ChapterTextDraft {
+  id: string;
+  kind: "chapter-text";
+  /** The page it will be added to: the chapter for an opener, the topic that is to hold the summary for a summary. */
+  nodeId: string;
+  role: "opener" | "summary";
+  text: string;
+  /** What the model was given, one plain line each. */
+  clues: string[];
+  madeAt: string;
+  model: string;
+}
+
+/** A boxed note the AI suggests for a topic. It rests on `evidence`, one sentence the topic's text already says, word for word. The author chooses the kind of box when accepting. */
+export interface BoxDraft {
+  id: string;
+  kind: "box";
+  /** The topic it is for. */
+  nodeId: string;
+  /** Which box the model guessed; the author may change it. */
+  boxKind: CalloutKind;
+  text: string;
+  /** The sentence of the topic's text the box rests on. */
+  evidence: string;
+  clues: string[];
+  madeAt: string;
+  model: string;
+}
+
+export type Draft = SentenceDraft | ProcedureDraft | ChapterTextDraft | BoxDraft;
 
 export const isSentence = (d: Draft): d is SentenceDraft => d.kind === "callout-sentence";
 export const isProcedure = (d: Draft): d is ProcedureDraft => d.kind === "procedure";
+export const isChapterText = (d: Draft): d is ChapterTextDraft => d.kind === "chapter-text";
+export const isBox = (d: Draft): d is BoxDraft => d.kind === "box";
 
 /** The most lines of clues, and the longest line, kept with a draft. */
 export const MOST_CLUE_LINES = 14;
 export const MOST_CLUE_TEXT = 300;
 /** The most steps in a procedure draft. */
 export const MOST_STEPS = 60;
+/** The longest opener or summary, and the longest evidence sentence of a box. */
+export const MOST_PROSE = 1200;
+export const MOST_EVIDENCE = 400;
 /** The longest writing-style note. */
 export const MOST_STYLE = 2000;
 
@@ -131,11 +169,28 @@ function cleanOne(item: unknown, tree: TreeNode[], id: string): Draft | null {
     if (steps.length === 0) return null;
     return { id, kind: "procedure", nodeId: d.nodeId, steps, madeAt: squeeze(d.madeAt, 40), by: d.by === "model" ? "model" : "rule" };
   }
+  const cluesOf = (): string[] => (Array.isArray(d.clues) ? d.clues : []).map((c) => squeeze(c, MOST_CLUE_TEXT)).filter((c) => c !== "").slice(0, MOST_CLUE_LINES);
+  if (d.kind === "chapter-text") {
+    if (typeof d.nodeId !== "string" || !findNode(tree, d.nodeId)) return null;
+    if (d.role !== "opener" && d.role !== "summary") return null;
+    const text = squeeze(d.text, MOST_PROSE);
+    if (text === "") return null;
+    return { id, kind: "chapter-text", nodeId: d.nodeId, role: d.role, text, clues: cluesOf(), madeAt: squeeze(d.madeAt, 40), model: squeeze(d.model, 100) };
+  }
+  if (d.kind === "box") {
+    if (typeof d.nodeId !== "string" || !findNode(tree, d.nodeId)) return null;
+    const boxKind = CALLOUT_KINDS.find((k) => k.id === d.boxKind)?.id;
+    if (!boxKind) return null;
+    const text = squeeze(d.text, MOST_TEXT);
+    const evidence = squeeze(d.evidence, MOST_EVIDENCE);
+    if (text === "" || evidence === "") return null;
+    return { id, kind: "box", nodeId: d.nodeId, boxKind, text, evidence, clues: cluesOf(), madeAt: squeeze(d.madeAt, 40), model: squeeze(d.model, 100) };
+  }
   return null;
 }
 
 /** What makes two drafts stand in for the same thing, so only the newest is kept: one sentence for a callout, one procedure for a topic. */
-const keyOf = (d: Draft): string => (isSentence(d) ? `s:${d.calloutId}` : `p:${d.nodeId}`);
+const keyOf = (d: Draft): string => (isSentence(d) ? `s:${d.calloutId}` : isProcedure(d) ? `p:${d.nodeId}` : isChapterText(d) ? `t:${d.nodeId}:${d.role}` : `b:${d.nodeId}:${d.evidence}`);
 
 /**
  * Drafts as they should be kept: only kinds this program knows, only for a callout or topic that is there, with some words, cut to length, each id once, and only the newest draft for one callout or topic.
@@ -158,7 +213,11 @@ export function cleanDrafts(raw: unknown, tree: TreeNode[]): Draft[] {
   return kept.filter((d, i) => !kept.slice(i + 1).some((later) => keyOf(later) === keyOf(d)));
 }
 
-export type NewDraft = Omit<SentenceDraft, "id"> & { id?: string } | Omit<ProcedureDraft, "id"> & { id?: string };
+export type NewDraft =
+  | (Omit<SentenceDraft, "id"> & { id?: string })
+  | (Omit<ProcedureDraft, "id"> & { id?: string })
+  | (Omit<ChapterTextDraft, "id"> & { id?: string })
+  | (Omit<BoxDraft, "id"> & { id?: string });
 
 /** Puts a draft in the project, in place of any draft already waiting for the same callout or topic. Answers with the draft as kept, or `null` if what it is for is not there or there is nothing in it. */
 export function addDraft(project: Project, draft: NewDraft): Draft | null {
@@ -196,7 +255,21 @@ export interface ProcedureRow extends RowBase {
   blocksNow: number;
 }
 
-export type DraftRow = SentenceRow | ProcedureRow;
+/** One waiting opener or summary with where it will go. */
+export interface ChapterTextRow extends RowBase {
+  draft: ChapterTextDraft;
+  blocksNow: number;
+}
+
+/** One waiting suggested box with where it will go. */
+export interface BoxRow extends RowBase {
+  draft: BoxDraft;
+  /** Is the sentence it rests on still in the topic's text? */
+  evidenceFound: boolean;
+  blocksNow: number;
+}
+
+export type DraftRow = SentenceRow | ProcedureRow | ChapterTextRow | BoxRow;
 
 /** The waiting drafts, in the order of the book (topic by topic; a topic's procedure first, then its callouts picture by picture). A draft whose callout or topic has gone is left out. */
 export function draftRows(project: Project): DraftRow[] {
@@ -205,10 +278,18 @@ export function draftRows(project: Project): DraftRow[] {
   const walk = (nodes: TreeNode[]) => {
     for (const node of nodes) {
       const where = `${numbers.get(node.id) ?? ""} ${node.title}`.trim();
+      const blocksNow = node.page?.blocks.length ?? 0;
+      const opener = project.drafts.find((d): d is ChapterTextDraft => isChapterText(d) && d.nodeId === node.id && d.role === "opener");
+      if (opener) rows.push({ draft: opener, nodeId: node.id, where, blocksNow });
       const plan = project.drafts.find((d): d is ProcedureDraft => isProcedure(d) && d.nodeId === node.id);
       if (plan) {
         rows.push({ draft: plan, nodeId: node.id, where, pictureWords: plan.steps.map((s) => `picture ${node.pictures.findIndex((p) => p.id === s.pictureId) + 1}`), blocksNow: node.page?.blocks.length ?? 0 });
       }
+      for (const box of project.drafts.filter((d): d is BoxDraft => isBox(d) && d.nodeId === node.id)) {
+        rows.push({ draft: box, nodeId: node.id, where, evidenceFound: blockWithEvidence(node.page?.blocks ?? [], box.evidence) >= 0, blocksNow });
+      }
+      const summary = project.drafts.find((d): d is ChapterTextDraft => isChapterText(d) && d.nodeId === node.id && d.role === "summary");
+      if (summary) rows.push({ draft: summary, nodeId: node.id, where, blocksNow });
       node.pictures.forEach((picture, p) => {
         (picture.callouts ?? []).forEach((callout, c) => {
           const draft = project.drafts.find((d): d is SentenceDraft => isSentence(d) && d.pictureId === picture.id && d.calloutId === callout.id);
@@ -247,6 +328,19 @@ export function pruneDrafts(project: Project): void {
   project.drafts = cleanDrafts(project.drafts, project.tree);
 }
 
+const loose = (text: string): string => text.replace(/\s+/g, " ").trim();
+
+/** The position of the block whose words contain this sentence (white space aside), or -1. */
+export function blockWithEvidence(blocks: Block[], evidence: string): number {
+  const wanted = loose(evidence);
+  return wanted === "" ? -1 : blocks.findIndex((b) => loose(blockText(b)).includes(wanted));
+}
+
+/** Is an opener or a summary draft waiting for this topic? */
+export function chapterTextWaiting(project: Project, nodeId: string, role: "opener" | "summary"): boolean {
+  return project.drafts.some((d) => isChapterText(d) && d.nodeId === nodeId && d.role === role) && draftRows(project).some((r) => isChapterText(r.draft) && r.nodeId === nodeId && r.draft.role === role);
+}
+
 export type AcceptResult = { ok: true; where: string; words: string } | { ok: false; words: string };
 
 /**
@@ -254,7 +348,7 @@ export type AcceptResult = { ok: true; where: string; words: string } | { ok: fa
  * A sentence becomes the callout's real sentence (replacing what was there). A procedure becomes a numbered procedure block at the end of the topic's page, each step with its picture. The draft is gone either way
  * and nothing else changes.
  */
-export function acceptDraft(project: Project, draftId: string, texts?: string | string[]): AcceptResult {
+export function acceptDraft(project: Project, draftId: string, texts?: string | string[], options: { boxKind?: CalloutKind } = {}): AcceptResult {
   const draft = project.drafts.find((d) => d.id === draftId);
   if (!draft) return { ok: false, words: "That draft is no longer waiting." };
   const given = texts === undefined ? [] : Array.isArray(texts) ? texts : [texts];
@@ -282,6 +376,33 @@ export function acceptDraft(project: Project, draftId: string, texts?: string | 
     drop();
     return { ok: false, words: "The topic this draft was for is gone, so the draft was dropped." };
   }
+  const whereNode = `${numbers.get(node.id) ?? ""} ${node.title}`.trim();
+
+  if (isChapterText(draft)) {
+    const prose = squeeze(given[0] ?? draft.text, MOST_PROSE);
+    if (prose === "") return { ok: false, words: draft.role === "opener" ? "The opener needs some words. Write them, or reject the draft." : "The summary needs some words. Write them, or reject the draft." };
+    const block = makeBlock("paragraph") as ParagraphBlock;
+    block.text = parseMarks(prose);
+    const page = ensurePage(node);
+    if (draft.role === "opener") page.blocks.unshift(block);
+    else page.blocks.push(block);
+    drop();
+    return { ok: true, where: whereNode, words: draft.role === "opener" ? `Added the opener to the top of the page of ${whereNode}.` : `Added the summary to the end of the page of ${whereNode}.` };
+  }
+
+  if (isBox(draft)) {
+    const note = squeeze(given[0] ?? draft.text, MOST_TEXT);
+    if (note === "") return { ok: false, words: "The box needs some words. Write them, or reject the draft." };
+    const kind = CALLOUT_KINDS.find((k) => k.id === options.boxKind)?.id ?? draft.boxKind;
+    const block = makeBlock("callout", { kind }) as CalloutBlock;
+    block.text = parseMarks(note);
+    const page = ensurePage(node);
+    const after = blockWithEvidence(page.blocks, draft.evidence);
+    page.blocks.splice(after >= 0 ? after + 1 : page.blocks.length, 0, block);
+    drop();
+    return { ok: true, where: whereNode, words: `Added a ${calloutLabel(kind)} box to the page of ${whereNode}${after >= 0 ? ", right after the text it rests on" : ""}.` };
+  }
+
   const have = new Set(node.pictures.map((p) => p.id));
   const steps: Step[] = [];
   for (let i = 0; i < draft.steps.length; i++) {

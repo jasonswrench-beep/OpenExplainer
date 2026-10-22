@@ -33,7 +33,8 @@ import { indexDialog } from "./index-dialog.ts";
 import { mcpDialog } from "./mcp-dialog.ts";
 import { aiDialog } from "./ai-dialog.ts";
 import { draftsDialog } from "./drafts-dialog.ts";
-import { draftCalloutText } from "./drafting-ui.ts";
+import { draftCalloutText, draftChapterTextFor } from "./drafting-ui.ts";
+import type { ChapterTextRole } from "./ai/chapter-text.ts";
 import { styleDialog } from "./style-dialog.ts";
 import { acceptDraft, draftCount, draftRows, rejectDraft, type DraftRow } from "./project/drafts.ts";
 import { draftProcedure } from "./project/procedure-draft.ts";
@@ -123,7 +124,7 @@ app.innerHTML = `
           <button type="button" role="tab" id="tab-guide" aria-selected="false" aria-controls="panel-preview" tabindex="-1">Guide preview</button>
         </div>
         <div id="panel-edit" role="tabpanel" aria-labelledby="tab-edit">
-        <div class="toolbar"><button type="button" id="b-unresolved">Unresolved comments</button></div>
+        <div class="toolbar"><button type="button" id="b-unresolved">Unresolved comments</button> <button type="button" id="b-opener">Draft an opener for this chapter</button> <button type="button" id="b-summary">Draft a chapter summary here</button></div>
         <div id="page-editor"></div>
         <section id="pictures-section" aria-labelledby="pictures-heading">
           <h3 id="pictures-heading">Pictures</h3>
@@ -749,6 +750,8 @@ function renderPictures() {
   $<HTMLButtonElement>("b-capture").disabled = !node;
   $<HTMLButtonElement>("b-draft-topic").disabled = !node || !node.pictures.some((p) => (p.callouts ?? []).length > 0);
   $<HTMLButtonElement>("b-procedure").disabled = !node || !node.pictures.some((p) => p.click);
+  $<HTMLButtonElement>("b-opener").disabled = !node;
+  $<HTMLButtonElement>("b-summary").disabled = !node;
   $("page-heading").textContent = node ? `Page of ${node.title}` : "Page";
   $("pictures-empty").textContent = !node
     ? "Select a chapter or topic to see or add its pictures."
@@ -1429,9 +1432,9 @@ async function openDrafts(focus?: string) {
   const go = await draftsDialog({
     focus,
     rows: () => draftRows(project),
-    accept: (id, texts) => {
+    accept: (id, texts, extra) => {
       const before = project.drafts.length;
-      const result = acceptDraft(project, id, texts);
+      const result = acceptDraft(project, id, texts, extra);
       if (result.ok) {
         markDirty();
         renderPictures();
@@ -1453,6 +1456,7 @@ function goToDraft(row: DraftRow) {
   if (viewMode !== "edit") setViewMode("edit", { announce: false });
   select(row.nodeId);
   if (row.draft.kind === "callout-sentence") document.querySelector<HTMLElement>(`[data-callouts="${row.draft.pictureId}"]`)?.focus();
+  else if (row.draft.kind === "chapter-text") $(row.draft.role === "opener" ? "b-opener" : "b-summary").focus();
   else $("b-procedure").focus();
   announce(`Went to ${row.where}.`);
 }
@@ -1464,6 +1468,21 @@ $("b-draft-topic").addEventListener("click", () => {
 $("b-procedure").addEventListener("click", () => {
   if (selectedId) void draftProcedureFor(selectedId);
 });
+
+/** Drafts the opener of the selected chapter, or the summary to go on the selected topic, then lets the author look at it. */
+async function draftChapterFor(role: ChapterTextRole) {
+  if (!selectedId) return;
+  const run = await draftChapterTextFor(project, selectedId, role);
+  if (run && run.made > 0) {
+    markDirty();
+    announce(`The ${role} is waiting in Drafts.`);
+  }
+  renderHeading();
+  if (run?.openDrafts) await openDrafts();
+  else $(role === "opener" ? "b-opener" : "b-summary").focus();
+}
+$("b-opener").addEventListener("click", () => void draftChapterFor("opener"));
+$("b-summary").addEventListener("click", () => void draftChapterFor("summary"));
 
 // ---- Find and replace --------------------------------------------------------------------
 const findInput = $<HTMLInputElement>("find-input");
