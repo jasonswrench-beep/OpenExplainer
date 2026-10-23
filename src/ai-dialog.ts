@@ -50,7 +50,7 @@ export async function aiDialog(): Promise<AiSettings | null> {
   dialog.innerHTML = `
     <form method="dialog">
       <h2 id="dlg-title">AI help</h2>
-      <p class="help" id="ai-intro">AI help can draft text for you to review: names and sentences for callouts, and numbered procedures. It is optional. Everything in OpenExplainer works by hand, and nothing an AI writes goes into your book until you accept it. Drafting itself is not built yet; this is where you choose what will do it and get the built-in model ready.</p>
+      <p class="help" id="ai-intro">AI help can draft text for you to review: a sentence for each callout, a chapter opener, a chapter summary and suggested boxed notes. A numbered procedure from your clicks is made by the program itself, with no AI. AI help is optional. Everything in OpenExplainer works by hand, and nothing an AI writes goes into your book until you accept it. This is where you choose what drafts and get the built-in model ready.</p>
       <fieldset>
         <legend>Who drafts</legend>
         <p><label><input type="radio" name="ai-choice" value="none" id="ai-none" aria-describedby="ai-none-help"> No AI</label><br><span class="help" id="ai-none-help">Nothing is drafted and nothing is sent anywhere. This is how OpenExplainer starts.</span></p>

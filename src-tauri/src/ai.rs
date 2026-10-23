@@ -20,8 +20,7 @@ fn default_settings() -> Value {
 
 /// The settings as they are kept; a choice that is not one of the known ones means "none".
 fn read_settings(path: &PathBuf) -> Value {
-    let Ok(text) = std::fs::read_to_string(path) else { return default_settings() };
-    let Ok(Value::Object(saved)) = serde_json::from_str::<Value>(&text) else { return default_settings() };
+    let Some(saved) = crate::config::read_settings_file(path) else { return default_settings() };
     match saved.get("choice").and_then(Value::as_str) {
         Some(choice) if CHOICES.contains(&choice) => json!({ "choice": choice }),
         _ => default_settings(),
@@ -65,6 +64,9 @@ mod tests {
         assert_eq!(read_settings(&path), json!({ "choice": "builtin" }));
         write_settings_file(&path, r#"{"choice":"key"}"#).unwrap();
         assert_eq!(read_settings(&path), json!({ "choice": "key" }));
+        // A byte order mark at the start (what Windows PowerShell's Set-Content -Encoding UTF8 writes) is not a reason to call the file damaged.
+        std::fs::write(&path, "\u{feff}{\"choice\":\"builtin\"}").unwrap();
+        assert_eq!(read_settings(&path), json!({ "choice": "builtin" }), "a byte order mark is skipped");
         let _ = std::fs::remove_dir_all(&folder);
     }
 }

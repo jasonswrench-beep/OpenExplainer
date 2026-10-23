@@ -15,7 +15,7 @@ const picture = (id: string, extra: Partial<Picture> = {}): Picture => ({ id, fi
 /** A project with something wrong of nearly every kind. */
 function messy(): { project: Project; ids: Record<string, string> } {
   const project = createProject("My Book");
-  project.variables = { PRODUCT: "", VERSION: "2.0", COMPANY: "" };
+  project.variables = { PRODUCT: "", VERSION: "2.0", COMPANY: "Acme Software", EXTRA: "x" };
   const chapter = addNode(project.tree, null, "Getting started");
   const saving = addNode(project.tree, chapter.id, "Saving");
   const empty = addNode(project.tree, chapter.id, "Nothing here");
@@ -119,7 +119,8 @@ test("a variable used with no value or no definition is a problem, and one with 
   const issues = checkProject(project);
   assert.deepEqual(ofKind(issues, "variable-empty").map((i) => i.key), ["variable-empty:MISSING", "variable-empty:PRODUCT"]);
   assert.match(ofKind(issues, "variable-empty")[0].words, /^The variable \{\{MISSING\}\} is used in the book but has no value, so it would appear as \{\{MISSING\}\}\.$/);
-  assert.deepEqual(ofKind(issues, "variable-unused").map((i) => i.key), ["variable-unused:VERSION"]);
+  // VERSION and COMPANY have values and no page mentions them, but the title page prints them, so only EXTRA is unused.
+  assert.deepEqual(ofKind(issues, "variable-unused").map((i) => i.key), ["variable-unused:EXTRA"]);
   project.variables.PRODUCT = "Acme";
   project.variables.MISSING = "x";
   assert.equal(ofKind(checkProject(project), "variable-empty").length, 0);

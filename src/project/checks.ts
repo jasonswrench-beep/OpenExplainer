@@ -4,7 +4,7 @@
 // contrast of an arrow against the picture behind it, is checked in the Drawing dialog; the check lists the marks whose colours were kept on purpose.
 import { consistencyIssues, knownControls } from "./consistency.ts";
 import { failing, kindName, needsAlt, shapeChecks } from "./shapes.ts";
-import { numbering, type Picture, type Project, type TreeNode } from "./model.ts";
+import { CORE_VARIABLES, numbering, type Picture, type Project, type TreeNode } from "./model.ts";
 import { calloutLabel, placedPictureIds, type Block, type Step } from "./page.ts";
 import { plainText } from "./text.ts";
 import { forPaper, MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
@@ -203,8 +203,9 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
       add({ nodeId: null, where: "Project variables", key: `variable-empty:${name}`, kind: "variable-empty", words: `The variable {{${name}}} is used in the book but has no value, so it would appear as {{${name}}}.`, fix: "Choose Project variables and give it a value." });
     }
   }
+  // PRODUCT, VERSION and COMPANY are printed on the title page (and an empty one is simply left off it), so they are used even when no page mentions them.
   for (const [name, value] of Object.entries(project.variables).sort(([a], [b]) => a.localeCompare(b))) {
-    if (value.trim() !== "" && !used.has(name)) {
+    if (value.trim() !== "" && !used.has(name) && !CORE_VARIABLES.includes(name)) {
       add({ nodeId: null, where: "Project variables", key: `variable-unused:${name}`, kind: "variable-unused", words: `The variable {{${name}}} has a value but is not used anywhere in the book.`, fix: "Use it in the text as {{" + name + "}}, or ignore this." });
     }
   }

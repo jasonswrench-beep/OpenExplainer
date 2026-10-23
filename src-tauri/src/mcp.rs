@@ -45,8 +45,7 @@ fn default_settings() -> Value {
 /// The settings as they are kept, with anything missing or odd replaced by the starting value.
 fn read_settings(path: &PathBuf) -> Value {
     let start = default_settings();
-    let Ok(text) = std::fs::read_to_string(path) else { return start };
-    let Ok(Value::Object(saved)) = serde_json::from_str::<Value>(&text) else { return start };
+    let Some(saved) = crate::config::read_settings_file(path) else { return start };
     json!({
         "enabled": saved.get("enabled").and_then(Value::as_bool).unwrap_or(false),
         "folder": saved.get("folder").and_then(Value::as_str).unwrap_or(""),
@@ -161,6 +160,9 @@ mod tests {
         assert_eq!(read_settings(&path), default_settings(), "values of the wrong kind are not believed");
         std::fs::write(&path, r#"{"enabled":true,"folder":"C:\\Docs","allowFullScreen":true,"other":1}"#).unwrap();
         assert_eq!(read_settings(&path), json!({ "enabled": true, "folder": "C:\\Docs", "allowFullScreen": true }));
+        // A byte order mark at the start (what Windows PowerShell's Set-Content -Encoding UTF8 writes) is not a reason to call the file damaged.
+        std::fs::write(&path, "\u{feff}{\"enabled\":true,\"folder\":\"C:\\\\Docs\",\"allowFullScreen\":false}").unwrap();
+        assert_eq!(read_settings(&path), json!({ "enabled": true, "folder": "C:\\Docs", "allowFullScreen": false }), "a byte order mark is skipped");
         let _ = std::fs::remove_dir_all(&folder);
     }
 

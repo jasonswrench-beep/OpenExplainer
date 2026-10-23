@@ -200,7 +200,7 @@ to do about it. What it finds:
   with low contrast on purpose (the check cannot read the picture behind a mark, so the Drawing dialog does that and records the choice); a callout with no name or no sentence; and, as a
   note, a picture that will print too small to read (the same rule as the print preview).
 - The book: a topic with nothing on its page; an empty block, or a step with no text; a picture whose file is missing from the project; a variable used in the book that has no value (it
-  would print as `{{NAME}}`); and, as notes, a picture that is in a topic but not on its page, and a variable with a value that nothing uses.
+  would print as `{{NAME}}`); and, as notes, a picture that is in a topic but not on its page, and a variable with a value that nothing uses (PRODUCT, VERSION and COMPANY are never listed as unused, because the title page prints them).
 - Consistency notes (format version 16, no AI, `src/project/consistency.ts`), all notes: a control written between double square brackets that differs from the name the program showed when it was clicked (`[[Save as]]` where the program says "Save as..."); a step that starts with a verb that does not suit the kind of control (Press for a button, Click for a menu item); and a word or phrase from the
   **Words to avoid** list in the Writing style box (not inside a control name). They only look at controls the book has a click picture of, and each shows the exact words and where it is.
 - Not checked, because the book cannot have them yet: skipped heading levels (headings are levelled by the tree), links and tables.

@@ -14,7 +14,7 @@ MCP is **off** until the author turns it on. In the app, choose **MCP access** (
 - The dialog gives the lines to connect an assistant: for **Claude Desktop** the block to add to `claude_desktop_config.json`, for **Claude Code** the command `claude mcp add openexplainer -- "<path>" --mcp`,
   each with a Copy button.
 
-The settings are kept in `mcp.json` in the app's config folder (`%APPDATA%\\org.openexplainer.app`). Settings are read each time an assistant connects, so a change takes effect for the next one.
+The settings are kept in `mcp.json` in the app's config folder (`%APPDATA%\\org.openexplainer.app`). Settings are read each time an assistant connects, so a change takes effect for the next one. A byte order mark at the start of the file (which Windows PowerShell's `Set-Content -Encoding UTF8` writes) is skipped; the AI help file `ai.json` is read the same way.
 
 ## How it runs
 
