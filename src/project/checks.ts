@@ -2,6 +2,7 @@
 // it only ever advises. The author can fix a thing, ignore one, or ignore all of a kind, and that choice is saved with the project, so ignored things stay out of the way. The rules work
 // on the project alone (and on whether each picture's file is there), so they can be tested without a screen. What the check cannot do without reading the picture's pixels, such as the
 // contrast of an arrow against the picture behind it, is checked in the Drawing dialog; the check lists the marks whose colours were kept on purpose.
+import { consistencyIssues, knownControls } from "./consistency.ts";
 import { failing, kindName, needsAlt, shapeChecks } from "./shapes.ts";
 import { numbering, type Picture, type Project, type TreeNode } from "./model.ts";
 import { calloutLabel, placedPictureIds, type Block, type Step } from "./page.ts";
@@ -10,7 +11,8 @@ import { forPaper, MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
 
 export type CheckKind =
   | "picture-alt" | "mark-alt" | "mark-contrast" | "callout-name" | "callout-description"
-  | "empty-topic" | "empty-block" | "missing-file" | "picture-unplaced" | "variable-empty" | "variable-unused" | "print-small" | "ai-draft";
+  | "empty-topic" | "empty-block" | "missing-file" | "picture-unplaced" | "variable-empty" | "variable-unused" | "print-small" | "ai-draft"
+  | "control-name" | "step-verb" | "avoid-word";
 
 export interface CheckKindInfo {
   id: CheckKind;
@@ -35,6 +37,9 @@ export const CHECK_KINDS: CheckKindInfo[] = [
   { id: "variable-unused", group: "book", severity: "note", title: "Variables that are not used" },
   { id: "print-small", group: "accessibility", severity: "note", title: "Pictures too small to read on paper" },
   { id: "ai-draft", group: "book", severity: "note", title: "Drafts waiting for review" },
+  { id: "control-name", group: "book", severity: "note", title: "Control names that differ from the name the program showed" },
+  { id: "step-verb", group: "book", severity: "note", title: "Steps that start with a verb that does not suit the control" },
+  { id: "avoid-word", group: "book", severity: "note", title: "Words from your Words to avoid list" },
 ];
 
 export const kindInfo = (kind: CheckKind): CheckKindInfo => CHECK_KINDS.find((k) => k.id === kind)!;
@@ -106,6 +111,7 @@ function wordsOf(project: Project): string[] {
 /** Everything worth fixing, in reading order: topic by topic, and in a topic by the order of the kinds above. */
 export function checkProject(project: Project, options: CheckOptions = {}): Issue[] {
   const numbers = numbering(project.tree);
+  const known = knownControls(project);
   const issues: Issue[] = [];
   const add = (issue: Issue) => issues.push(issue);
 
@@ -142,6 +148,9 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
           });
         }
       });
+
+      // The consistency notes (control names, step verbs, words to avoid) are worked out from the book every time, by rules, with no AI.
+      for (const note of consistencyIssues(node, where, known, project.avoidWords)) add(note);
 
       for (const picture of node.pictures) {
         const label = pictureLabel(picture);

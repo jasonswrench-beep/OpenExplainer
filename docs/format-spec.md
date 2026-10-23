@@ -242,7 +242,7 @@ Markdown, Word, PDF, guides). The saved project file keeps them.
 `project.json` has `writingStyle` (format version 14): the author's notes about voice and wording, which the AI reads before every sentence. Plain text, line breaks kept, trailing spaces taken off, at most 2000 letters, left out while empty. The JSON export carries it (an AI outside the app may
 read it) and a JSON import brings it back.
 
-`project.json` has `avoidWords` (format version 16): the author's list of words and phrases the book should not use, each `{ avoid, use }`, with `use` the word to say instead (it may be empty). Text only, white space squeezed, at most 60 letters each, an empty `avoid` or one with `[[` or `]]` left out, each `avoid` once (capitals aside), at most 100 pairs, left out of the file while empty. It is a list the author types, not something an AI works out. The JSON export carries it.
+`project.json` has `avoidWords` (format version 16): the author's list of words and phrases the book should not use, each `{ avoid, use }`, with `use` the word to say instead (it may be empty). Text only, white space squeezed, at most 60 letters each, an empty `avoid` or one with `[[` or `]]` left out, each `avoid` once (capitals aside), at most 100 pairs, left out of the file while empty. It is a list the author types, not something an AI works out, and the book check reads it (`src/project/consistency.ts`; the notes it makes are never stored). The JSON export carries it.
 
 The book check notes each waiting draft (`ai-draft`, a note, not a problem). Cleaned when a project is opened and saved (`cleanDrafts`, `cleanWritingStyle`, `cleanAvoidWords`). How the sentences are drafted, which words the model is given and how its answer is checked, is in `docs/local-ai-plan.md`.
 

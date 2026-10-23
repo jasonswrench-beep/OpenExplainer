@@ -46,3 +46,12 @@ export function avoidWordsFromLines(text: string): AvoidWord[] {
     }),
   );
 }
+
+/** Says in words how many words and phrases a typed list has and how many lines will be left out. */
+export function avoidCountWords(text: string): string {
+  const kept = avoidWordsFromLines(text).length;
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "").length;
+  const left = lines - kept;
+  const said = `${kept} ${kept === 1 ? "word or phrase is" : "words and phrases are"} on the list.`;
+  return left > 0 ? `${said} ${left} ${left === 1 ? "line is" : "lines are"} left out: nothing before the arrow, a word that is already there, or more than ${MOST_AVOID_WORDS} lines.` : said;
+}

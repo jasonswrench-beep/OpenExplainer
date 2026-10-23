@@ -1375,7 +1375,12 @@ function goToIssue(issue: Issue) {
     case "callout-name": case "callout-description": pick("callouts"); break;
     case "print-small": pick("view"); break;
     case "missing-file": case "picture-unplaced": pick("remove"); break;
-    case "empty-block": if (issue.blockId) pageEditor.focusBlockControl(issue.blockId, "first"); break;
+    case "empty-block": case "control-name": case "step-verb": if (issue.blockId) pageEditor.focusBlockControl(issue.blockId, "first"); break;
+    case "avoid-word":
+      if (issue.blockId) pageEditor.focusBlockControl(issue.blockId, "first");
+      else if (issue.pictureId) pick(issue.key.includes(":alt:") ? "edit" : "callouts");
+      else $("b-rename").focus();
+      break;
     case "empty-topic": pageEditor.focus(); break;
     case "ai-draft": announce("Opening Drafts."); void openDrafts(); return;
   }
@@ -1392,11 +1397,19 @@ $("b-vars").addEventListener("click", async () => {
 
 // ---- Writing style and drafts ------------------------------------------------------------------------------
 $("b-style").addEventListener("click", async () => {
-  const result = await styleDialog(project.writingStyle);
-  if (result !== null && result !== project.writingStyle) {
-    project.writingStyle = result;
-    markDirty();
-    announce(result ? "Writing style notes saved." : "Writing style notes cleared.");
+  const result = await styleDialog({ style: project.writingStyle, avoid: project.avoidWords });
+  if (result !== null) {
+    const styleChanged = result.style !== project.writingStyle;
+    const avoidChanged = JSON.stringify(result.avoid) !== JSON.stringify(project.avoidWords);
+    if (styleChanged) project.writingStyle = result.style;
+    if (avoidChanged) project.avoidWords = result.avoid;
+    if (styleChanged || avoidChanged) {
+      markDirty();
+      const said: string[] = [];
+      if (styleChanged) said.push(result.style ? "Writing style notes saved." : "Writing style notes cleared.");
+      if (avoidChanged) said.push(result.avoid.length === 0 ? "Words to avoid cleared." : `Words to avoid saved: ${result.avoid.length} ${result.avoid.length === 1 ? "word or phrase" : "words and phrases"}.`);
+      announce(said.join(" "));
+    }
   }
   $("b-style").focus();
 });

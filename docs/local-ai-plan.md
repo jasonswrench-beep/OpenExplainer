@@ -16,7 +16,7 @@ downloads the first time the author turns the built-in model on; drafts and writ
 | 3. The runtime and Test the AI | **Built 2026-10-21 and tried with the real model.** See below. |
 | 4. Draft callout sentences, the review list, format 14 | **Built 2026-10-21 and tried with the real model.** Jason confirmed the five points. See below. |
 | 5. Draft a procedure from the clicks | **Built 2026-10-22 and tried with real clicks.** Jason confirmed the five points. See below. |
-| 6. Chapter text, suggested boxes, a consistency check | Jason confirmed the five points 2026-10-22. **6a (opener and summary, format 16) and 6b (suggested boxes) built 2026-10-22 and tried with the real model.** 6c (consistency check) not started. |
+| 6. Chapter text, suggested boxes, a consistency check | Jason confirmed the five points 2026-10-22. **Part 6 is built (2026-10-22), as three steps committed one at a time:** 6a opener and summary (format 16), 6b suggested boxes, 6c consistency check and Words to avoid. 6a and 6b were tried with the real model; 6c uses no model. |
 | 7 to 8 | Not started. |
 
 ### What part 1 is
@@ -295,6 +295,25 @@ Built as planned below; the second of three steps, committed on its own. No form
   - Closing the program, run 1: "Choosing Do not save causes your unsaved changes to disappear." Run 2: "...to be lost." Both Caution, by the rule, resting on "If you choose Do not save, those changes are lost."
   Accepting the first suggestion of each topic put a box of the chosen kind right after the paragraph it rests on (`paragraph, callout:caution, procedure`). Nothing was added to a page without Accept.
 - **Not tried**: a topic with dozens of paragraphs (the text given to the model is cut at about 6000 letters and the entry says so); a topic where the model finds nothing (tested with a stand-in model only).
+
+### What part 6c is
+
+Built as planned below; the third of three steps, committed on its own. No AI and no format change (`avoidWords` came with format 16 in 6a). Everything works with AI help off.
+
+- **The rules** (`src/project/consistency.ts`; no screen, no AI, a test checks the notes are exact): three new notes in the book check, worked out from the book every time and never stored, each ignorable like the others (they are notes, not problems, so a book can be exported with them):
+  1. **A control written differently from the name the program showed.** For each control named between double square brackets in a paragraph, a box, a step or a result line, the book's click pictures are searched for a control with the same name (capitals, a closing "..." or colon and the access-key mark & aside). If the program showed
+     "Save as..." and the page says [[Save as]], the note says: `Block 1 (paragraph) of "1.1 Saving your work" writes the control as "Save as", but the program showed "Save as..." when it was clicked.` A control the book has no click picture of is never judged, and a name that matches one of the names the program showed is right.
+  2. **A step whose first word does not suit the kind of control.** `SUITS` lists, for each kind of item (button, menu item, check box and so on), the action verbs that suit it; the first is the one the Drafts procedure writes (a test keeps the two in step). A step that starts with another action verb (click, choose, select, press, tick, check, open, tap, hit, push, pick) for a control whose kind the book knows without doubt is a note: `Step 1 of block 2 (procedure) of "1.1 Saving your work" starts with "Press" for the button "OK". The usual word for a button is "Click".`
+     The kind comes from the click pictures with that control name, or from the step's own click picture; a name the book knows under two kinds is not judged. "Double-click" and "Right-click" are deliberate and never judged, and neither is a step that starts with anything else ("In the window, click Save.").
+  3. **A word or phrase on the Words to avoid list.** The list is in the **Writing style** box (a second box beneath the notes: one line each, `file => document`, or just `file`). It is found as a whole word or phrase, whatever the capitals, in titles, headings, paragraphs, boxes, steps, result lines, picture descriptions and callout sentences, but not inside a control name and not in callout names. One note for each word in each place:
+     `Block 1 (paragraph) of "1.1 Saving your work" uses "file", a word on your Words to avoid list: ...keep the file and its old version.` with the fix `Use "document" instead, or ignore this if it is right here.`
+- **The screens**: the Writing style box gains **Words to avoid, one on each line (word => use instead)** with a count in words that also says how many lines will be left out ("nothing before the arrow, a word that is already there, or more than 100 lines"). Tab goes notes, words to avoid, Save, Cancel. Save keeps both and announces "Words to avoid saved: 2 words and phrases."; Escape keeps nothing and returns the keyboard to the button.
+  The book check lists the three kinds under **The book** as notes ("Control names that differ from the name the program showed", "Steps that start with a verb that does not suit the control", "Words from your Words to avoid list"). **Go to it** selects the topic and puts the keyboard on the block (for a word in a picture description or a callout sentence, on that button; for a title, on Rename).
+- **Why rules**: the real-model try that shaped part 6 (above) found the small model wrong 4 times in 6 when judging text against the style notes, and missing 2 real problems. These rules find exactly the places they name and nothing else. They know nothing of tense or voice; that was dropped (point 4 of the plan).
+- **Tests**: `tests/consistency.test.ts` (14: name comparison, the known controls, each rule with its exact words and fixes, the cases left alone, the verb table kept in step with the procedure drafts, the word list in the check, cleaning and the lines format, the count sentence); scenario `consistency` in the real window by keyboard (no model, no mouse): the notes found, the Writing style box, Save and Escape, the check showing the new word,
+  Go to it landing in the page editor, Ignore this and clearing the list.
+- **Real run (2026-10-22)**, on a made-up chapter with the click records of a menu item "Save as..." and a button "OK": the three notes above appeared with exactly those words, a step written the usual way ("Choose [[Save as...]].") was left alone, "save as" on the Words to avoid list was not found inside the control name, and with the list cleared the word notes were gone.
+- **Not tried**: a book of many topics (the rules read each topic once and the control names once, so they are fast); the notes on a book made from real captures (the real-mouse capture scenarios could not run this session, see HANDOFF).
 
 ### Part 6: the plan (2026-10-22, before any code)
 

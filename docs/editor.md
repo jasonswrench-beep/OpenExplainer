@@ -201,6 +201,8 @@ to do about it. What it finds:
   note, a picture that will print too small to read (the same rule as the print preview).
 - The book: a topic with nothing on its page; an empty block, or a step with no text; a picture whose file is missing from the project; a variable used in the book that has no value (it
   would print as `{{NAME}}`); and, as notes, a picture that is in a topic but not on its page, and a variable with a value that nothing uses.
+- Consistency notes (format version 16, no AI, `src/project/consistency.ts`), all notes: a control written between double square brackets that differs from the name the program showed when it was clicked (`[[Save as]]` where the program says "Save as..."); a step that starts with a verb that does not suit the kind of control (Press for a button, Click for a menu item); and a word or phrase from the
+  **Words to avoid** list in the Writing style box (not inside a control name). They only look at controls the book has a click picture of, and each shows the exact words and where it is.
 - Not checked, because the book cannot have them yet: skipped heading levels (headings are levelled by the tree), links and tables.
 
 For each thing: **Go to it** closes the check, selects the topic and puts the keyboard on the control that fixes it (Edit description, Drawing, Callouts, Picture view, a block, or the Project
@@ -385,7 +387,8 @@ can be wrong); a screen reader; keyboard-only use start to finish by a person; m
 
 ## Drafts and writing style
 
-All of this is optional; everything works by hand with no AI. **Writing style** (beside Project variables) opens a box for notes about how the book should read (up to 2000 letters); the AI reads them before it writes a sentence.
+All of this is optional; everything works by hand with no AI. **Writing style** (beside Project variables) opens a box for notes about how the book should read (up to 2000 letters); the AI reads them before it writes a sentence. Beneath it is a second box, **Words to avoid**: one word or phrase on each line with what to say instead after an arrow
+(`file => document`, or just `file`). Check the book then lists each place the book uses one, as a note. It is a plain list that works with AI help off, and it does not look inside control names.
 
 **Draft callout text** (on each picture that has callouts, and for the selected topic) asks the built-in model for a one-sentence explanation of each callout that has none. It needs AI help set to the built-in model and the model downloaded; if not, it says so. A callout is drafted only if there is something real to write from (a real name, or a description Windows gave);
 the others are named in the report and left alone.
