@@ -4,8 +4,12 @@
 import { buildBookIndex, indexSummary, setTermLines, updateBookIndex } from "../project/book-index.ts";
 import { addCalloutFromClick } from "../project/callouts.ts";
 import { checkProject, splitIssues, summaryWords } from "../project/checks.ts";
-import { addTask, GUIDE_LAYOUTS, guideSummary, newGuide, tasksFromChapter, type GuideLayout } from "../project/guides.ts";
-import { addNode, cleanVariableName, createProject, findNode, numbering, removeNode, STATUSES, type Picture, type Project, type Status, type TreeNode } from "../project/model.ts";
+import { avoidWordsFromLines, MOST_AVOID_WORDS } from "../project/avoid-words.ts";
+import { MOST_STYLE } from "../project/drafts.ts";
+import { addTask, GUIDE_LAYOUTS, guideSummary, newGuide, setGuideLayout, tasksFromChapter, type GuideLayout } from "../project/guides.ts";
+import { COLOR_PRESETS, normalizeColor, SEE_THROUGH_LIMITS, SIZE_LIMITS, type HighlightKind } from "../project/highlight.ts";
+import { addNode, cleanVariableName, createProject, findNode, numbering, removeNode, setPictureView, STATUSES, type Picture, type Project, type Status, type TreeNode } from "../project/model.ts";
+import { ZOOM_LIMITS, viewWords } from "../project/views.ts";
 import { fileNameFor } from "../project/package.ts";
 import { EXPORT_EXTENSION, type ExportKind, type MadeExport } from "../export/make.ts";
 import { BLOCK_HELP, blocksFromJson, pageFromBlocks, pictureToJson, topicToJson } from "./blocks.ts";
@@ -27,6 +31,7 @@ export const INSTRUCTIONS =
   "To document a program: list_windows, capture_window for a screen, or start_click_capture (naming the window), then use the program yourself, then stop_click_capture. Each click becomes a picture with a note of what was clicked; " +
   "view_picture shows you a picture and get_topic lists them. Capture is one window at a time. " +
   "Name and describe the callouts on a picture with describe_picture, and give every picture a plain description (alt_text) for readers who cannot see it. Never write about a control that is not in the capture. " +
+  "set_picture_view crops a tall or wide picture to the part that matters; set_book_settings sets the zoom, the click circle, the writing style and the words to avoid; update_guide and delete_guide change guides. " +
   "Every change is saved as it is made. When the book is ready, run check_book, update_index, and export_book (help-site, json, markdown, word, pdf, guide-word, guide-pdf). " +
   "You can only use files inside the folder the author chose for MCP.";
 
@@ -59,6 +64,32 @@ function pictureOf(node: TreeNode, id: string): Picture {
   if (!picture) throw new Error(`The topic "${node.title}" has no picture with the id "${id}". Its pictures are: ${node.pictures.map((p) => p.id).join(", ") || "none yet"}.`);
   return picture;
 }
+
+/** A number the assistant sent, kept only if it is in range. The words say what the range is, so a wrong value is never quietly changed. */
+function numberIn(value: unknown, name: string, min: number, max: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) throw new Error(`${name} must be a number from ${min} to ${max}.`);
+  return value;
+}
+
+/** A colour the assistant sent: six hex digits (with or without #), or the name of a ready-made colour. */
+function colourOf(value: unknown, name: string): string {
+  const preset = typeof value === "string" ? COLOR_PRESETS.find((c) => c.name.toLowerCase() === value.trim().toLowerCase()) : undefined;
+  const code = preset?.code ?? normalizeColor(value);
+  if (!code) throw new Error(`${name} must be six hex digits such as FFD600, or one of: ${COLOR_PRESETS.map((c) => c.name).join(", ")}.`);
+  return code;
+}
+
+const circleSchema = (where: string) => ({
+  type: "object",
+  description: `The click circle drawn on click pictures in the ${where}. Give only what you want to change.`,
+  properties: {
+    show: { type: "boolean", description: "Whether the circle is drawn." },
+    size_percent: { type: "number", description: `Its width as a percent of the picture's width, ${SIZE_LIMITS.min} to ${SIZE_LIMITS.max}.` },
+    colour: str(`Six hex digits such as FFD600, or ${COLOR_PRESETS.map((c) => c.name).join(", ")}.`),
+    see_through_percent: { type: "number", description: `How much shows through, ${SEE_THROUGH_LIMITS.min} (solid) to ${SEE_THROUGH_LIMITS.max} (cannot be seen).` },
+  },
+  additionalProperties: false,
+});
 
 function outline(nodes: TreeNode[], numbers: Map<string, string>): unknown[] {
   return nodes.map((n) => ({
@@ -270,7 +301,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
     },
     {
       name: "update_index",
-      description: "Makes the software's first pass of index terms for every topic (its title, headings, control names and callout names) and brings it up to date, keeping terms you wrote and not bringing back what you took out.",
+      description: "Makes the software's first pass of index terms for every topic (its title, control names and callout names) and brings it up to date, keeping terms you wrote and not bringing back what you took out.",
       inputSchema: schema({}),
       handler: changes((_args, project) => {
         const result = updateBookIndex(project.tree, project.variables);
@@ -306,6 +337,135 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         const project = session.require();
         return json(project.guides.map((g) => ({ id: g.id, name: g.name, layout: g.layout, summary: guideSummary(project, g) })));
       },
+    },
+    {
+      name: "update_guide",
+      description: "Changes a guide: its name, its layout, whether each full picture gets a zoomed close-up, and its tasks. topic_ids, when given, is the whole new list of tasks in order, and replaces the old one.",
+      inputSchema: schema({
+        guide_id: str("The guide's id, from list_guides."), name: str("A new name."),
+        layout: { type: "string", enum: GUIDE_LAYOUTS.map((l) => l.id), description: "top (picture above its words) or left (pictures left of the words). Steps that had their own layout keep it only if it differs." },
+        close_ups: { type: "boolean", description: "Show a zoomed close-up of the clicked spot with each full picture that has a click." },
+        topic_ids: { type: "array", items: { type: "string" }, description: "The topics that make up the guide, in order." },
+      }, ["guide_id"]),
+      handler: changes((args, project) => {
+        const guide = project.guides.find((g) => g.id === string(args, "guide_id"));
+        if (!guide) throw new Error(`There is no guide with the id "${String(args.guide_id)}". list_guides lists them.`);
+        const done: string[] = [];
+        const name = optionalString(args, "name");
+        const layout = optionalString(args, "layout");
+        if (layout !== undefined && !GUIDE_LAYOUTS.some((l) => l.id === layout)) throw new Error("layout must be top or left.");
+        if (args.close_ups !== undefined && typeof args.close_ups !== "boolean") throw new Error("close_ups must be true or false.");
+        let tasks: string[] | undefined;
+        if (args.topic_ids !== undefined) {
+          if (!Array.isArray(args.topic_ids)) throw new Error("topic_ids must be a list of topic ids.");
+          tasks = args.topic_ids.map(String);
+          const seen = new Set<string>();
+          for (const id of tasks) {
+            if (seen.has(id)) throw new Error(`"${id}" is listed twice.`);
+            seen.add(id);
+            if (!findNode(project.tree, id)) throw new Error(`"${id}" is not a topic of the book. get_outline lists the ids.`);
+          }
+        }
+        if (name !== undefined) { guide.name = name; done.push("name"); }
+        if (layout !== undefined) { setGuideLayout(guide, layout as GuideLayout); done.push("layout"); }
+        if (typeof args.close_ups === "boolean") { guide.zoomFocus = args.close_ups; done.push("close-ups"); }
+        if (tasks) { guide.tasks = tasks; done.push("tasks"); }
+        if (done.length === 0) throw new Error("Nothing to change: give a name, layout, close_ups or topic_ids.");
+        return `Changed the guide "${guide.name}" (${done.join(", ")}): ${guideSummary(project, guide)}.`;
+      }),
+    },
+    {
+      name: "delete_guide",
+      description: "Deletes a guide. No topic and no picture is deleted with it. It cannot be undone, so confirm must be true.",
+      inputSchema: schema({ guide_id: str("The guide's id, from list_guides."), confirm: { type: "boolean", description: "Must be true." } }, ["guide_id", "confirm"]),
+      handler: changes((args, project) => {
+        if (args.confirm !== true) throw new Error("confirm must be true to delete a guide.");
+        const at = project.guides.findIndex((g) => g.id === string(args, "guide_id"));
+        if (at < 0) throw new Error(`There is no guide with the id "${String(args.guide_id)}". list_guides lists them.`);
+        const [gone] = project.guides.splice(at, 1);
+        return `Deleted the guide "${gone.name}".`;
+      }),
+    },
+    {
+      name: "set_picture_view",
+      description:
+        "Chooses which part of a picture is shown in the book: the whole picture, a region (in pixels from the top left corner), or a zoom on the click (only for a click picture; its size is set with set_book_settings). The picture file is never cut. " +
+        "Use it for a tall window that would waste most of a page, or a picture that would print too small to read.",
+      inputSchema: schema({
+        topic_id: str("The topic's id."), picture_id: str("The picture's id."),
+        view: { type: "string", enum: ["whole", "region", "zoom"], description: "whole, region or zoom." },
+        left: { type: "number", description: "For region: how far across it starts." }, top: { type: "number", description: "For region: how far down it starts." },
+        width: { type: "number", description: "For region: its width." }, height: { type: "number", description: "For region: its height." },
+      }, ["topic_id", "picture_id", "view"]),
+      handler: changes((args, project) => {
+        const node = topic(project, string(args, "topic_id"));
+        const picture = pictureOf(node, string(args, "picture_id"));
+        const view = string(args, "view");
+        if (view === "whole") setPictureView(project.tree, node.id, picture.id, null);
+        else if (view === "zoom") {
+          if (!picture.click) throw new Error("That picture has no click to zoom in on. Only a picture from a click capture has one.");
+          setPictureView(project.tree, node.id, picture.id, { kind: "zoom" });
+        } else if (view === "region") {
+          const left = numberIn(args.left, "left", 0, picture.width - 1), top = numberIn(args.top, "top", 0, picture.height - 1);
+          const width = numberIn(args.width, "width", 1, picture.width - left), height = numberIn(args.height, "height", 1, picture.height - top);
+          setPictureView(project.tree, node.id, picture.id, { kind: "crop", x: Math.round(left), y: Math.round(top), width: Math.round(width), height: Math.round(height) });
+        } else throw new Error("view must be whole, region or zoom.");
+        return `${viewWords(picture, project.zoom, "book") ?? "Picture view: the whole picture is shown."} (The picture is ${picture.width} by ${picture.height} pixels.)`;
+      }),
+    },
+    {
+      name: "set_book_settings",
+      description:
+        "Sets choices about the whole book. Give only what you want to change. zoom_book_percent and zoom_guide_percent are the width of a zoomed picture's part. auto_zoom_for_print zooms in on the click for any click picture that would print too small (PDF and Word). " +
+        "click_circle_book and click_circle_guide are the circle drawn on click pictures. writing_style is notes about voice and wording for the built-in AI. words_to_avoid is the list the book check looks for.",
+      inputSchema: schema({
+        zoom_book_percent: { type: "number", description: `Width of a zoomed part in the book, as a percent of the picture's width, ${ZOOM_LIMITS.min} to ${ZOOM_LIMITS.max}.` },
+        zoom_guide_percent: { type: "number", description: `The same for a quick guide, ${ZOOM_LIMITS.min} to ${ZOOM_LIMITS.max}.` },
+        auto_zoom_for_print: { type: "boolean", description: "Zoom in on the click automatically when a click picture would print too small." },
+        click_circle_book: circleSchema("book"), click_circle_guide: circleSchema("quick guide"),
+        writing_style: str(`Notes for the AI about how the book should read, up to ${MOST_STYLE} letters. Empty text clears them.`),
+        words_to_avoid: { type: "array", items: { type: "string" }, description: `Words or phrases the book should not use, up to ${MOST_AVOID_WORDS}: "file => document", or just "file". An empty list clears it.` },
+      }),
+      handler: changes((args, project) => {
+        const done: string[] = [];
+        // Everything is checked first, so a mistake changes nothing.
+        const zoomBook = args.zoom_book_percent === undefined ? undefined : numberIn(args.zoom_book_percent, "zoom_book_percent", ZOOM_LIMITS.min, ZOOM_LIMITS.max);
+        const zoomGuide = args.zoom_guide_percent === undefined ? undefined : numberIn(args.zoom_guide_percent, "zoom_guide_percent", ZOOM_LIMITS.min, ZOOM_LIMITS.max);
+        if (args.auto_zoom_for_print !== undefined && typeof args.auto_zoom_for_print !== "boolean") throw new Error("auto_zoom_for_print must be true or false.");
+        const circles: [HighlightKind, string, Record<string, unknown>][] = [];
+        for (const [kind, key] of [["book", "click_circle_book"], ["guide", "click_circle_guide"]] as const) {
+          const raw = args[key];
+          if (raw === undefined) continue;
+          if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error(`${key} must be an object such as { "show": true, "size_percent": 4 }.`);
+          const given = raw as Record<string, unknown>;
+          const next: Record<string, unknown> = {};
+          if (given.show !== undefined) { if (typeof given.show !== "boolean") throw new Error(`${key}.show must be true or false.`); next.show = given.show; }
+          if (given.size_percent !== undefined) next.size = numberIn(given.size_percent, `${key}.size_percent`, SIZE_LIMITS.min, SIZE_LIMITS.max);
+          if (given.colour !== undefined) next.color = colourOf(given.colour, `${key}.colour`);
+          if (given.see_through_percent !== undefined) next.seeThrough = numberIn(given.see_through_percent, `${key}.see_through_percent`, SEE_THROUGH_LIMITS.min, SEE_THROUGH_LIMITS.max);
+          circles.push([kind, key, next]);
+        }
+        let style: string | undefined;
+        if (args.writing_style !== undefined) {
+          if (typeof args.writing_style !== "string") throw new Error("writing_style must be text.");
+          if (args.writing_style.length > MOST_STYLE) throw new Error(`writing_style can be up to ${MOST_STYLE} letters; this is ${args.writing_style.length}.`);
+          style = args.writing_style;
+        }
+        let avoid: ReturnType<typeof avoidWordsFromLines> | undefined;
+        if (args.words_to_avoid !== undefined) {
+          if (!Array.isArray(args.words_to_avoid)) throw new Error("words_to_avoid must be a list of text.");
+          if (args.words_to_avoid.length > MOST_AVOID_WORDS) throw new Error(`words_to_avoid can hold up to ${MOST_AVOID_WORDS} lines.`);
+          avoid = avoidWordsFromLines(args.words_to_avoid.map(String).join("\n"));
+        }
+        if (zoomBook !== undefined) { project.zoom.book.size = zoomBook; done.push("zoom for the book"); }
+        if (zoomGuide !== undefined) { project.zoom.guide.size = zoomGuide; done.push("zoom for a quick guide"); }
+        if (typeof args.auto_zoom_for_print === "boolean") { project.paper.autoZoom = args.auto_zoom_for_print; done.push("automatic zoom for print"); }
+        for (const [kind, key, next] of circles) { Object.assign(project.highlight[kind], next); done.push(key.replace(/_/g, " ")); }
+        if (style !== undefined) { project.writingStyle = style.replace(/\r\n?/g, "\n").trim(); done.push("writing style"); }
+        if (avoid !== undefined) { project.avoidWords = avoid; done.push("words to avoid"); }
+        if (done.length === 0) throw new Error("Nothing to change: give at least one setting.");
+        return `Set: ${done.join(", ")}.`;
+      }),
     },
     {
       name: "check_book",

@@ -179,6 +179,18 @@ test("the top of the list says in words how many things are to fix, how many are
   assert.equal(summaryWords([note], []), "1 note.");
 });
 
+test("when most of what is to fix is one kind, the top of the list says so, so an unfinished book is not alarming", () => {
+  const empty = (n: number): Issue => ({ key: `empty-topic:t${n}`, kind: "empty-topic", where: `${n} Topic`, words: "has nothing on its page", fix: "Write something", nodeId: `t${n}` });
+  const other: Issue = { key: "picture-alt:p1", kind: "picture-alt", where: "1 Topic", words: "no description", fix: "Describe it", nodeId: "t1" };
+  const note: Issue = { key: "variable-unused:X", kind: "variable-unused", where: "Project variables", words: "unused", fix: "Use it", nodeId: null };
+  const six = [1, 2, 3, 4, 5, 6].map(empty);
+  assert.equal(summaryWords([...six, other, note], []), "7 things to fix and 1 note. 6 of the things to fix are one kind: Topics with nothing on their page.");
+  assert.equal(summaryWords(six, []), "6 things to fix. All 6 are one kind: Topics with nothing on their page.");
+  assert.equal(summaryWords([...six.slice(0, 4), other], []), "5 things to fix.", "fewer than five of one kind is not worth saying");
+  const mixed = (["picture-alt", "mark-alt", "callout-name", "callout-description", "missing-file", "empty-block"] as const).map((kind, n): Issue => ({ ...other, kind, key: `${kind}:${n}` }));
+  assert.equal(summaryWords([...six.slice(0, 5), ...mixed], []), "11 things to fix.", "and neither is a kind that is less than half");
+});
+
 test("what the author ignored is saved with the project and cleaned when it is read", () => {
   assert.deepEqual(cleanChecks(undefined), { ignored: [] });
   assert.deepEqual(cleanChecks({ ignored: ["a", "a", 5, "", null, "b"] }), { ignored: ["a", "b"] });

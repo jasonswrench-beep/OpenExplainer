@@ -6,7 +6,7 @@ import { addComment } from "../src/project/comments.ts";
 import { newGuide, setStepLayout, type Guide } from "../src/project/guides.ts";
 import { renderGuide } from "../src/render/guide.ts";
 import { altTextFor, type RenderContext } from "../src/render/html.ts";
-import { overlayFor, STEP_MARKER_COLOR } from "../src/render/overlay.ts";
+import { overlayFor, STEP_MARKER_COLOR, stepMarkerAt } from "../src/render/overlay.ts";
 import { checkContrast, GRAPHIC_MIN, TEXT_MIN } from "../src/project/contrast.ts";
 
 const size = { width: 1920, height: 1080 };
@@ -95,7 +95,10 @@ test("the number of the step is drawn on the clicked spot, only where the click 
   assert.ok(!renderGuide({ ...context(project), notes: true }, newGuide("Empty")).html.includes("gd-step"), "an empty guide has no steps");
   const overlay = overlayFor(picture("x"), null, undefined, 3)!;
   assert.equal(overlay.parts.length, 2, "the marker is a circle and a number");
-  assert.deepEqual([overlay.parts[0].attrs.cx, overlay.parts[0].attrs.cy, overlay.parts[1].text], [960, 540, "3"]);
+  // the click is at the middle (960, 540); the marker is 48 pixels in radius here, and sits 72 pixels up and to the left of the spot, clear of it
+  assert.deepEqual([overlay.parts[0].attrs.cx, overlay.parts[0].attrs.cy, overlay.parts[1].text], [888, 468, "3"]);
+  const gap = Math.hypot(960 - 888, 540 - 468);
+  assert.ok(gap > 48, "the clicked spot is outside the marker, so it can be seen");
   assert.equal(overlayFor(picture("x"), null, undefined), null, "without a step number there is nothing to draw");
   assert.equal(overlayFor(picture("x", { click: undefined }), null, undefined, 3), null);
   assert.ok(checkContrast("step marker", "#FFFFFF", STEP_MARKER_COLOR, TEXT_MIN)!.ok && checkContrast("edge", STEP_MARKER_COLOR, "#FFFFFF", GRAPHIC_MIN)!.ok, "white number on the marker colour is readable");
@@ -113,4 +116,13 @@ test("a guide says in words what is missing, and a description falls back to the
   assert.equal(altTextFor(p, "Step words"), "Written");
   assert.equal(altTextFor(picture("z"), "Step words"), "Step words");
   assert.equal(altTextFor(picture("z"), "  "), "");
+});
+
+test("a step's number goes above and to the left of the clicked spot, and below or to the right when there is no room that way", () => {
+  const part = { x: 0, y: 0, width: 1000, height: 800 };
+  assert.deepEqual(stepMarkerAt({ x: 500, y: 400 }, part, 20), { x: 470, y: 370 }, "up and to the left, a radius and a half away");
+  assert.deepEqual(stepMarkerAt({ x: 30, y: 400 }, part, 20), { x: 60, y: 370 }, "near the left edge: to the right");
+  assert.deepEqual(stepMarkerAt({ x: 500, y: 25 }, part, 20), { x: 470, y: 55 }, "near the top: below");
+  assert.deepEqual(stepMarkerAt({ x: 10, y: 10 }, part, 20), { x: 40, y: 40 }, "in the corner: below and to the right");
+  assert.deepEqual(stepMarkerAt({ x: 300, y: 300 }, { x: 200, y: 200, width: 400, height: 300 }, 12), { x: 282, y: 282 }, "a cropped part counts from its own corner");
 });

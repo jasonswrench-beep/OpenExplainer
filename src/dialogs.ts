@@ -138,8 +138,8 @@ export async function newProjectDialog(): Promise<{ name: string; template: Proj
       <p><label for="np-name">Project name</label><br><input id="np-name" type="text" size="40" required></p>
       <p><label for="np-template">Start from</label><br>
         <select id="np-template">
-          <option value="openstage-how-to-book">OpenStage how-to book (a few starter chapters)</option>
           <option value="software-user-guide">Software user guide (overview, installation, using, troubleshooting)</option>
+          <option value="openstage-how-to-book">OpenStage how-to book (a few starter chapters)</option>
           <option value="empty">Empty project</option>
         </select></p>
       <p><button value="ok">Create</button> <button value="cancel" formnovalidate>Cancel</button></p>

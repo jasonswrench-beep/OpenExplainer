@@ -97,7 +97,7 @@ One short guide (chosen in the Export dialog; the choice is switched off, with t
 - **Picture on top**: the picture across the page (6.5 inches at most), its callout entries as captions, the close-up centred under it (55 percent of the width), then the words and the result line.
 - **Pictures on the left**: a table with two columns and no borders, the picture, its captions and its close-up stacked in the left one (2.7 inches) and the words in the right one. The table is kept in one
   piece, has a name ("Step 2") and says in its description that it is only layout. A step with no picture has no table.
-- The pictures are made for this guide (`flattenGuide` in `src/export/pictures.ts`): one for each step, because it carries the step's number on the clicked spot (a dark blue marker, 2.5 percent of the width shown in radius so
+- The pictures are made for this guide (`flattenGuide` in `src/export/pictures.ts`): one for each step, because it carries the step's number beside the clicked spot (a dark blue marker, 2.5 percent of the width shown in radius so
   it can still be read in the left column), and a close-up where the guide has one. They follow the quick-guide settings for the click circle and the zoom size. The description of a picture is its own, else the
   words of its step, and a close-up says it is a close-up. A picture whose file is missing or cannot be drawn is named after the export and is replaced by a sentence saying so.
 
@@ -116,7 +116,7 @@ dialog. It is made by the browser engine that already shows the app (WebView2, w
 - A **contents list with page numbers and dotted leaders** (a book). The page numbers are found by printing twice: the first printing has stand-in numbers of the same width, every contents entry links to its
   topic, and a PDF keeps the target of each link as a named place with its page, which `anchorPages` reads (the table of where each object is, the page list, the table of names). The second printing has the real
   numbers; if they moved anything, it prints again (at most four times). If the pages cannot be read out of the PDF, the contents is left without numbers, never with wrong ones, and the export says so.
-- The pictures are the flat pictures (cut to the part shown, marks and callouts drawn in), put beside the page in a work folder; a guide's are made for each step, with the step's number on the clicked spot and
+- The pictures are the flat pictures (cut to the part shown, marks and callouts drawn in), put beside the page in a work folder; a guide's are made for each step, with the step's number beside the clicked spot and
   a close-up, as for Word. Pictures never split across pages, and a step with a picture is kept together where there is room. Printed width follows the print size rule (`PRINT_TEXT_WIDTH`).
 - Comments and notes for the writer are never in it. The page that is printed allows no script and nothing from the network (a content security policy), and everything from the project is escaped, including the
   header, which is written as a CSS string.

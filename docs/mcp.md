@@ -21,7 +21,7 @@ The settings are kept in `mcp.json` in the app's config folder (`%APPDATA%\\org.
 `openexplainer.exe --mcp` starts the app with **a window nobody can see** (not in the taskbar). The assistant talks to it on standard input and output, one JSON line at a time (`src/mcp/protocol.ts`:
 `initialize`, `ping`, `tools/list`, `tools/call`). The shell (`src-tauri/src/mcp.rs`) only carries the lines to the hidden page (`mcp.html`, `src/mcp/main.ts`) and its answers back, and prints nothing
 else on standard output. The hidden page is the app's own TypeScript, so everything works as it does in the window: the project, the drawing of marks onto pictures, every export and the PDF. When the assistant
-closes the line, the program ends. If MCP is off, the assistant is refused at `initialize` with the words that say how to turn it on.
+closes the line, the program ends. If MCP is off, the assistant is refused at `initialize` with the words that say how to turn it on. As it closes, the browser engine may write one line to the error output, `Failed to unregister class Chrome_WidgetWin_0. Error = 1412`. It is the engine tidying up, it is never on standard output (so the protocol is not touched), and it is left alone on purpose, so that a real error is never hidden with it.
 
 An assistant works in its own hidden copy of OpenExplainer, so **do not edit the same project in the app's window while an assistant is working on it**.
 
@@ -33,9 +33,11 @@ Every change is saved as it is made. Every tool checks everything first, so a ca
 | --- | --- |
 | Projects | `list_projects`, `create_project`, `open_project`, `save_project` |
 | Reading | `get_outline`, `get_topic` (the page as blocks, the pictures with what was clicked, the callouts, the index terms), `check_book`, `list_guides` |
-| Writing | `add_topic`, `update_topic`, `delete_topic` (needs `confirm: true`), `set_page`, `append_blocks`, `describe_picture` (description and callout names), `make_callout_from_click`, `set_variables`, `set_index_terms`, `update_index`, `create_guide` |
+| Writing | `add_topic`, `update_topic`, `delete_topic` (needs `confirm: true`), `set_page`, `append_blocks`, `describe_picture` (description and callout names), `make_callout_from_click`, `set_variables`, `set_index_terms`, `update_index`, `create_guide`, `update_guide`, `delete_guide`, `set_picture_view`, `set_book_settings` |
 | Capture | `list_windows`, `capture_window`, `capture_region` (off unless allowed), `start_click_capture`, `click_capture_status`, `stop_click_capture`, `view_picture`, `remove_picture` |
 | Exports | `export_book` with `kind`: `help-site`, `json`, `markdown` (zip files), `word`, `guide-word` (.docx), `pdf`, `guide-pdf` |
+
+`set_book_settings` sets, in one call (everything is checked first, so a mistake changes nothing): the width of a zoomed part in the book and in a quick guide (10 to 100 percent), the automatic zoom for print, the click circle for the book and for a quick guide (shown or not, size 1 to 20 percent, colour as six hex digits or a ready-made name, see-through 0 to 100), the writing-style notes (up to 2,000 letters) and the Words to avoid list (up to 100 lines, `word => use instead`). `set_picture_view` makes a picture show the whole picture, a region (in pixels from the top left corner) or a zoom on its click, so a tall window can be cropped; the picture file is never cut. `update_guide` changes a guide's name, layout, close-ups and its list of tasks, and `delete_guide` (with `confirm: true`) removes a guide and nothing else. These were added on 2026-10-23 after the first User Guide had to have its saved file edited by hand for the zoom and the click circle.
 
 A page is written as blocks (`src/mcp/blocks.ts`): `{type:'heading'|'paragraph'|'picture'|'procedure'|'callout', ...}`. Text uses the editor's own marks, `**bold**`, `*italic*` and `[[Control name]]`.
 A mistake in a block is said with where it is ("Block 2 (procedure), step 1 needs its text").
@@ -45,12 +47,12 @@ A mistake in a block is said with where it is ("Block 2 (procedure), step 1 need
 The assistant does the clicking in the program with its own tools; OpenExplainer watches and records, exactly as it does for a person (click-by-click capture): a picture from just before each click and
 a note of what was clicked, never anything typed and never a password box's contents (`docs/capture-helper.md`).
 
-- `list_windows`, then `capture_window` (by a part of the title, or the id): one window, kept in a topic's list of pictures, with a small copy sent back so the assistant can see it.
+- `list_windows`, then `capture_window` (by a part of the title, or the id): one window, kept in a topic's list of pictures, with a small copy sent back so the assistant can see it. A window owned by another, such as the Save or Open window of the program being documented, is listed too.
 - `start_click_capture` (naming the window), then the assistant uses the program, then `stop_click_capture`. Only clicks **inside the named window** are kept and each picture is cut to that window's part, so
   a mail window or a password manager on the same screen never gets into the project. Each kept picture has its click note and a first callout at the item that was clicked. Clicks outside the window are counted
   and said.
 - `capture_region`, and a click capture with no window, need the author to have allowed whole screens. They are refused otherwise, with words saying how to allow them.
-- **The Stop window (click capture) and the Cancel window (other captures) stay visible**, as they always do, so a person who comes back can stop it at once. Capture never captures OpenExplainer itself.
+- **The Stop window (click capture) and the Cancel window (other captures) stay visible**, as they always do, so a person who comes back can stop it at once. A copy of OpenExplainer does not capture its own windows; another copy running on the same PC (the program being documented, when that is OpenExplainer) can be captured.
 - `view_picture` gives the assistant a PNG no wider than 1280 pixels (or what it asks for) to look at.
 
 ## The log

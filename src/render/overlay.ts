@@ -93,15 +93,29 @@ export function shapeParts(shape: Shape): SvgPart[] {
  * least partly in the part shown. `null` when there is nothing to draw. Callout markers and lines are sized by the width of the part shown, so they look the same whether
  * the picture is whole or zoomed; the marks drawn by the author keep the size they were given, so they scale with the picture.
  */
+/**
+ * Where a step's number goes: just above and to the left of the clicked spot, with its edge clear of the spot, so that the spot and the button or word that was clicked stay readable (the click
+ * circle, when it is on, shows the spot itself). When there is no room that way, because the click is near the top or the left edge of the part shown, it goes below or to the right instead.
+ * It is the centre of the marker, in picture pixels.
+ */
+export function stepMarkerAt(click: { x: number; y: number }, part: Rect, radius: number): { x: number; y: number } {
+  const away = Math.round(radius * 1.5);
+  return {
+    x: click.x - away >= part.x + radius ? click.x - away : click.x + away,
+    y: click.y - away >= part.y + radius ? click.y - away : click.y + away,
+  };
+}
+
 export function overlayFor(picture: Pick<Picture, "width" | "height" | "callouts" | "shapes"> & { click?: Pick<NonNullable<Picture["click"]>, "x" | "y"> }, circle: Circle | null, shown?: Rect, step?: number): Overlay | null {
   const part = shown ?? { x: 0, y: 0, width: picture.width, height: picture.height };
   // A callout wholly outside the part that is shown is not drawn: its marker could not be seen.
   const shapes = shapesFor(picture, part.width).filter((_, i) => calloutInView(picture, i, part));
   const marks = (picture.shapes ?? []).filter((m) => touches(shapeBounds(m), part));
-  // A guide's step has its number on the clicked spot, if that spot is in the part shown. The marker is worked out from the click, never stored with the picture. It is 2.5 percent of the width shown (at least 12 pixels) in radius, so the number can still be read when the picture is small on the page.
+  // A guide's step has its number beside the clicked spot (just above it and to its left, see `stepMarkerAt`), if that spot is in the part shown. The marker is worked out from the click, never stored with the picture. It is 2.5 percent of the width shown (at least 12 pixels) in radius, so the number can still be read when the picture is small on the page.
   const click = step !== undefined ? picture.click : undefined;
+  const stepSize = Math.max(12, Math.round(part.width * 0.025));
   const stepMarker: MarkerShape | null = click && click.x >= part.x && click.x <= part.x + part.width && click.y >= part.y && click.y <= part.y + part.height
-    ? { id: "step", kind: "marker", alt: "", at: { x: click.x, y: click.y }, label: String(step), color: STEP_MARKER_COLOR, size: Math.max(12, Math.round(part.width * 0.025)) }
+    ? { id: "step", kind: "marker", alt: "", at: stepMarkerAt(click, part, stepSize), label: String(step), color: STEP_MARKER_COLOR, size: stepSize }
     : null;
   if (!circle && shapes.length === 0 && marks.length === 0 && !stepMarker) return null;
   const parts: SvgPart[] = [];

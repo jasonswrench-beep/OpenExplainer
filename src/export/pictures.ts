@@ -69,7 +69,7 @@ export async function flattenPlaced(project: Project, assets: Assets, place: Hig
 export const guideKey = (stepId: string, closeUp = false) => (closeUp ? `${stepId}:close-up` : stepId);
 
 /**
- * Makes the picture files for one guide. Each step's picture is made for that step (the same picture in two steps is made twice) because it carries the step's number on the clicked spot,
+ * Makes the picture files for one guide. Each step's picture is made for that step (the same picture in two steps is made twice) because it carries the step's number beside the clicked spot,
  * and each one that gets a zoomed close-up has that made too. They follow the quick-guide settings for the click circle and the zoom size. Files are named images/step-<n>.png and
  * images/step-<n>-close-up.png, and are found by `guideKey`.
  */

@@ -20,7 +20,7 @@ export async function indexDialog(options: IndexDialogOptions): Promise<string |
   dialog.innerHTML = `
     <form method="dialog">
       <h2 id="dlg-title">Index of the book</h2>
-      <p class="help">The index is worked out from the index terms of every topic: each term is listed once, with every topic it is in. The software proposes terms from the book (a topic's title, its headings, the control
+      <p class="help">The index is worked out from the index terms of every topic: each term is listed once, with every topic it is in. The software proposes terms from the book (a topic's title, the control
         names written in its text and the names of the callouts on its pictures). You change, add or remove the terms of a topic in that topic's Properties. Updating brings in what is new in the book, keeps your own
         terms, does not bring back anything you took out, and drops software terms the book no longer supports.</p>
       <p id="ix-summary" role="status"></p>

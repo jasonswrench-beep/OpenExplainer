@@ -39,6 +39,7 @@ import { styleDialog } from "./style-dialog.ts";
 import { acceptDraft, draftCount, draftRows, rejectDraft, type DraftRow } from "./project/drafts.ts";
 import { draftProcedure } from "./project/procedure-draft.ts";
 import { aiStatusWords } from "./ai/settings.ts";
+import { setWindowTitle, windowTitle } from "./window-title.ts";
 import { modelState, watchModel } from "./ai/model-state.ts";
 import { buildBookIndex, indexSummary, setTermLines, termLines, updateBookIndex, updateTopicIndex } from "./project/book-index.ts";
 import { cleanGuides, guideSummary } from "./project/guides.ts";
@@ -163,7 +164,7 @@ app.innerHTML = `
         </div>
         <div id="props-index">
           <h4 id="props-index-heading">Index terms for this topic</h4>
-          <p class="help" id="props-index-help">One term on each line. The software proposes terms from the topic's title, headings, control names and callout names. You can change, add or remove any of them. Choose Suggest terms to bring in what is new without undoing your changes.</p>
+          <p class="help" id="props-index-help">One term on each line. The software proposes terms from the topic's title, control names and callout names. You can change, add or remove any of them. Choose Suggest terms to bring in what is new without undoing your changes.</p>
           <p><label for="index-terms">Index terms, one on each line</label><br><textarea id="index-terms" rows="6" cols="28" aria-describedby="props-index-help index-line"></textarea></p>
           <p><button type="button" id="b-index-suggest">Suggest terms</button></p>
           <p id="index-line" class="help"></p>
@@ -287,7 +288,7 @@ function renderPreview(scroll = false) {
       const built = renderGuide({ ...ctx, onNote: (words) => notes.push(words) }, guide);
       content.innerHTML = built.html;
       content.setAttribute("aria-label", `Preview of the guide ${guide.name}`);
-      $("preview-help").textContent = "A short step-by-step guide drawn as sheets, approximately: real page breaks are made when a guide is exported. Each step has the number on the clicked spot, and the pictures use the quick-guide click circle and zoom settings. The words come from the book's own topics. Comments are never printed.";
+      $("preview-help").textContent = "A short step-by-step guide drawn as sheets, approximately: real page breaks are made when a guide is exported. Each step has its number beside the clicked spot, and the pictures use the quick-guide click circle and zoom settings. The words come from the book's own topics. Comments are never printed.";
     } else {
       content.innerHTML = '<p class="help">There are no guides yet. Choose Guides to make one from a chapter, or from topics that have numbered steps.</p>';
       content.setAttribute("aria-label", "Guide preview");
@@ -560,6 +561,8 @@ function renderProperties() {
 function renderHeading() {
   $("project-heading").textContent = `${project.name}${dirty ? " (unsaved changes)" : ""}`;
   document.title = `${dirty ? "* " : ""}${project.name} - OpenExplainer`;
+  // The window's own title (title bar, taskbar, Alt+Tab, and what a screen reader says) names the project too.
+  void setWindowTitle(windowTitle(project.name, dirty));
   $("folder-line").textContent = filePath ? `Saved file: ${filePath}` : "Not saved to a file yet.";
   const waiting = draftCount(project);
   $("b-drafts").textContent = waiting > 0 ? `Drafts (${waiting} waiting)` : "Drafts";

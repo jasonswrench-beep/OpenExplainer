@@ -1,5 +1,5 @@
 // The book index (format version 13). Each topic keeps its own index terms, and the index of the book is worked out from them, never stored. The software writes the first pass from the book
-// itself (the topic's title, its headings, the control names written in its text, and the names of the callouts on its pictures); the author edits the terms of any topic by hand, and can ask for
+// itself (the topic's title, the control names written in its text, and the names of the callouts on its pictures); the author edits the terms of any topic by hand, and can ask for
 // an update, which brings in what is new in the book without undoing the author's work: terms the author added or changed stay, terms the author took out do not come back, and terms the
 // software proposed that the book no longer supports go. No AI is needed, so this works with none. Nothing here needs a screen or the disk.
 import type { Project, TreeNode } from "./model.ts";
@@ -42,7 +42,8 @@ function controlNames(runs: Run[] | undefined, into: string[]) {
 
 function blockTerms(block: Block, into: string[]) {
   switch (block.type) {
-    case "heading": into.push(block.text); break;
+    // A heading is not a term: a sub-heading such as "What it finds" or "The two layouts" is not something a reader looks up. (It was until 2026-10-23; an update drops such terms the software made.)
+    case "heading": break;
     case "paragraph": case "callout": controlNames(block.text, into); break;
     case "procedure": for (const step of block.steps) { controlNames(step.text, into); controlNames(step.result, into); } break;
     default: break;
@@ -50,7 +51,7 @@ function blockTerms(block: Block, into: string[]) {
 }
 
 /**
- * The terms the book itself suggests for one topic, in the order found, each once: the topic's title, the headings on its page, the control names written in its text, and the names of the
+ * The terms the book itself suggests for one topic, in the order found, each once: the topic's title, the control names written in its text, and the names of the
  * callouts on the pictures that are on its page. A topic with nothing on its page suggests none.
  */
 export function suggestedTerms(node: TreeNode, variables: Record<string, string> = {}): string[] {

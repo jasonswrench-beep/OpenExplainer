@@ -57,9 +57,9 @@ test("a term is tidied, and what is not an index term is refused", () => {
   assert.equal(termKey("  Save   As "), termKey("save as"));
 });
 
-test("the first pass is the topic's title, its headings, the control names in its text and the names of the callouts on its pictures, each once", () => {
+test("the first pass is the topic's title, the control names in its text and the names of the callouts on its pictures, each once", () => {
   const { project, ids } = book();
-  assert.deepEqual(suggestedTerms(node(project, ids.saving), project.variables), ["Saving your work", "Saving a copy", "Save", "File menu", "Save As", "Save button"], "control names in steps, results and boxes too; a callout with no name and a picture not on the page add nothing; bold is not a term");
+  assert.deepEqual(suggestedTerms(node(project, ids.saving), project.variables), ["Saving your work", "Save", "File menu", "Save As", "Save button"], "control names in steps, results and boxes too; a callout with no name and a picture not on the page add nothing; bold is not a term; and the heading \"Saving a copy\" is not a term");
   assert.deepEqual(suggestedTerms(node(project, ids.printing), project.variables), ["Printing", "Print", "save"], "'save' is its own spelling here, found in another topic");
   assert.deepEqual(suggestedTerms(node(project, ids.empty)), [], "a topic with nothing on its page suggests nothing");
   assert.deepEqual(suggestedTerms(node(project, ids.chapter)), [], "a chapter with no page of its own too");
@@ -69,12 +69,12 @@ test("an update adds what is new, keeps the author's own terms, does not bring b
   const { project, ids } = book();
   const saving = node(project, ids.saving);
   const first = updateTopicIndex(saving, project.variables);
-  assert.deepEqual(first.added, ["Saving your work", "Saving a copy", "Save", "File menu", "Save As", "Save button"]);
+  assert.deepEqual(first.added, ["Saving your work", "Save", "File menu", "Save As", "Save button"]);
   assert.deepEqual(first.dropped, []);
   assert.ok(saving.index!.terms.every((t) => t.by === "software"));
   // the author edits: adds a term of their own, takes out "File menu", retypes "Save As" as "Save as..."
-  setTermLines(saving, ["Saving your work", "Saving a copy", "Save", "Save button", "Backups", "Save as copy"], project.variables);
-  assert.deepEqual(saving.index!.terms.map((t) => [t.text, t.by]), [["Saving your work", "software"], ["Saving a copy", "software"], ["Save", "software"], ["Save button", "software"], ["Backups", "author"], ["Save as copy", "author"]]);
+  setTermLines(saving, ["Saving your work", "Save", "Save button", "Backups", "Save as copy"], project.variables);
+  assert.deepEqual(saving.index!.terms.map((t) => [t.text, t.by]), [["Saving your work", "software"], ["Save", "software"], ["Save button", "software"], ["Backups", "author"], ["Save as copy", "author"]]);
   assert.deepEqual(saving.index!.removed!.sort(), ["file menu", "save as"], "what the author took out is remembered");
   // the book changes: a new control name appears, and "Save button" no longer exists
   const para = saving.page!.blocks.find((b) => b.type === "paragraph")!;
@@ -112,16 +112,16 @@ test("the lines the author edits become terms: blanks, repeats and unusable line
 
 test("the book's index lists each term once, with every topic it is in, in alphabetical order under a heading for each letter", () => {
   const { project, ids } = book();
-  assert.deepEqual(updateBookIndex(project.tree, project.variables), { topics: 2, added: 9, dropped: 0 });
+  assert.deepEqual(updateBookIndex(project.tree, project.variables), { topics: 2, added: 8, dropped: 0 });
   const numbers = numbering(project.tree);
   const index = buildBookIndex(project, numbers);
-  assert.equal(index.terms, 8, "'save' and 'Save' are one term");
+  assert.equal(index.terms, 7, "'save' and 'Save' are one term");
   assert.deepEqual(index.groups.map((g) => g.heading), ["F", "P", "S"]);
   const find = (text: string) => index.groups.flatMap((g) => g.entries).find((e) => e.text === text)!;
   assert.deepEqual(find("Save").topics.map((t) => [t.number, t.title]), [["1.1", "Saving your work"], ["2", "Printing"]], "the topics are in the order of the book, each once");
-  assert.deepEqual(index.groups[2].entries.map((e) => e.text), ["Save", "Save As", "Save button", "Saving a copy", "Saving your work"], "alphabetical, without regard to capitals");
+  assert.deepEqual(index.groups[2].entries.map((e) => e.text), ["Save", "Save As", "Save button", "Saving your work"], "alphabetical, without regard to capitals");
   assert.deepEqual(index.groups[1].entries.map((e) => e.text), ["Print", "Printing"]);
-  assert.equal(indexSummary(project.tree), "8 terms in 2 topics");
+  assert.equal(indexSummary(project.tree), "7 terms in 2 topics");
   // the author's spelling wins over the software's for the same term
   setTermLines(node(project, ids.printing), ["Printing", "Print", "SAVE"], project.variables);
   const again = buildBookIndex(project, numbers);

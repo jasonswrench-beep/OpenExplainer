@@ -32,7 +32,7 @@ export async function guidesDialog(options: GuidesDialogOptions): Promise<Guide[
   dialog.innerHTML = `
     <form method="dialog">
       <h2 id="dlg-title">Guides</h2>
-      <p class="help" id="gd-intro">A guide is a few pages for one task, or for several: a title, then each task with its numbered steps, each step a heading, a picture with the step's number on the clicked spot, and its words. It has no text of its own. It is made of topics already in the book, so editing a topic changes the book and every guide made from it. See a guide in the Guide preview tab.</p>
+      <p class="help" id="gd-intro">A guide is a few pages for one task, or for several: a title, then each task with its numbered steps, each step a heading, a picture with the step's number beside the clicked spot, and its words. It has no text of its own. It is made of topics already in the book, so editing a topic changes the book and every guide made from it. See a guide in the Guide preview tab.</p>
       <p id="gd-count" role="status"></p>
       <p><label for="gd-pick">Guide</label> <select id="gd-pick"></select>
         <button type="button" id="gd-new">New guide</button>

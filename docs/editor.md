@@ -23,7 +23,7 @@ A block is added after the block the keyboard was last in (or at the end), and t
 - **Paragraph**: a text box. Bold, Italic and Control name buttons put the marks round the selected words (`**bold**`, `*italic*`, `[[Control name]]`);
   the marks can also be typed. A preview under the box shows the result for eyes (it is hidden from a screen reader, which reads the box). With nothing
   selected a mark button says what to do. Spaces at the edges of the selection stay outside the markers.
-- **Heading**: a one-line sub-heading.
+- **Heading**: a one-line sub-heading. It is plain text: bold, italic and control name marks are not read in a heading, so typed there they print as they are (the box says so).
 - **Picture**: a list of the topic's own pictures; the chosen one is shown with its description as its alternative text. With exactly one picture in the
   topic it is chosen already. A picture is only on the page where it is placed. A picture that is removed from the topic goes off the page.
 - **Numbered procedure**: steps labelled "Step 1 of 3" and so on, each with the text of what to do, an optional picture, and an optional result line,
@@ -232,7 +232,7 @@ A **guide** is a few pages for one task, or for several (the quick, step-by-step
   Cancel throws them away.
 - Two layouts, per guide and per step. **Picture on top**: the picture across the page, a close-up under it, the words below. **Pictures on the left**: the picture and its close-up stacked on the left, the
   words beside them. Each step is a heading ("Step 3", numbered again from 1 for each numbered list, as in the book), its picture, its words and its result line.
-- Each step picture has the **step's number on the clicked spot** (a dark blue numbered marker, drawn from the click when the guide is shown and never stored on the picture), where the click is in the part
+- Each step picture has the **step's number beside the clicked spot** (a dark blue numbered marker, just above the spot and to its left, or below and to the right when the click is near the top or left edge, so the spot and what was clicked stay readable; changed 2026-10-23, before it sat on the spot and covered the button's label; drawn from the click when the guide is shown and never stored on the picture), where the click is in the part
   shown. The click circle and the zoom size follow the quick-guide settings. A **close-up** is the same picture zoomed in on the click, shown with a whole picture that has a click; a picture the author has
   cropped or zoomed, or one with no click, gets none, and the dialog can turn close-ups off for a guide. The close-up's description says it is a close-up.
 - A picture with no description of its own takes the words of its step as its description (so every picture in a guide has one), and the preview's note about a missing description is not shown for it.
@@ -245,8 +245,8 @@ A **guide** is a few pages for one task, or for several (the quick, step-by-step
 Jason's choice (2026-10-21): **the software writes the first pass of the index, the author edits it, and can update it.** Each topic keeps its own index terms (format version 13, see `docs/format-spec.md`,
 "The book index"); the index of the book is worked out from them. It needs no AI.
 
-- **In a topic's Properties**, a box **Index terms, one on each line** and a button **Suggest terms**. Suggest terms makes the first pass for the topic from the book itself (the topic's title, the headings on its
-  page, every control name written in its text, and the names of the callouts on the pictures that are on its page) and, the next time, brings in what is new. The author changes, adds or removes any line; the box
+- **In a topic's Properties**, a box **Index terms, one on each line** and a button **Suggest terms**. Suggest terms makes the first pass for the topic from the book itself (the topic's title, every control name written in its
+  text, and the names of the callouts on the pictures that are on its page; the headings on its page are **not** terms, since a sub-heading is rarely something a reader looks up, changed 2026-10-23) and, the next time, brings in what is new. The author changes, adds or removes any line; the box
   keeps it when the author moves out of it and shows what was kept (blank lines, repeats and lines that cannot be a term, such as one with no letter or longer than 60 characters, are left out, and it says how many).
   The line under the box says how many terms the software proposed and how many the author wrote or changed. An update keeps the author's terms, does not bring back a term the author took out, keeps software terms
   the book still supports and drops software terms it no longer supports.
@@ -296,7 +296,7 @@ steps, a second task of one step and a topic of only words. The Guides dialog wi
 topics with steps as tasks and not the one with only words, every step listed with its words, picture on top and close-ups on to begin with), renaming as you type, the left layout, one step taking the other
 layout, Move down (the keyboard goes to the other button when the task reaches the end, found and fixed by this test), Remove and Add, an empty name refused with the reason and the keyboard put in the name
 box, Save, Cancel changing nothing, Delete asking first with the keyboard on Cancel; then the Guide preview: the picker, a title once and a sheet per task, the layouts as chosen, the step numbers
-starting again, the numbers drawn on the clicked spots, a close-up for each picture, the box with its kind in words, the book's own paragraphs left out, and (measured) the words beside the pictures in the
+starting again, the numbers drawn beside the clicked spots, a close-up for each picture, the box with its kind in words, the book's own paragraphs left out, and (measured) the words beside the pictures in the
 left layout and below them in the top layout. A picture of the preview was looked at. By keyboard alone: Enter on Guides, Tab through the dialog with no guides and with one (no trap), the arrow keys between
 layouts, Space on the close-up box, Escape. Not tried: a screen reader.
 

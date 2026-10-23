@@ -196,7 +196,7 @@ worked out from every topic's terms (`buildBookIndex` in `src/project/book-index
 the author's spelling wins over the software's, else the first one found; entries are in alphabetical order (a collator for English, ignoring capitals and accents) under a heading for each letter A to Z, with
 "Symbols and numbers" first.
 
-The **first pass** is worked out from the book with no AI (`suggestedTerms`): for a topic with something on its page, its title, the headings on its page, every control name written in its text (paragraphs, steps, step
+The **first pass** is worked out from the book with no AI (`suggestedTerms`): for a topic with something on its page, its title, every control name written in its text (paragraphs, steps, step
 results and boxed notes), and the name of every callout on the pictures that are on its page. An **update** (`updateTopicIndex`) keeps the author's terms, does not bring back what the author took out, keeps software
 terms the book still supports, drops software terms it no longer supports and adds new suggestions; the first pass for a topic is the same call. Editing a topic's terms as lines of text (`setTermLines`) keeps a
 line the author left alone as the software's, makes any other line the author's, and remembers a software term whose line was deleted in `removed`; writing it again makes it the author's. Cleaned when a project is opened
@@ -269,7 +269,7 @@ topics that have steps.
 - `layout` is `"top"` (one picture across the page with the step's words below it) or `"left"` (the picture and its zoomed focus stacked on the left, with the words beside them). `stepLayouts` maps a
   step's id to the other layout for just that step; a step that follows the guide is not listed, and an entry that says what the guide already says is dropped.
 - `zoomFocus` (true unless turned off): show a zoomed focus on the clicked spot with each step picture that has a click and no crop or zoom of its own (the author's own view is respected).
-- In a guide each step's picture carries a numbered marker on the clicked spot (the step's number). The marker is drawn from the click when the guide is shown, never stored, so it is not a mark on the
+- In a guide each step's picture carries a numbered marker beside the clicked spot (the step's number). The marker is drawn from the click when the guide is shown, never stored, so it is not a mark on the
   picture. The click circle and the zoom size follow the quick-guide settings (`highlight.guide`, `zoom.guide`).
 - A guide's name is at most 200 letters. Cleaned when a project is opened and saved (`cleanGuides` in `src/project/guides.ts`): the guides must be a list of objects with a known layout and a text id
   of letters, digits, `_` and `-` (anything else gets a new id, and two guides never share one); a task must be a topic that is in the book, once; a step layout must be a known layout. A task whose topic is

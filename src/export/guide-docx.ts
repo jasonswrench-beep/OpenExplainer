@@ -1,6 +1,6 @@
 // Word: one short guide as a .docx file. It uses the same Word styles as the book (Title, Heading 1 for each task, Heading 2 for each step, Caption, the callout box styles, Control name), so a
 // publisher can restyle both the same way, but it has no cover, no contents and no chapters: the guide's name at the top of the first page, then each task (a new page for each after the first)
-// with its steps. A step is a heading ("Step 3"), its picture with the step's number on the clicked spot, a zoomed close-up of that spot, and its words, in one of two layouts:
+// with its steps. A step is a heading ("Step 3"), its picture with the step's number beside the clicked spot, a zoomed close-up of that spot, and its words, in one of two layouts:
 //   top:  the picture across the page, the close-up centred under it, the words below.
 //   left: a table of two columns with no borders, the picture and its close-up stacked in the left one and the words in the right one. The table has a name and a description for screen readers.
 // The pictures are the flat PNGs made for this guide (src/export/pictures.ts, flattenGuide), each with the description of its picture (or the words of its step) as alternative text.

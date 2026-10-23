@@ -242,7 +242,12 @@ export function summaryWords(active: Issue[], ignored: Issue[]): string {
   const tail = ignored.length > 0 ? ` ${said(ignored.length, "thing is", "things are")} ignored.` : "";
   if (active.length === 0) return `Nothing to fix.${tail}`;
   const parts = [problems > 0 ? said(problems, "thing to fix", "things to fix") : "", notes > 0 ? said(notes, "note", "notes") : ""].filter(Boolean);
-  return `${parts.join(" and ")}.${tail}`;
+  // A book that is simply not finished has a lot of one kind (every empty topic is a thing to fix). Say so, so a long number is not alarming: the list below groups them by kind.
+  const counts = new Map<CheckKind, number>();
+  for (const i of active) if (kindInfo(i.kind).severity === "problem") counts.set(i.kind, (counts.get(i.kind) ?? 0) + 1);
+  const [mostKind, most] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? [undefined, 0];
+  const group = mostKind && most >= 5 && most * 2 >= problems ? ` ${most === problems ? `All ${most}` : `${most} of the things to fix`} are one kind: ${kindInfo(mostKind).title}.` : "";
+  return `${parts.join(" and ")}.${group}${tail}`;
 }
 
 /** Checks the saved choices: only keys that are text, once each. */

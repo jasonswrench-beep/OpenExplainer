@@ -76,7 +76,7 @@ export function altTextFor(picture: Picture, fallback?: string): string {
 
 /** What a picture needs beyond the usual when it is a step of a guide. */
 export interface FigureOptions {
-  /** Draw this step number as a marker on the clicked spot. */
+  /** Draw this step number as a marker beside the clicked spot. */
   stepNumber?: number;
   /** Words for a picture that has no description of its own, such as the words of its step. */
   altFallback?: string;

@@ -21,7 +21,7 @@ export const EXPORT_KINDS: { id: ExportKind; name: string; words: string }[] = [
   { id: "markdown", name: "Markdown", words: "The whole book as one plain text file, book.md, with each picture as a linked PNG file (cut to the part shown, with its marks drawn in). Saved as a zip file." },
   { id: "word", name: "Word", words: "The whole book as one Word document (.docx) that you can edit and restyle: real headings, numbered steps that start again at 1 for each procedure, callout boxes, a contents list with links, and every picture cut to the part shown with its marks drawn in and its description as alternative text." },
   { id: "pdf", name: "PDF", words: "The whole book as a PDF made for paper: tagged so a screen reader can read it, with a bookmark for each heading, a running header, page numbers, and a contents list with page numbers. Making it takes a moment." },
-  { id: "guide-word", name: "Guide (Word)", words: "One short step-by-step guide, chosen below, as a Word document you can edit: its name, each task, and each step with its heading, its picture with the step's number on the clicked spot, a close-up, and its words, in the layout the guide uses." },
+  { id: "guide-word", name: "Guide (Word)", words: "One short step-by-step guide, chosen below, as a Word document you can edit: its name, each task, and each step with its heading, its picture with the step's number beside the clicked spot, a close-up, and its words, in the layout the guide uses." },
   { id: "guide-pdf", name: "Guide (PDF)", words: "One short step-by-step guide, chosen below, as a PDF made for paper, tagged for a screen reader, with a bookmark for each heading, a running header and page numbers." },
 ];
 

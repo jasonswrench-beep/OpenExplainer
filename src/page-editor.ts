@@ -235,8 +235,14 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
     input.size = 50;
     input.value = block.text;
     input.dataset.role = "first";
+    // A heading is plain text: the marks for bold, italic and control names are only read in paragraphs, steps and boxes, so typed here they would print as they are.
+    const help = document.createElement("span");
+    help.className = "help";
+    help.id = `box-${block.id}-help`;
+    help.textContent = "Plain text only. Bold, italic and control name marks are not used in a heading.";
+    input.setAttribute("aria-describedby", help.id);
     input.addEventListener("input", () => { block.text = input.value; deps.changed(); });
-    wrap.append(lab, document.createElement("br"), input);
+    wrap.append(lab, document.createElement("br"), input, document.createElement("br"), help);
     return wrap;
   }
 
