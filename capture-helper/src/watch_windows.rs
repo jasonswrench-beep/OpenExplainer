@@ -29,7 +29,10 @@ use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
 use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
 use windows::Win32::System::Threading::GetCurrentThreadId;
-use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation, IUIAutomation2, IUIAutomationElement};
+use windows::Win32::UI::Accessibility::{
+    CUIAutomation, IUIAutomation, IUIAutomation2, IUIAutomationElement, TreeScope_Descendants, UIA_BoundingRectanglePropertyId, UIA_ControlTypePropertyId,
+    UIA_IsOffscreenPropertyId,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::GetDoubleClickTime;
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, EnumWindows, GetAncestor, GetCursorPos, GetMessageW, GetSystemMetrics, GetWindowLongW, GetWindowThreadProcessId,
@@ -324,11 +327,32 @@ unsafe fn describe(automation: &IUIAutomation, point: POINT) -> Option<RawTarget
         if element.CurrentIsPassword().map(|b| b.as_bool()).unwrap_or(false) {
             return Some(RawTarget { password: true, ..Default::default() });
         }
+        // Another program's see-through window over the one being used answers for it: then the window the click really went to is asked.
+        let mut note = None;
+        let mut element = element;
+        let real = {
+            let under = WindowFromPoint(point);
+            if under.0.is_null() { None } else { Some(GetAncestor(under, GA_ROOT)).filter(|h| !h.0.is_null()).or(Some(under)) }
+        };
+        let owner = owning_window(automation, &element);
+        if clicks::answer_is_elsewhere(owner.map(|h| h.0 as isize), real.map(|h| h.0 as isize)) {
+            match real.and_then(|window| find_in_window(automation, window, point)) {
+                Some(found) => {
+                    element = found;
+                    note = Some("Another program's window was over the one clicked, so what was clicked was found in the clicked window itself.".to_string());
+                }
+                None => note = Some("Another program's window was over the one clicked, so Windows could not say what was clicked.".to_string()),
+            }
+            // What was found instead is asked about like any other answer, and a password box is never read.
+            if element.CurrentIsPassword().map(|b| b.as_bool()).unwrap_or(false) {
+                return Some(RawTarget { password: true, ..Default::default() });
+            }
+        }
         let mut control_type = element.CurrentControlType().map(|c| c.0).unwrap_or(0);
         // A click on a button's label is answered with the label (text or a picture inside the button). If a button, check box or the like is
         // just above it, the click was meant for that, so it is the one described. The rule is `clicks::climb_to`.
         let element = climb(automation, element, &mut control_type);
-        let mut raw = RawTarget { control_type, ..Default::default() };
+        let mut raw = RawTarget { control_type, note, ..Default::default() };
         if clicks::details_allowed(control_type) {
             raw.name = element.CurrentName().ok().map(|s| s.to_string());
             raw.accelerator_key = element.CurrentAcceleratorKey().ok().map(|s| s.to_string());
@@ -337,6 +361,55 @@ unsafe fn describe(automation: &IUIAutomation, point: POINT) -> Option<RawTarget
         }
         raw.bounds = element.CurrentBoundingRectangle().ok().map(|r| (r.left, r.top, r.right, r.bottom));
         Some(raw)
+    }
+}
+
+/// The top-level window that an item belongs to: the first item at or above it that is a window of its own says which, and `None` if
+/// none does within a few levels. Only the handle is asked about, never a name.
+unsafe fn owning_window(automation: &IUIAutomation, element: &IUIAutomationElement) -> Option<HWND> {
+    unsafe {
+        let walker = automation.ControlViewWalker().ok()?;
+        let mut current = element.clone();
+        for _ in 0..16 {
+            if let Ok(handle) = current.CurrentNativeWindowHandle() {
+                if !handle.0.is_null() {
+                    let top = GetAncestor(handle, GA_ROOT);
+                    return Some(if top.0.is_null() { handle } else { top });
+                }
+            }
+            current = walker.GetParentElement(&current).ok()?;
+        }
+        None
+    }
+}
+
+/// What is at `point` according to the window's own items: all of them are asked for in one go (only each one's kind, outline and whether
+/// it is off the screen), and the smallest one that holds the point is taken, as `clicks::smallest_containing` says. `None` if the window
+/// cannot be asked in time or has nothing there, and then the caller keeps what it had. The asking is limited by the connection and
+/// transaction time set in `run_uia`.
+unsafe fn find_in_window(automation: &IUIAutomation, window: HWND, point: POINT) -> Option<IUIAutomationElement> {
+    unsafe {
+        let root = automation.ElementFromHandle(window).ok()?;
+        let request = automation.CreateCacheRequest().ok()?;
+        request.AddProperty(UIA_BoundingRectanglePropertyId).ok()?;
+        request.AddProperty(UIA_ControlTypePropertyId).ok()?;
+        request.AddProperty(UIA_IsOffscreenPropertyId).ok()?;
+        let everything = automation.CreateTrueCondition().ok()?;
+        let all = root.FindAllBuildCache(TreeScope_Descendants, &everything, &request).ok()?;
+        let count = all.Length().ok()?;
+        let mut items = Vec::new();
+        let mut outlines = Vec::new();
+        for i in 0..count {
+            let Ok(item) = all.GetElement(i) else { continue };
+            if item.CachedIsOffscreen().map(|b| b.as_bool()).unwrap_or(false) {
+                continue;
+            }
+            let Ok(r) = item.CachedBoundingRectangle() else { continue };
+            outlines.push((r.left, r.top, r.right, r.bottom));
+            items.push(item);
+        }
+        let pick = clicks::smallest_containing(&outlines, point.x, point.y)?;
+        Some(items.swap_remove(pick))
     }
 }
 
@@ -459,7 +532,12 @@ fn finish(pending: Pending, watch: &Value, folder: &PathBuf, tag: u128, shared: 
     let mut notes: Vec<String> = Vec::new();
     let answer = down.uia.recv_timeout(UIA_WAIT.saturating_sub(down.at.elapsed()).max(Duration::from_millis(50)));
     let target = match answer {
-        Ok(Some(raw)) => clicks::target_json(&raw, down.screen),
+        Ok(Some(raw)) => {
+            if let Some(why) = &raw.note {
+                notes.push(why.clone());
+            }
+            clicks::target_json(&raw, down.screen)
+        }
         Ok(None) => {
             notes.push("Windows did not say what was clicked.".to_string());
             None

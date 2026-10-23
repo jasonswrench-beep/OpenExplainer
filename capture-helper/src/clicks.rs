@@ -183,6 +183,32 @@ pub fn climb_to(chain: &[i32]) -> usize {
     0
 }
 
+/// Another program's see-through window (a writing helper's full-screen overlay, for example) can sit over the program being used. The mouse
+/// click goes through it to the program, but UI Automation answers with the overlay. `owner` is the top-level window that the answer belongs
+/// to and `real` the top-level window the click really went to, as far as each is known; the answer is for somewhere else only when both
+/// are known and they differ. When either is unknown the answer is kept, so this never replaces an answer on a guess.
+pub fn answer_is_elsewhere(owner: Option<isize>, real: Option<isize>) -> bool {
+    matches!((owner, real), (Some(a), Some(b)) if a != b)
+}
+
+/// Which of these outlines (left, top, right, bottom) is the one meant by a click at `x`, `y`: the smallest one that contains the point
+/// (an item inside another is smaller, so it wins over what it is inside), and of two the same size the later one, which is the one
+/// drawn on top. Outlines with no area are ignored. `None` if none contains the point.
+pub fn smallest_containing(outlines: &[(i32, i32, i32, i32)], x: i32, y: i32) -> Option<usize> {
+    let mut best: Option<(usize, i64)> = None;
+    for (i, &(left, top, right, bottom)) in outlines.iter().enumerate() {
+        let (w, h) = ((right as i64) - (left as i64), (bottom as i64) - (top as i64));
+        if w <= 0 || h <= 0 || x < left || x >= right || y < top || y >= bottom {
+            continue;
+        }
+        let area = w * h;
+        if best.is_none_or(|(_, smallest)| area <= smallest) {
+            best = Some((i, area));
+        }
+    }
+    best.map(|(i, _)| i)
+}
+
 /// What UI Automation said about the item under the pointer. Only filled in as far as the rules allow, so private text never
 /// even enters the helper's memory.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -195,6 +221,8 @@ pub struct RawTarget {
     pub help_text: Option<String>,
     /// left, top, right, bottom on the whole desktop.
     pub bounds: Option<(i32, i32, i32, i32)>,
+    /// Something worth telling the author about how this answer was found (said in the click's note).
+    pub note: Option<String>,
 }
 
 fn clean_text(text: &Option<String>) -> Option<String> {
@@ -373,6 +401,38 @@ mod tests {
         assert_eq!(climb_to(&[50020]), 0, "no parent known");
         assert_eq!(climb_to(&[]), 0);
         assert_eq!(climb_to(&[50020, 50020, 50020, 50020, 50000]), 0, "too far up");
+    }
+
+    #[test]
+    fn an_answer_is_for_somewhere_else_only_when_both_windows_are_known_and_differ() {
+        assert!(answer_is_elsewhere(Some(10), Some(20)));
+        assert!(!answer_is_elsewhere(Some(10), Some(10)));
+        assert!(!answer_is_elsewhere(None, Some(20)), "an unknown owner keeps the answer");
+        assert!(!answer_is_elsewhere(Some(10), None), "an unknown real window keeps the answer");
+        assert!(!answer_is_elsewhere(None, None));
+    }
+
+    #[test]
+    fn the_smallest_outline_that_holds_the_click_is_the_one_meant() {
+        let window = (0, 0, 1000, 800);
+        let toolbar = (0, 0, 1000, 60);
+        let button = (100, 10, 200, 50);
+        let label = (120, 20, 180, 40);
+        let outlines = [window, toolbar, button, label];
+        assert_eq!(smallest_containing(&outlines, 150, 30), Some(3), "the writing inside the button");
+        assert_eq!(smallest_containing(&outlines, 105, 12), Some(2), "the button's edge");
+        assert_eq!(smallest_containing(&outlines, 500, 30), Some(1), "the toolbar between buttons");
+        assert_eq!(smallest_containing(&outlines, 500, 500), Some(0), "the window itself");
+        assert_eq!(smallest_containing(&outlines, 1500, 500), None, "outside everything");
+    }
+
+    #[test]
+    fn outlines_with_no_area_are_ignored_and_the_later_of_two_equal_ones_wins() {
+        assert_eq!(smallest_containing(&[(10, 10, 10, 50), (0, 0, 100, 100)], 10, 20), Some(1), "no width");
+        assert_eq!(smallest_containing(&[(0, 0, 100, 100), (50, 50, 20, 20)], 60, 60), Some(0), "turned the wrong way");
+        assert_eq!(smallest_containing(&[(0, 0, 50, 50), (0, 0, 50, 50)], 5, 5), Some(1), "equal: the one drawn on top");
+        assert_eq!(smallest_containing(&[(0, 0, 50, 50)], 50, 5), None, "the right edge is not inside");
+        assert_eq!(smallest_containing(&[], 0, 0), None);
     }
 
     #[test]

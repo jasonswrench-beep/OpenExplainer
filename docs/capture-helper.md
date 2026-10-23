@@ -208,7 +208,7 @@ hook does nothing slow; if a copy is ever slower than 250 ms the event says so. 
 beyond that is skipped and counted. A program running as administrator may not be seen by a helper that is not, and some security
 programs warn about any program that watches the mouse. Neither was tried.
 
-**Getting the names right in a browser-based window (found while writing the User Guide, 2026-10-23).** Two things used to leave a
+**Getting the names right in a browser-based window (found while writing the User Guide, 2026-10-23).** Three things used to leave a
 click with no name:
 
 - *A browser engine builds its answers late.* A program built on one (WebView2, Electron, Chrome) only builds what a screen
@@ -223,6 +223,16 @@ click with no name:
   whose details may be kept, that one is described (its name and its outline). A piece of text inside a list item, a link, a text
   box or a document still names nothing. The rule is the pure function `climb_to` in `clicks.rs`, with its own tests; no new kind of
   name can be kept this way.
+- *Another program's see-through window over the one being used.* A writing helper such as a writing helper shows a full-screen window
+  over whatever program has the keyboard in a text box. The click goes through it, but UI Automation answers with the overlay, so the
+  click was recorded as "the window" and the first callout covered the whole window. Now the helper finds which top-level window the
+  answer belongs to (the first item at or above it that is a window of its own; `owning_window`) and which top-level window the
+  click really went to (`WindowFromPoint`). Only when both are known and they differ is the answer treated as someone else's
+  (`answer_is_elsewhere`, so it never replaces an answer on a guess). Then the clicked window is asked for all its items in one request
+  (kind, outline and whether off the screen, nothing else), and the smallest one that holds the point is taken
+  (`smallest_containing`), then the label rule above applies and a password box is still never read. If that finds nothing within the
+  time limit, the overlay's answer is kept. Either way the click's note says that another program's window was in the way
+  (`find_in_window` in `watch_windows.rs`).
 
 Tried on a fresh copy of the installed program (Chromium based) with real clicks on the middle of five toolbar buttons: the old helper
 named the second to fifth click and answered "document" for the first, and the new helper named all five. The label rule is covered by
