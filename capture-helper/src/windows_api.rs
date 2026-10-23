@@ -29,9 +29,9 @@ use windows::Win32::UI::HiDpi::{
     GetDpiForMonitor, GetDpiForWindow, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetAncestor, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowDisplayAffinity, GetWindowLongW, GetWindowPlacement, GetWindowRect, GetWindowTextW,
+    EnumWindows, GetAncestor, GetClassNameW, GetForegroundWindow, GetWindowDisplayAffinity, GetWindowLongW, GetWindowPlacement, GetWindowRect, GetWindowTextW,
     GetWindowThreadProcessId, IsHungAppWindow, IsIconic, IsWindow, IsWindowVisible, SetForegroundWindow, WindowFromPoint,
-    GA_ROOTOWNER, GWL_EXSTYLE, GW_OWNER, WINDOWPLACEMENT, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+    GA_ROOTOWNER, GWL_EXSTYLE, WINDOWPLACEMENT, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
 
 // Click-by-click capture lives in its own file, but is a child of this one so it can use the screen-copy functions here.
@@ -84,9 +84,11 @@ struct Walk {
     found: Vec<WindowInfo>,
 }
 
-/// The windows a person would call open windows, the one in front first. It follows the Alt+Tab rule:
-/// visible, not hidden on another virtual desktop, with a title, not a tool window, not owned by another
-/// window. Minimized windows are included and marked, so the app can explain them.
+/// The windows a person would call open windows, the one in front first: visible, not hidden on another
+/// virtual desktop, with a title, and not a tool window (a tooltip or a floating palette). A window owned by
+/// another (a Save or Open window, a message box) is listed too, which Alt+Tab does not do, because it is a
+/// window a person sees and may want a picture of. Minimized windows are included and marked, so the app can
+/// explain them.
 pub fn list_windows(exclude_pids: &[u32]) -> Result<Vec<WindowInfo>, CaptureError> {
     let mut walk = Walk { skip: programs_to_skip(exclude_pids), console: unsafe { GetConsoleWindow() }, found: Vec::new() };
     unsafe extern "system" fn each(hwnd: HWND, data: LPARAM) -> BOOL {
@@ -108,10 +110,7 @@ unsafe fn describe(hwnd: HWND, walk: &Walk) -> Option<WindowInfo> {
         if !IsWindowVisible(hwnd).as_bool() || hwnd == walk.console || is_cloaked(hwnd) {
             return None;
         }
-        let style = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
-        let tool = style & WS_EX_TOOLWINDOW.0 != 0 && style & WS_EX_APPWINDOW.0 == 0;
-        let owned = GetWindow(hwnd, GW_OWNER).map(|owner| !owner.0.is_null()).unwrap_or(false);
-        if tool || (owned && style & WS_EX_APPWINDOW.0 == 0) {
+        if !listed_by_style(GetWindowLongW(hwnd, GWL_EXSTYLE) as u32) {
             return None;
         }
         let info = measure(hwnd)?;
@@ -120,6 +119,12 @@ unsafe fn describe(hwnd: HWND, walk: &Walk) -> Option<WindowInfo> {
         }
         Some(info)
     }
+}
+
+/// Whether a window with this extended style may be listed: a tool window is left out unless it asks to be on the taskbar.
+/// Whether the window is owned by another does not matter (a Save window is owned by the program that opened it).
+fn listed_by_style(ex_style: u32) -> bool {
+    !(ex_style & WS_EX_TOOLWINDOW.0 != 0 && ex_style & WS_EX_APPWINDOW.0 == 0)
 }
 
 pub(crate) unsafe fn is_cloaked(hwnd: HWND) -> bool {
@@ -714,5 +719,18 @@ unsafe fn read_pixels(memory: HDC, bitmap: HBITMAP, width: i32, height: i32) -> 
             return Err("Windows would not hand over the picture's pixels".to_string());
         }
         Ok(pixels)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_tool_window_is_left_out_unless_it_asks_to_be_on_the_taskbar() {
+        assert!(!listed_by_style(WS_EX_TOOLWINDOW.0), "a tooltip or a palette");
+        assert!(listed_by_style(WS_EX_TOOLWINDOW.0 | WS_EX_APPWINDOW.0), "a tool window that wants the taskbar");
+        assert!(listed_by_style(0), "an ordinary window, or a Save window owned by its program");
+        assert!(listed_by_style(WS_EX_APPWINDOW.0));
     }
 }

@@ -78,9 +78,10 @@ must be left out. Result: `{"windows": [ ... ]}`, the window in front first. Eac
 | `not_responding` | Windows says the program has stopped answering. |
 | `scale_percent` | The display scaling for that window: 100, 125, 150 and so on. |
 
-What is listed follows the Alt+Tab rule: visible, not on another virtual desktop, has a title, not a tool window,
-and not owned by another window. So **dialog windows that belong to a program are not listed**. The desktop
-itself is left out.
+What is listed: visible, not on another virtual desktop, has a title, and is not a tool window (a tooltip or a floating
+palette). A window **owned by another** (the program's own Save or Open window, a message box) is listed too, although
+Alt+Tab does not list one, so an assistant can take a picture of it (changed 2026-10-23; before that these were left out,
+which made the Save and Open windows impossible to photograph). The desktop itself is left out.
 
 **It never lists or captures itself.** The helper leaves out its own windows, the windows of the program that
 started it (OpenExplainer), the helper's console window if it has one, and any `exclude_pids` the app names.
