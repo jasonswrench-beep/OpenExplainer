@@ -239,6 +239,13 @@ named the second to fifth click and answered "document" for the first, and the n
 its unit tests only: in this window and in a test page in Edge, Windows answered "button" at the middle of every kind of button
 tried, so a label answered as text could not be made to happen here.
 
+The overlay rule was tried with real clicks on a copy of the installed program, with a writing helper running and a text box holding
+the keyboard (so its "App Window Overlay" was over the window; Windows said "Window, App Window Overlay" at every spot asked). Three
+clicks on the buttons next to the text box: the old helper named the first and recorded the second and third as "window" with an
+outline of the whole window (1086 by 693); the new one named all three (Bold, Italic, Control name), each with the button's own
+outline (about 70 by 42), and said in the note that another program's window was in the way. The plain case (no overlay) was tried
+again after the change: all five clicks named, as before.
+
 ### `stop-watching`
 
 Request: `{"command": "stop-watching"}`. Answers `{"stopping": true}` if a session is running (`false` if not, which is fine). The
