@@ -7,7 +7,8 @@
 //! thread then saves the picture and tells the app about the click, one JSON line each.
 //!
 //! What this never does: it does not watch the keyboard, it writes nothing to disk except the pictures, it ignores clicks in
-//! OpenExplainer's own windows (so the Stop button is not a step), and it never reads what is typed in a box.
+//! OpenExplainer's own windows (so the Stop button is not a step), and it never reads what is typed in a box. The pointer's
+//! movement is looked at only to get the window under it ready to be asked about (see `get_ready`); where it went is not kept.
 
 use super::{copy_area, is_cloaked, programs_to_skip, visible_bounds};
 use crate::clicks::{self, Button, ClickRecord, DoubleRule, Ended, Last, RawTarget, Settings};
@@ -28,12 +29,13 @@ use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
 use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
 use windows::Win32::System::Threading::GetCurrentThreadId;
-use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation, IUIAutomation2};
+use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation, IUIAutomation2, IUIAutomationElement};
 use windows::Win32::UI::Input::KeyboardAndMouse::GetDoubleClickTime;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, DispatchMessageW, EnumWindows, GetMessageW, GetSystemMetrics, GetWindowLongW, GetWindowThreadProcessId, IsIconic,
-    IsWindowVisible, PostThreadMessageW, SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, GWL_EXSTYLE, MSG, MSLLHOOKSTRUCT,
-    SM_CXDOUBLECLK, SM_CYDOUBLECLK, WH_MOUSE_LL, WM_LBUTTONDOWN, WM_MBUTTONDOWN, WM_QUIT, WM_RBUTTONDOWN, WS_EX_TRANSPARENT,
+    CallNextHookEx, DispatchMessageW, EnumWindows, GetAncestor, GetCursorPos, GetMessageW, GetSystemMetrics, GetWindowLongW, GetWindowThreadProcessId,
+    IsIconic, IsWindowVisible, PostThreadMessageW, SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, WindowFromPoint, GA_ROOT, GWL_EXSTYLE,
+    MSG, MSLLHOOKSTRUCT, SM_CXDOUBLECLK, SM_CYDOUBLECLK, WH_MOUSE_LL, WM_LBUTTONDOWN, WM_MBUTTONDOWN, WM_MOUSEMOVE, WM_QUIT, WM_RBUTTONDOWN,
+    WS_EX_TRANSPARENT,
 };
 
 /// If the hook holds a click back longer than this, the app is told, because Windows gives up on a hook that is too slow.
@@ -42,6 +44,14 @@ const SLOW_HOLD_MS: u64 = 250;
 const UIA_WAIT: Duration = Duration::from_millis(2500);
 /// How many pictures may be waiting to be saved. More than this and the click is skipped (and counted).
 const MOST_WAITING: u32 = 6;
+/// A program built on a web browser engine (WebView2, Electron, Chrome) only builds what a screen reader would read once something asks
+/// for it, so its first answers about what is under the pointer are just "document" or "window". The first time the pointer is over a
+/// window, it is asked about a few times, `WARM_ROUNDS` at most, `WARM_PAUSE` apart, so the answer is ready when a click comes.
+const WARM_ROUNDS: u32 = 4;
+const WARM_PAUSE: Duration = Duration::from_millis(200);
+/// The pointer is looked at no more often than this, and no more than `MOST_WARM_WAITING` of those looks may wait for Windows.
+const MOVE_EVERY: Duration = Duration::from_millis(150);
+const MOST_WARM_WAITING: u32 = 2;
 
 struct Shared {
     stop: AtomicBool,
@@ -53,6 +63,8 @@ struct Shared {
     /// Clicks that were reported to the app.
     reported: AtomicU32,
     waiting: AtomicU32,
+    /// Looks at the pointer (see `WARM_ROUNDS`) that are waiting for Windows.
+    warm_waiting: AtomicU32,
     last_activity_ms: AtomicU64,
     slowest_hold_ms: AtomicU64,
     started: Instant,
@@ -91,9 +103,11 @@ struct Down {
     at: Instant,
 }
 
+/// A question for the thread that talks to UI Automation: what is at this point (a click, with somewhere to send the answer), or only
+/// "get ready for this window" (the pointer moved, no answer wanted).
 struct UiaJob {
     point: POINT,
-    reply: Sender<Option<RawTarget>>,
+    reply: Option<Sender<Option<RawTarget>>>,
 }
 
 // ---- The mouse hook ---------------------------------------------------------------------------------------
@@ -107,6 +121,7 @@ struct Hook {
     last: Option<Last>,
     next_n: u32,
     max_clicks: u32,
+    last_move: Option<Instant>,
 }
 
 thread_local! {
@@ -117,6 +132,16 @@ thread_local! {
 unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if code >= 0 {
         let message = wparam.0 as u32;
+        if message == WM_MOUSEMOVE {
+            let point = unsafe { (*(lparam.0 as *const MSLLHOOKSTRUCT)).pt };
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                HOOK.with(|cell| {
+                    if let Some(hook) = cell.borrow_mut().as_mut() {
+                        hook.mouse_moved(point);
+                    }
+                })
+            }));
+        }
         if message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN || message == WM_MBUTTONDOWN {
             let point = unsafe { (*(lparam.0 as *const MSLLHOOKSTRUCT)).pt };
             // A bug here must never stop the click reaching its program.
@@ -133,6 +158,21 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
 }
 
 impl Hook {
+    /// The pointer moved. Now and then (not on every move: the hook must stay quick) the thread that talks to UI Automation is told where it is,
+    /// so it can get ready for the window under it before a click comes.
+    fn mouse_moved(&mut self, point: POINT) {
+        let now = Instant::now();
+        if self.last_move.is_some_and(|before| now.duration_since(before) < MOVE_EVERY) || self.shared.stop.load(Ordering::Relaxed) {
+            return;
+        }
+        self.last_move = Some(now);
+        if self.shared.warm_waiting.load(Ordering::Relaxed) >= MOST_WARM_WAITING {
+            return;
+        }
+        self.shared.warm_waiting.fetch_add(1, Ordering::Relaxed);
+        let _ = self.to_uia.send(UiaJob { point, reply: None });
+    }
+
     fn mouse_down(&mut self, message: u32, point: POINT) {
         let started = Instant::now();
         if self.shared.stop.load(Ordering::Relaxed) || self.shared.taken.load(Ordering::Relaxed) >= self.max_clicks {
@@ -163,7 +203,7 @@ impl Hook {
         }
         // Ask Windows what is there while the screen is copied.
         let (reply, uia) = mpsc::channel();
-        let _ = self.to_uia.send(UiaJob { point, reply });
+        let _ = self.to_uia.send(UiaJob { point, reply: Some(reply) });
         let screen = unsafe { monitor_rect(point) };
         let bgra = match unsafe { copy_area(screen) } {
             Ok(pixels) => pixels,
@@ -250,7 +290,7 @@ fn run_hook(hook: Hook, ready: Sender<Result<u32, String>>) {
 
 // ---- Asking Windows what was clicked ------------------------------------------------------------------------
 
-fn run_uia(jobs: Receiver<UiaJob>) {
+fn run_uia(jobs: Receiver<UiaJob>, skip: HashSet<u32>, shared: Arc<Shared>) {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
         let automation: Option<IUIAutomation> = CoCreateInstance(&CUIAutomation, None::<&windows::core::IUnknown>, CLSCTX_INPROC_SERVER).ok();
@@ -259,9 +299,20 @@ fn run_uia(jobs: Receiver<UiaJob>) {
             let _ = two.SetConnectionTimeout(1500);
             let _ = two.SetTransactionTimeout(1500);
         }
+        let mut warmed: HashSet<isize> = HashSet::new();
         for job in jobs {
-            let found = automation.as_ref().and_then(|a| describe(a, job.point));
-            let _ = job.reply.send(found);
+            match job.reply {
+                Some(reply) => {
+                    let found = automation.as_ref().and_then(|a| describe(a, job.point));
+                    let _ = reply.send(found);
+                }
+                None => {
+                    if let Some(a) = automation.as_ref() {
+                        get_ready(a, job.point, &skip, &mut warmed);
+                    }
+                    shared.warm_waiting.fetch_sub(1, Ordering::Relaxed);
+                }
+            }
         }
     }
 }
@@ -273,7 +324,10 @@ unsafe fn describe(automation: &IUIAutomation, point: POINT) -> Option<RawTarget
         if element.CurrentIsPassword().map(|b| b.as_bool()).unwrap_or(false) {
             return Some(RawTarget { password: true, ..Default::default() });
         }
-        let control_type = element.CurrentControlType().map(|c| c.0).unwrap_or(0);
+        let mut control_type = element.CurrentControlType().map(|c| c.0).unwrap_or(0);
+        // A click on a button's label is answered with the label (text or a picture inside the button). If a button, check box or the like is
+        // just above it, the click was meant for that, so it is the one described. The rule is `clicks::climb_to`.
+        let element = climb(automation, element, &mut control_type);
         let mut raw = RawTarget { control_type, ..Default::default() };
         if clicks::details_allowed(control_type) {
             raw.name = element.CurrentName().ok().map(|s| s.to_string());
@@ -283,6 +337,56 @@ unsafe fn describe(automation: &IUIAutomation, point: POINT) -> Option<RawTarget
         }
         raw.bounds = element.CurrentBoundingRectangle().ok().map(|r| (r.left, r.top, r.right, r.bottom));
         Some(raw)
+    }
+}
+
+/// The item a click was meant for: the one under the pointer, or, when that is only writing or a picture inside a control, the control.
+/// `control_type` is the kind of the item under the pointer, and is changed to the kind of the item returned. Only the kinds of the
+/// parents are asked about here, never their names.
+unsafe fn climb(automation: &IUIAutomation, element: IUIAutomationElement, control_type: &mut i32) -> IUIAutomationElement {
+    unsafe {
+        let mut chain = vec![*control_type];
+        let mut items = vec![element.clone()];
+        if matches!(*control_type, 50020 | 50006) {
+            if let Ok(walker) = automation.ControlViewWalker() {
+                let mut current = element.clone();
+                for _ in 0..clicks::MOST_CLIMB {
+                    let Ok(parent) = walker.GetParentElement(&current) else { break };
+                    chain.push(parent.CurrentControlType().map(|c| c.0).unwrap_or(0));
+                    items.push(parent.clone());
+                    current = parent;
+                }
+            }
+        }
+        let pick = clicks::climb_to(&chain).min(items.len() - 1);
+        *control_type = chain[pick];
+        items.swap_remove(pick)
+    }
+}
+
+/// Gets ready for the window under `point`, the first time the pointer is over it: asks what is there a few times, a moment apart, until the
+/// answer is more than "document", "window" or "pane". Only the kind of item is read, nothing else, and nothing is kept. Windows of
+/// OpenExplainer itself are left alone.
+unsafe fn get_ready(automation: &IUIAutomation, point: POINT, skip: &HashSet<u32>, warmed: &mut HashSet<isize>) {
+    unsafe {
+        let under = WindowFromPoint(point);
+        if under.0.is_null() {
+            return;
+        }
+        let top = GetAncestor(under, GA_ROOT);
+        let top = if top.0.is_null() { under } else { top };
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(top, Some(&mut pid));
+        if skip.contains(&pid) || !warmed.insert(top.0 as isize) {
+            return;
+        }
+        for _ in 0..WARM_ROUNDS {
+            let kind = automation.ElementFromPoint(point).ok().and_then(|e| e.CurrentControlType().ok()).map(|c| c.0).unwrap_or(0);
+            if !matches!(kind, 0 | 50030 | 50032 | 50033) {
+                break;
+            }
+            thread::sleep(WARM_PAUSE);
+        }
     }
 }
 
@@ -410,6 +514,7 @@ pub fn start_watching(id: Value, settings: Settings, exclude_pids: Vec<u32>) -> 
         skipped: AtomicU32::new(0),
         reported: AtomicU32::new(0),
         waiting: AtomicU32::new(0),
+        warm_waiting: AtomicU32::new(0),
         last_activity_ms: AtomicU64::new(0),
         slowest_hold_ms: AtomicU64::new(0),
         started: Instant::now(),
@@ -426,20 +531,25 @@ pub fn start_watching(id: Value, settings: Settings, exclude_pids: Vec<u32>) -> 
     let tag = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
 
     // Windows' answers about what was clicked. It is never joined: a program that hangs may keep it busy.
-    thread::spawn(move || run_uia(uia_rx));
+    let skip = programs_to_skip(&exclude_pids);
+    {
+        let (skip, shared) = (skip.clone(), shared.clone());
+        thread::spawn(move || run_uia(uia_rx, skip, shared));
+    }
     let emitter = {
         let (watch, folder, shared) = (id.clone(), settings.out_dir.clone(), shared.clone());
         thread::spawn(move || run_emitter(emitter_rx, watch, folder, tag, double_time, shared))
     };
     let hook = Hook {
         shared: shared.clone(),
-        skip: programs_to_skip(&exclude_pids),
+        skip,
         to_emitter: to_emitter.clone(),
-        to_uia,
+        to_uia: to_uia.clone(),
         rule,
         last: None,
         next_n: 1,
         max_clicks: settings.max_clicks,
+        last_move: None,
     };
     let hook_thread = thread::spawn(move || run_hook(hook, ready_tx));
     let hook_thread_id = match ready_rx.recv_timeout(Duration::from_secs(5)) {
@@ -454,6 +564,13 @@ pub fn start_watching(id: Value, settings: Settings, exclude_pids: Vec<u32>) -> 
                 .with_detail(detail));
         }
     };
+
+    // The window the pointer is over now is got ready at once, without waiting for the pointer to move.
+    let mut at = POINT::default();
+    if unsafe { GetCursorPos(&mut at) }.is_ok() {
+        shared.warm_waiting.fetch_add(1, Ordering::Relaxed);
+        let _ = to_uia.send(UiaJob { point: at, reply: None });
+    }
 
     let supervisor_shared = shared.clone();
     let idle = settings.idle;

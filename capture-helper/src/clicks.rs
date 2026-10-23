@@ -156,6 +156,33 @@ pub fn details_allowed(control_type: i32) -> bool {
     )
 }
 
+/// How many levels above the item under the pointer are looked at when the item is only the writing or picture inside something else.
+pub const MOST_CLIMB: usize = 3;
+
+/// A click on a button's label is answered by Windows with the label itself (a piece of text or a picture inside the button), and a label's
+/// name is not kept, so the click used to be recorded with no name at all. This says which item of a chain of items, from the one under
+/// the pointer (`chain[0]`) up through its parents, is the one the click was meant for: the first parent whose details may be kept, as
+/// long as everything between it and the pointer is only text, a picture or a plain grouping (so a label inside a button names the button,
+/// but a piece of text inside a list item, a link or a text box still names nothing). Returns the position in `chain`; 0 means "no change".
+/// It only ever picks an item whose details `details_allowed` accepts, or the first one, so no new kind of name can be kept this way.
+pub fn climb_to(chain: &[i32]) -> usize {
+    const TEXT: i32 = 50020;
+    const IMAGE: i32 = 50006;
+    const GROUP: i32 = 50026;
+    if !matches!(chain.first(), Some(&TEXT) | Some(&IMAGE)) {
+        return 0;
+    }
+    for (i, &kind) in chain.iter().enumerate().skip(1).take(MOST_CLIMB) {
+        if details_allowed(kind) {
+            return i;
+        }
+        if !matches!(kind, TEXT | IMAGE | GROUP) {
+            return 0;
+        }
+    }
+    0
+}
+
 /// What UI Automation said about the item under the pointer. Only filled in as far as the rules allow, so private text never
 /// even enters the helper's memory.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -321,6 +348,31 @@ mod tests {
             }
             assert!(t.get("role").is_some() && t.get("bounds").is_some());
         }
+    }
+
+    #[test]
+    fn the_writing_or_picture_inside_a_button_names_the_button() {
+        assert_eq!(climb_to(&[50020, 50000]), 1, "a label in a button");
+        assert_eq!(climb_to(&[50006, 50000]), 1, "a picture in a button");
+        assert_eq!(climb_to(&[50020, 50020, 50000]), 2, "text in text in a button");
+        assert_eq!(climb_to(&[50020, 50026, 50011]), 2, "text in a grouping in a menu item");
+        assert_eq!(climb_to(&[50020, 50002]), 1, "a label of a check box");
+        assert_eq!(climb_to(&[50020, 50026, 50006, 50031]), 3, "as far up as the limit");
+    }
+
+    #[test]
+    fn nothing_is_climbed_when_the_text_is_content_or_the_click_was_on_the_control_itself() {
+        assert_eq!(climb_to(&[50020, 50007, 50000]), 0, "text in a list item names nothing");
+        assert_eq!(climb_to(&[50020, 50005]), 0, "text in a link names nothing");
+        assert_eq!(climb_to(&[50020, 50004]), 0, "text in a text box names nothing");
+        assert_eq!(climb_to(&[50020, 50030]), 0, "text in a document names nothing");
+        assert_eq!(climb_to(&[50020, 50033, 50000]), 0, "a pane in between stops the climb");
+        assert_eq!(climb_to(&[50000, 50000]), 0, "a button is already the control");
+        assert_eq!(climb_to(&[50007, 50000]), 0, "only text and pictures are climbed from");
+        assert_eq!(climb_to(&[50026, 50000]), 0, "a grouping is not climbed from");
+        assert_eq!(climb_to(&[50020]), 0, "no parent known");
+        assert_eq!(climb_to(&[]), 0);
+        assert_eq!(climb_to(&[50020, 50020, 50020, 50020, 50000]), 0, "too far up");
     }
 
     #[test]

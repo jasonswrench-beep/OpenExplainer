@@ -208,6 +208,27 @@ hook does nothing slow; if a copy is ever slower than 250 ms the event says so. 
 beyond that is skipped and counted. A program running as administrator may not be seen by a helper that is not, and some security
 programs warn about any program that watches the mouse. Neither was tried.
 
+**Getting the names right in a browser-based window (found while writing the User Guide, 2026-10-23).** Two things used to leave a
+click with no name:
+
+- *A browser engine builds its answers late.* A program built on one (WebView2, Electron, Chrome) only builds what a screen
+  reader would read once something asks, so its first answers were "document" or "window". Now, the first time the pointer is over a
+  window (the helper looks at the pointer every 150 ms or so, and once when the session starts), the UI Automation thread asks what is
+  under it up to four times, 200 ms apart, until the answer is more than document, window or pane. It reads only the kind of item,
+  nothing is kept (where the pointer went is not recorded, only used to choose the window to get ready), and OpenExplainer's own windows
+  are left alone. The same thread answers clicks, so a click in the first second or so
+  over a new window can wait a little. This is `get_ready` in `watch_windows.rs`.
+- *A click on a button's label gets the label.* If the item under the pointer is text or a picture, the helper looks at its parents (three
+  levels at most) and, if the first one that is not text, a picture or a plain group is a button, check box, menu item or another kind
+  whose details may be kept, that one is described (its name and its outline). A piece of text inside a list item, a link, a text
+  box or a document still names nothing. The rule is the pure function `climb_to` in `clicks.rs`, with its own tests; no new kind of
+  name can be kept this way.
+
+Tried on a fresh copy of the installed program (Chromium based) with real clicks on the middle of five toolbar buttons: the old helper
+named the second to fifth click and answered "document" for the first, and the new helper named all five. The label rule is covered by
+its unit tests only: in this window and in a test page in Edge, Windows answered "button" at the middle of every kind of button
+tried, so a label answered as text could not be made to happen here.
+
 ### `stop-watching`
 
 Request: `{"command": "stop-watching"}`. Answers `{"stopping": true}` if a session is running (`false` if not, which is fine). The
