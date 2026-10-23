@@ -39,6 +39,8 @@ The full design and the ten-step build list live in two Docs files (they may not
 - OpenStage or OpenScreen code: starts with none. Copy only what is clearly useful, small and marked, and credit it in `NOTICE`.
 - Callout letters belong to pictures; numbers belong to procedure steps.
 - Status is never color alone (word plus symbol).
+- The app icon (given by Jason, 2026-10-22, "going forward this is the icon for the software"): a yellow open viewfinder with a capture circle and an extended upper-right corner on a navy rounded tile. The source is `src-tauri/icons/app-icon.svg` (kept exactly as Jason supplied it; its title and description say "OpenCapture", which is not this product's name, so ask before renaming anything).
+  The PNG, ICO and ICNS files beside it are made from it with `npx tauri icon src-tauri/icons/app-icon.svg` (the tool takes an SVG directly, so no PNG is needed); only the ones the Windows build uses are kept (`icon.png`, `icon.ico`, `icon.icns`, `32x32.png`, `128x128.png`, `128x128@2x.png`, listed in `tauri.conf.json`). The Store, Android and iOS sizes are not kept; make them when those targets exist.
 
 ## State of the code (all on main)
 
