@@ -413,6 +413,9 @@ Parts, in order:
 
 ## Still open (ask Jason, do not guess)
 
+- **Shipping (first installer built and tried 2026-10-23, see `docs/release.md`):** a per-user NSIS installer builds (`Build Installer.bat`) and the installed program passes a smoke test (`Test Installed App.bat`) and the MCP check; an install, an upgrade over it and an uninstall were tried silently. The installer had been missing the capture helper (fixed). Still open for Jason: code signing (SmartScreen warns on an unsigned installer),
+  Windows on ARM (a download and an ARM build of the helper and the AI program), the publisher name shown in Add or Remove Programs, a clean-PC or second-account install (this PC is Windows 11 Home, no Sandbox), the interactive wizard, a screen reader on the installed program, whether a project file should open by double-click (no file association yet), and the identifier `org.openexplainer.app` (ends in `.app`; changing it moves the data and the 2.7 GB model).
+  Known and not fixable from OpenExplainer: the real AI server keeps running about 25 seconds after the app is closed or killed.
 - PDF export: answered 2026-10-21 (Rust in the shell, see item 14). Open: how closely the printed look should follow the reference how-to book (fonts, running headers, chapter openers).
 
 - Short guides (built 2026-10-21): please confirm the choices I made without asking (HANDOFF item 12): a guide takes only the numbered steps and boxed notes of its topics; each step is headed "Step N"; close-ups
