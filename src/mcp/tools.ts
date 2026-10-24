@@ -262,7 +262,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
     },
     {
       name: "make_callout_from_click",
-      description: "Adds a callout (lettered marker) to a click picture at the item that was clicked, named from what Windows said it was. Name and describe it afterwards with describe_picture.",
+      description: "Adds a callout (lettered marker) to a click picture at the item that was clicked, named from what Windows said it was (or, when the click was on the window itself, a small box round the click with no name). Name and describe it afterwards with describe_picture.",
       inputSchema: schema({ topic_id: str("The topic's id."), picture_id: str("The picture's id.") }, ["topic_id", "picture_id"]),
       handler: changes((args, project) => {
         const picture = pictureOf(topic(project, string(args, "topic_id")), string(args, "picture_id"));

@@ -68,6 +68,35 @@ test("an item whose name is not kept still gets a callout, with no name yet", ()
   assert.equal(calloutFromClick(p)!.name, "");
 });
 
+test("a click on the window itself gets a small box round the click, not a callout that covers the whole picture", () => {
+  const whole = { x: 0, y: 0, width: size.width, height: size.height };
+  for (const role of ["window", "pane", "document", "group"]) {
+    const p = picture({ click: { x: 800, y: 500, button: "left", target: { role, bounds: whole } } });
+    const made = calloutFromClick(p)!;
+    assert.equal(made.name, "", "no name: Windows could not say what was clicked");
+    assert.deepEqual(made.target, { x: 800 - 48, y: 500 - 48, width: 96, height: 96 }, `${role}: a box round the click, ${Math.round(size.width * 0.05)} pixels across`);
+    assert.ok(made.marker.x < made.target.x && made.marker.y < made.target.y, "its marker is above and to the left of the box");
+  }
+  // a pane that fills most of the picture counts, a small pane or a window-sized control does not
+  const most = picture({ click: { x: 100, y: 100, button: "left", target: { role: "pane", bounds: { x: 0, y: 0, width: size.width, height: Math.round(size.height * 0.5) } } } });
+  assert.equal(calloutFromClick(most)!.target.width, 96, "half the picture is more than 40 percent");
+  const small = picture({ click: { x: 50, y: 50, button: "left", target: { role: "pane", bounds: { x: 20, y: 20, width: 300, height: 200 } } } });
+  assert.deepEqual(calloutFromClick(small)!.target, { x: 20, y: 20, width: 300, height: 200 }, "a small pane keeps its own outline");
+  const textBox = picture({ click: { x: 800, y: 500, button: "left", target: { role: "text box", bounds: whole } } });
+  assert.deepEqual(calloutFromClick(textBox)!.target, whole, "a big text box is a control: it keeps its outline");
+  const button = picture({ click: { x: 800, y: 500, button: "left", target: { role: "button", name: "Save", bounds: whole } } });
+  assert.deepEqual(calloutFromClick(button)!.target, whole, "and so is anything that is not a place");
+});
+
+test("the small box round a click near the edge stays on the picture, and a second click on the same spot makes no second callout", () => {
+  const edge = picture({ click: { x: 5, y: 5, button: "left", target: { role: "window", bounds: { x: 0, y: 0, width: size.width, height: size.height } } } });
+  assert.deepEqual(calloutFromClick(edge)!.target, { x: 0, y: 0, width: 53, height: 53 }, "cut to the picture");
+  const once = picture({ click: { x: 800, y: 500, button: "left", target: { role: "window", bounds: { x: 0, y: 0, width: size.width, height: size.height } } } });
+  const first = newCalloutFromClick(once)!;
+  assert.ok(first);
+  assert.equal(newCalloutFromClick({ ...once, callouts: [first] }), null, "the same box is not made twice");
+});
+
 test("no callout is made for a password box, a click with no outline, or an outline off the picture", () => {
   assert.equal(calloutFromClick(picture({ click: { x: 1, y: 1, button: "left", target: { password: true } } })), null);
   assert.equal(calloutFromClick(picture({ click: { x: 1, y: 1, button: "left", target: { role: "button", name: "x" } } })), null);

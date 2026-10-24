@@ -83,12 +83,32 @@ export function placeMarker(target: CalloutRect, size: Size, others: { x: number
 
 // ---- Making and changing callouts ---------------------------------------------------------
 
-/** A callout for the item a click was on, from the click note's outline and, when it is kept, the item's name. `null` when the click has no outline. */
+/** The kinds of item that are only a place to click, never a control: the window itself, a pane, a page or a plain group. */
+const PLACES = new Set(["window", "pane", "document", "group"]);
+
+/** An outline this much of the picture or more, on a place (not a control), is the window and not an item worth a callout of its own. */
+const MOST_OF_THE_PICTURE = 0.4;
+
+/** The size of the small box put round a click that was on the window itself, as a part of the picture's width (never under 40 pixels). */
+const CLICK_BOX = 0.05;
+
+/**
+ * A callout for the item a click was on, from the click note's outline and, when it is kept, the item's name. `null` when the click has no outline.
+ * When the click was on the window itself (or a pane or a page that fills most of it, which is what Windows says when it cannot say more), an outline round all of that
+ * would cover the whole picture and say nothing, so the callout is a small box round the click instead, with no name yet, for the author to name.
+ */
 export function calloutFromClick(picture: Pick<Picture, "width" | "height" | "click" | "callouts">): Callout | null {
   const target = picture.click?.target;
   if (!target || target.password || !target.bounds) return null;
-  const rect = clipToPicture(target.bounds, picture);
+  let rect = clipToPicture(target.bounds, picture);
   if (!rect) return null;
+  const click = picture.click!;
+  if (target.role && PLACES.has(target.role) && rect.width * rect.height >= picture.width * picture.height * MOST_OF_THE_PICTURE) {
+    const side = Math.max(40, Math.round(picture.width * CLICK_BOX));
+    const box = clipToPicture({ x: click.x - side / 2, y: click.y - side / 2, width: side, height: side }, picture);
+    if (!box) return null;
+    rect = box;
+  }
   const others = (picture.callouts ?? []).map((c) => c.marker);
   return { id: newId(), name: target.name ?? "", description: "", target: rect, marker: placeMarker(rect, picture, others) };
 }

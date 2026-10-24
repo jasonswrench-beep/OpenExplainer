@@ -50,7 +50,9 @@ The rules (what a callout is, how the letters, the marker place and the leader l
   sentence is said in words ("A. needs a name: needs a description.") and never hidden. The list is labelled "Callouts on this picture".
 - **Made from the click.** When click pictures are added to a topic, each one that has an outline of the clicked item (and is not a password box) gets
   callout A by itself: the item's outline, its name when the name was kept, an empty sentence, and a marker just outside the item (above and to the left
-  when there is room). The announcement says how many were made and that each needs a sentence.
+  when there is room). When the click was on the window itself, or on a pane or a page that fills 40 percent or more of the picture (what Windows says when it
+  cannot say more), an outline round all of that would cover the picture and say nothing, so the callout is a small box (5 percent of the picture's width, at
+  least 40 pixels) round the click, with no name for the author to give (changed 2026-10-23; before, it covered the whole window). The announcement says how many were made and that each needs a sentence.
 - **The Callouts dialog** (the **Callouts** button on each picture in the Pictures list). One group for each callout, named by its letter: its name, its
   sentence, six number boxes (the item's left, top, width and height, and the marker's across and down, in pixels from the picture's top left corner, with
   the picture's size said at the top), and the buttons **Place the marker for me**, **Move up**, **Move down** and **Delete**. Every control is named with
