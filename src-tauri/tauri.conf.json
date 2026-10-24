@@ -26,6 +26,6 @@
     "fileAssociations": [
       { "ext": ["openexplainer"], "name": "OpenExplainer project", "description": "An OpenExplainer project: a book or tutorial made from screen captures", "role": "Editor" }
     ],
-    "windows": { "nsis": { "installMode": "currentUser" } }
+    "windows": { "nsis": { "installMode": "currentUser", "installerIcon": "icons/icon.ico", "uninstallerIcon": "icons/icon.ico" } }
   }
 }
