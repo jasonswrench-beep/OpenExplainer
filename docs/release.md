@@ -14,6 +14,10 @@ Double-click, in this order:
 What is inside the installer: the program, the capture helper (`openexplainer-capture.exe`, beside the program), the AI program (`llama\`, with its own licences), `LICENSE.txt` and `NOTICE.txt`. The AI model (2.7 GB) is not inside: it downloads when the author turns the built-in model on.
 A bare `cargo build --release` is not a release program: it still loads its pages from the development server. Use `npm run tauri -- build` (or `-- build --no-bundle` for the program without an installer).
 
+## Making a release candidate on GitHub
+
+Pushing a version tag such as `v0.1.0` runs `.github/workflows/build-installer.yml`. Its first job builds the unsigned installer on GitHub's own computers. A second job then makes a **draft pre-release** on the Releases page with that installer and the two guide PDFs from `docs/user-guide/` attached, using `docs/release-notes-0.1.0.md` (the file for the tag's version) as its text. A draft is seen only by people who can write to the repository. Nothing is public until Jason clicks Publish release, and the repository is private. When SignPath signing is switched on, the second job has to be changed to attach the signed installer (a comment in the file says so). The release step could only be tried by pushing a tag.
+
 ## What was tried on the installed program, and how it went
 
 - **Install and uninstall (silent).** Installs in a few seconds. Everything is where it should be (see above). Uninstalling removes the program folder, both shortcuts and the Add or Remove Programs entry. It leaves the author's data alone (`%LOCALAPPDATA%\org.openexplainer.app`: the downloaded model, the browser engine's profile, the AI program's log), which is right for the model; the interactive uninstaller offers to delete it.

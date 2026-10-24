@@ -6,6 +6,8 @@
 # Result: a download called "OpenExplainer-installer-unsigned" on the run's page. Once SignPath has approved the project and the
 # repository variables below are set, the same run also asks SignPath to sign the installer; Jason approves that on SignPath's site,
 # and a second download called "OpenExplainer-installer-signed" appears.
+# When a version tag is pushed, a second job (below) also makes a DRAFT pre-release on the Releases page with the unsigned installer and
+# the guide PDFs attached. A draft is seen only by people who can write to the repository; Jason publishes it by hand, or deletes it.
 name: Build installer
 
 on:
@@ -92,3 +94,39 @@ jobs:
           name: OpenExplainer-installer-signed
           path: signed/*-setup.exe
           if-no-files-found: error
+
+  # A draft pre-release for a version tag such as v0.1.0. It runs only after the build above has made the installer, and only for a tag
+  # (not for "Run workflow" by hand). It is the only part of the build that may write to the repository (releases only), and it uses nothing
+  # but the token GitHub gives every run and the `gh` program that GitHub's computers already have.
+  # It attaches the UNSIGNED installer. When SignPath signing is switched on, change this job to attach OpenExplainer-installer-signed instead.
+  release:
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Get the code (the release notes and the guides are in it)
+        uses: actions/checkout@v4
+
+      - name: Get the unsigned installer the build made
+        uses: actions/download-artifact@v4
+        with:
+          name: OpenExplainer-installer-unsigned
+          path: installer
+
+      - name: Make the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          notes="docs/release-notes-${version}.md"
+          if [ -f "$notes" ]; then note_args=(--notes-file "$notes"); else note_args=(--generate-notes); fi
+          gh release create "$TAG" \
+            installer/*-setup.exe \
+            "docs/user-guide/OpenExplainer User Guide.pdf" \
+            "docs/user-guide/OpenExplainer Quick Start.pdf" \
+            --draft --prerelease --verify-tag \
+            --title "OpenExplainer ${version} (release candidate)" \
+            "${note_args[@]}"
