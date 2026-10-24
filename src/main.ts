@@ -40,6 +40,7 @@ import { acceptDraft, draftCount, draftRows, rejectDraft, type DraftRow } from "
 import { draftProcedure } from "./project/procedure-draft.ts";
 import { aiStatusWords } from "./ai/settings.ts";
 import { setWindowTitle, windowTitle } from "./window-title.ts";
+import { invoke } from "@tauri-apps/api/core";
 import { modelState, watchModel } from "./ai/model-state.ts";
 import { buildBookIndex, indexSummary, setTermLines, termLines, updateBookIndex, updateTopicIndex } from "./project/book-index.ts";
 import { cleanGuides, guideSummary } from "./project/guides.ts";
@@ -1142,6 +1143,11 @@ async function openProject() {
   if (!(await guardUnsaved())) return;
   const picked = await chooseOpenPath();
   if (!picked) return;
+  await openProjectAt(picked);
+}
+
+/** Opens the project file at this path (chosen in the Open window, or named when the program was started by double-clicking a project). */
+async function openProjectAt(picked: string) {
   try {
     const loaded = await loadProject(picked);
     project = loaded.project;
@@ -1157,6 +1163,16 @@ async function openProject() {
     await messageDialog("Could not open the project", error instanceof Error ? error.message : String(error));
   }
 }
+
+// Started by double-clicking a project file (or "Open with"): that project is opened at once. Nothing has been changed yet, so there is nothing to lose.
+void (async () => {
+  try {
+    const launched = await invoke<string | null>("launch_file");
+    if (launched) await openProjectAt(launched);
+  } catch {
+    // not running inside the program (a test or a browser), or nothing to open
+  }
+})();
 
 // For tests in a development build only (a real build leaves this out): lets a test put a made-up project, with its pictures, into the window, and read it back.
 if (import.meta.env?.DEV) {

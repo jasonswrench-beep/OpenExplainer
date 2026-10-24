@@ -3,6 +3,7 @@
 mod ai;
 mod capture;
 mod config;
+mod launch;
 mod llama;
 mod mcp;
 mod models;
@@ -45,6 +46,7 @@ fn main() {
             pdf::pdf_workspace,
             pdf::pdf_workspace_remove,
             pdf::print_pdf,
+            launch::launch_file,
             mcp::mcp_ready,
             mcp::mcp_reply,
             mcp::mcp_settings_get,
