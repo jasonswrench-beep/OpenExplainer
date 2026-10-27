@@ -14,5 +14,5 @@ The guide was written and every picture was taken with OpenExplainer itself, on 
 
 - **It is drafted, not reviewed.** Every topic is marked Drafted. The text was checked against the program's source and documents, but no person has read it from start to finish, and nobody has followed its steps cold.
 - **The program has changed a little since the pictures were taken.** They were taken with the first installed build. Since then, a heading's box has gained a line saying it is plain text, and the help line about index terms in the Properties pane no longer lists headings. The text of the guide describes the current program; those pictures show the older words.
-- **It is for version 0.1.0.** When the program changes, the guide has to be changed with it.
+- **It is for version 0.1.0, and still matches 0.1.1** (the only change in 0.1.1 is the icon on the setup file). When the program changes, the guide has to be changed with it.
 - The scripts that took the pictures are not kept. To change a picture, take it again by hand or with an assistant.
