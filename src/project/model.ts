@@ -127,6 +127,18 @@ export function makeNode(title: string): TreeNode {
   return { id: newId(), title, status: "not-started", pictures: [], children: [] };
 }
 
+/**
+ * The chapters of the OpenStage how-to book template: 15 chapters and an appendix, in the pattern of the reference how-to book (design spec, Templates), one for each feature area of the
+ * program. They are empty to begin with; the author adds the topics. The OpenStage Author guide made with OpenExplainer follows this list.
+ */
+export const HOW_TO_BOOK_CHAPTERS = [
+  "Introduction", "Getting Started", "Slides", "Objects on a Slide", "Text", "Pictures, Sound and Video", "Interactions", "Questions, Quizzes and Results",
+  "Variables and Rules", "Timing and Animation", "Narration", "Games and Scenarios", "PowerPoint and Screen Recording", "Checking, Previewing and Publishing",
+  "Keyboard and Screen Reader", "Appendix",
+];
+
+export const TEMPLATES: Project["template"][] = ["empty", "openstage-how-to-book", "software-user-guide"];
+
 export function createProject(name: string, template: Project["template"] = "empty"): Project {
   const project: Project = {
     version: CURRENT_VERSION,
@@ -145,7 +157,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     tree: [],
   };
   if (template === "openstage-how-to-book") {
-    project.tree = ["Introduction", "Getting Started", "Appendix"].map(makeNode);
+    project.tree = HOW_TO_BOOK_CHAPTERS.map(makeNode);
   } else if (template === "software-user-guide") {
     project.tree = ["Overview", "Installation", "Using the Software", "Troubleshooting"].map(makeNode);
   }
@@ -267,6 +279,24 @@ export function outdent(tree: TreeNode[], id: string): boolean {
   const [node] = where.siblings.splice(where.index, 1);
   parentWhere.siblings.splice(parentWhere.index + 1, 0, node);
   return true;
+}
+
+/**
+ * Moves a node, with everything under it, to be a chapter (`parentId` null) or a child of another node, at a place in that list (1 is first; left out puts it last).
+ * Its pictures, page and id stay with it, so a guide that uses it still does. A node cannot be moved under itself or under one of its own topics.
+ */
+export function moveNode(tree: TreeNode[], id: string, parentId: string | null, position?: number): void {
+  const where = locate(tree, id);
+  if (!where) throw new Error("The topic was not found.");
+  const node = where.siblings[where.index];
+  if (parentId !== null) {
+    if (parentId === id || findNode(node.children, parentId)) throw new Error("A topic cannot be moved under itself or under one of its own topics.");
+    if (!findNode(tree, parentId)) throw new Error("The parent topic was not found.");
+  }
+  where.siblings.splice(where.index, 1);
+  const list = parentId === null ? tree : findNode(tree, parentId)!.children;
+  const at = position === undefined ? list.length : Math.min(Math.max(Math.round(position) - 1, 0), list.length);
+  list.splice(at, 0, node);
 }
 
 /** A readable list of every node, used for screen reader announcements and tests. */

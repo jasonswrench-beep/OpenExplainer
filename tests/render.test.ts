@@ -254,3 +254,13 @@ test("the preview tells the writer about marks with no alternative text and abou
   assert.ok(!quiet.some((n) => /alternative text|Text on its fill/.test(n)), "a mark with a description and colours that pass says nothing");
   assert.ok(!figureHtml(ctxFor(project, { notes: false }), picture({ shapes: [{ ...arrow, alt: "" }] })).includes("pv-note"), "an export has no notes");
 });
+
+test("a chapter named Appendix opens as an appendix, not as a numbered chapter", () => {
+  const { project } = sample();
+  const appendix = addNode(project.tree, null, "Appendix");
+  addNode(project.tree, appendix.id, "Glossary");
+  const { html } = renderPrintPreview(ctxFor(project));
+  assert.match(html, new RegExp(`id="pv-topic-${appendix.id}"><header class="pv-opener"><p class="pv-chapter-number">Appendix</p><h1>Appendix</h1><div class="pv-in-chapter"><h2 class="pv-in-chapter-title">In This Appendix</h2>`));
+  assert.ok(!html.includes("Chapter 3"), "it is not called chapter 3");
+  assert.ok(html.includes('<p class="pv-chapter-number">Chapter 2</p>'), "the chapters before it keep their numbers");
+});

@@ -31,9 +31,9 @@ Every change is saved as it is made. Every tool checks everything first, so a ca
 
 | Group | Tools |
 | --- | --- |
-| Projects | `list_projects`, `create_project`, `open_project`, `save_project` |
+| Projects | `list_projects`, `create_project` (empty, or from the `openstage-how-to-book` or `software-user-guide` template), `open_project`, `save_project` |
 | Reading | `get_outline`, `get_topic` (the page as blocks, the pictures with what was clicked, the callouts, the index terms), `check_book`, `list_guides` |
-| Writing | `add_topic`, `update_topic`, `delete_topic` (needs `confirm: true`), `set_page`, `append_blocks`, `describe_picture` (description and callout names), `make_callout_from_click`, `set_variables`, `set_index_terms`, `update_index`, `create_guide`, `update_guide`, `delete_guide`, `set_picture_view`, `set_book_settings` |
+| Writing | `add_topic`, `update_topic`, `move_topic` (a chapter or topic, with its pictures and page, to another place), `delete_topic` (needs `confirm: true`), `set_page`, `append_blocks`, `import_picture` (a PNG or JPEG from the MCP folder, as Import does in the program), `describe_picture` (description and callout names), `make_callout_from_click`, `add_callout` (a callout round a part of any picture, in pixels, for a window, region or brought-in picture that has no click), `delete_callout`, `set_variables`, `set_index_terms`, `update_index`, `create_guide`, `update_guide`, `delete_guide`, `set_picture_view`, `set_book_settings` |
 | Capture | `list_windows`, `capture_window`, `capture_region` (off unless allowed), `start_click_capture`, `click_capture_status`, `stop_click_capture`, `view_picture`, `remove_picture` |
 | Exports | `export_book` with `kind`: `help-site`, `json`, `markdown` (zip files), `word`, `guide-word` (.docx), `pdf`, `guide-pdf` |
 

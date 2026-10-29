@@ -2,17 +2,20 @@
 // describe the callouts on its pictures, set index terms, check the book, save, and export in any kind. Each does what its description says and answers in plain words; a call that cannot be
 // done says why, and changes nothing. Every change is saved at once (the assistant may never think to). The capture tools are in `src/mcp/capture-tools.ts`.
 import { buildBookIndex, indexSummary, setTermLines, updateBookIndex } from "../project/book-index.ts";
-import { addCalloutFromClick } from "../project/callouts.ts";
+import { addCallout, addCalloutFromClick, clipToPicture, letterFor, MOST_TEXT, placeMarker, removeCallout, type Callout } from "../project/callouts.ts";
 import { checkProject, splitIssues, summaryWords } from "../project/checks.ts";
 import { avoidWordsFromLines, MOST_AVOID_WORDS } from "../project/avoid-words.ts";
 import { MOST_STYLE } from "../project/drafts.ts";
 import { addTask, GUIDE_LAYOUTS, guideSummary, newGuide, setGuideLayout, tasksFromChapter, type GuideLayout } from "../project/guides.ts";
 import { COLOR_PRESETS, normalizeColor, SEE_THROUGH_LIMITS, SIZE_LIMITS, type HighlightKind } from "../project/highlight.ts";
-import { addNode, cleanVariableName, createProject, findNode, numbering, removeNode, setPictureView, STATUSES, type Picture, type Project, type Status, type TreeNode } from "../project/model.ts";
+import { readImageInfo } from "../project/image.ts";
+import { newId } from "../project/ids.ts";
+import { addNode, cleanVariableName, createProject, findNode, moveNode, numbering, removeNode, setPictureView, STATUSES, TEMPLATES, type Picture, type Project, type Status, type TreeNode } from "../project/model.ts";
 import { ZOOM_LIMITS, viewWords } from "../project/views.ts";
 import { fileNameFor } from "../project/package.ts";
 import { EXPORT_EXTENSION, type ExportKind, type MadeExport } from "../export/make.ts";
 import { BLOCK_HELP, blocksFromJson, pageFromBlocks, pictureToJson, topicToJson } from "./blocks.ts";
+import { keepPicture } from "./capture-tools.ts";
 import { baseName, folderOf, projectFile, resolveInside, PROJECT_EXTENSION } from "./paths.ts";
 import { failed, text, type ToolDef, type ToolResult } from "./protocol.ts";
 import type { Session } from "./session.ts";
@@ -25,12 +28,16 @@ export interface ToolDeps {
 
 type Args = Record<string, unknown>;
 
+/** The biggest picture file import_picture takes, so a mistake cannot fill a project. */
+const MOST_PICTURE_BYTES = 30 * 1048576;
+
 export const INSTRUCTIONS =
   "OpenExplainer makes still-image tutorials and how-to books from screen captures. Work like this: create_project (or open_project), add_topic for each chapter and topic, then fill each topic with set_page. " +
   "Text uses **bold**, *italic* and [[Control name]] for the label of a button or menu exactly as it appears on screen. Numbered procedures hold steps; each step may have one of the topic's pictures and a result line. " +
   "To document a program: list_windows, capture_window for a screen, or start_click_capture (naming the window), then use the program yourself, then stop_click_capture. Each click becomes a picture with a note of what was clicked; " +
   "view_picture shows you a picture and get_topic lists them. Capture is one window at a time. " +
   "Name and describe the callouts on a picture with describe_picture, and give every picture a plain description (alt_text) for readers who cannot see it. Never write about a control that is not in the capture. " +
+  "A window, region or brought-in picture (import_picture) has no click, so add_callout puts a callout round a part of it you name in pixels, and delete_callout takes one off. move_topic moves a chapter or topic, with its pictures, to another place. " +
   "set_picture_view crops a tall or wide picture to the part that matters; set_book_settings sets the zoom, the click circle, the writing style and the words to avoid; update_guide and delete_guide change guides. " +
   "Every change is saved as it is made. When the book is ready, run check_book, update_index, and export_book (help-site, json, markdown, word, pdf, guide-word, guide-pdf). " +
   "You can only use files inside the folder the author chose for MCP.";
@@ -125,14 +132,16 @@ export function createTools(deps: ToolDeps): ToolDef[] {
     },
     {
       name: "create_project",
-      description: "Makes a new, empty project and opens it. It is saved in the MCP folder as <name>.openexplainer unless a file name is given. Fails if that file exists.",
-      inputSchema: schema({ name: str("The project's name, such as the name of the program being documented."), file: str("Optional file name inside the MCP folder (the .openexplainer ending is added).") }, ["name"]),
+      description: "Makes a new project and opens it: empty, or from a template (openstage-how-to-book has 15 chapters and an appendix, software-user-guide has four starter chapters). It is saved in the MCP folder as <name>.openexplainer unless a file name is given. Fails if that file exists.",
+      inputSchema: schema({ name: str("The project's name, such as the name of the program being documented."), file: str("Optional file name inside the MCP folder (the .openexplainer ending is added)."), template: { type: "string", enum: TEMPLATES, description: "What to start from. Leave out for an empty project." } }, ["name"]),
       handler: async (args) => {
         const name = string(args, "name");
         const path = projectFile(session.settings.folder, optionalString(args, "file") ?? fileNameFor(name));
         if (!path) throw new Error("That file name is not inside the folder MCP may use.");
         if (await session.files.exists(path)) throw new Error(`There is already a project at ${path}. Use open_project to open it, or give another file name.`);
-        await session.start(createProject(name), path);
+        const template = optionalString(args, "template") ?? "empty";
+        if (!(TEMPLATES as string[]).includes(template)) throw new Error(`template must be one of: ${TEMPLATES.join(", ")}.`);
+        await session.start(createProject(name, template as Project["template"]), path);
         return text(`Created and opened the project "${name}" at ${path}. Add chapters and topics with add_topic.`);
       },
     },
@@ -210,6 +219,21 @@ export function createTools(deps: ToolDeps): ToolDef[] {
       }),
     },
     {
+      name: "move_topic",
+      description:
+        "Moves a chapter or topic, with everything under it, to be a chapter (leave parent_id out) or a topic under another chapter or topic, at a place in that list (position 1 is first; leave it out to put it last). " +
+        "Its pictures, page, index terms and ids go with it, and a guide that uses it still does. Numbers such as 4.2 are worked out from the order, so they change.",
+      inputSchema: schema({ topic_id: str("The topic's id."), parent_id: str("The id of the chapter or topic to move it under. Leave out to make it a chapter."), position: { type: "number", description: "Its place among its new neighbours, counting from 1. Leave out for last." } }, ["topic_id"]),
+      handler: changes((args, project) => {
+        const node = topic(project, string(args, "topic_id"));
+        const parent = optionalString(args, "parent_id");
+        if (parent) topic(project, parent);
+        const position = args.position === undefined ? undefined : numberIn(args.position, "position", 1, 10000);
+        moveNode(project.tree, node.id, parent ?? null, position);
+        return `Moved "${node.title}". It is now ${numbering(project.tree).get(node.id)}.`;
+      }),
+    },
+    {
       name: "set_page",
       description: `Replaces everything on a topic's page with these blocks. ${BLOCK_HELP}`,
       inputSchema: schema({ topic_id: str("The topic's id."), blocks: { type: "array", description: "The blocks, in order.", items: { type: "object" } } }, ["topic_id", "blocks"]),
@@ -269,6 +293,60 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         const made = addCalloutFromClick(picture);
         if (!made) throw new Error("That picture has no click to make a callout from.");
         return `Added callout ${made.id}.`;
+      }),
+    },
+    {
+      name: "import_picture",
+      description:
+        "Brings a PNG or JPEG file from the MCP folder into a topic's list of pictures, as Import does in the program (it is not on the page until set_page uses it). Returns the picture's id. " +
+        "Use it for a logo, a drawing or a picture made by another program. It has no click, so give it callouts with add_callout if it needs them, and a description with describe_picture or alt_text.",
+      inputSchema: schema({ topic_id: str("The topic the picture goes into."), file: str("The picture file, inside the MCP folder."), alt_text: str("What the picture shows, if you know already.") }, ["topic_id", "file"]),
+      handler: changes(async (args, project) => {
+        const node = topic(project, string(args, "topic_id"));
+        const path = resolveInside(session.settings.folder, string(args, "file"));
+        if (!path) throw new Error("That file is not inside the folder MCP may use.");
+        if (!(await session.files.exists(path))) throw new Error(`There is no file at ${path}.`);
+        const bytes = await session.files.read(path);
+        if (bytes.length > MOST_PICTURE_BYTES) throw new Error(`That file is ${Math.round(bytes.length / 1048576)} MB. A picture can be up to ${MOST_PICTURE_BYTES / 1048576} MB.`);
+        const info = readImageInfo(bytes);
+        if (!info) throw new Error("That file is not a PNG or JPEG picture. Only those two kinds can be brought in.");
+        const kept = keepPicture(session, node, { bytes, width: info.width, height: info.height, extension: info.extension }, "import", { name: baseName(path), alt: optionalString(args, "alt_text") });
+        return `Brought ${baseName(path)} into "${node.title}" as picture ${kept.id} (${kept.width} by ${kept.height}).`;
+      }),
+    },
+    {
+      name: "add_callout",
+      description:
+        "Adds a lettered callout to any picture, round the part it names: left, top, width and height in pixels from the picture's top left corner (get_topic gives the picture's size; view_picture shows it; a part that runs off the picture is cut to it). " +
+        "Use it for a window, a region or a brought-in picture, which have no click to make a callout from. Give it a name (the label of the thing) and a one-sentence description, or fill them in later with describe_picture.",
+      inputSchema: schema({
+        topic_id: str("The topic's id."), picture_id: str("The picture's id."),
+        left: { type: "number", description: "How far across the part starts." }, top: { type: "number", description: "How far down it starts." },
+        width: { type: "number", description: "Its width." }, height: { type: "number", description: "Its height." },
+        name: str("The label of the thing it points at."), description: str("One sentence about it."),
+      }, ["topic_id", "picture_id", "left", "top", "width", "height"]),
+      handler: changes((args, project) => {
+        const picture = pictureOf(topic(project, string(args, "topic_id")), string(args, "picture_id"));
+        const left = numberIn(args.left, "left", 0, picture.width - 1), top = numberIn(args.top, "top", 0, picture.height - 1);
+        const target = clipToPicture({ x: left, y: top, width: numberIn(args.width, "width", 1, 100000), height: numberIn(args.height, "height", 1, 100000) }, picture);
+        if (!target) throw new Error(`That part is not on the picture, which is ${picture.width} by ${picture.height} pixels.`);
+        const callout: Callout = {
+          id: newId(), name: (optionalString(args, "name") ?? "").trim().slice(0, MOST_TEXT), description: (optionalString(args, "description") ?? "").trim().slice(0, MOST_TEXT),
+          target, marker: placeMarker(target, picture, (picture.callouts ?? []).map((c) => c.marker)),
+        };
+        addCallout(picture, callout);
+        return `Added callout ${letterFor((picture.callouts?.length ?? 1) - 1)} (id ${callout.id}) round the part from ${target.x}, ${target.y}, ${target.width} wide and ${target.height} high.`;
+      }),
+    },
+    {
+      name: "delete_callout",
+      description: "Takes one callout off a picture (the others are lettered again). Use it for a callout in the wrong place; the callout ids are in get_topic.",
+      inputSchema: schema({ topic_id: str("The topic's id."), picture_id: str("The picture's id."), callout_id: str("The callout's id, from get_topic.") }, ["topic_id", "picture_id", "callout_id"]),
+      handler: changes((args, project) => {
+        const picture = pictureOf(topic(project, string(args, "topic_id")), string(args, "picture_id"));
+        const id = string(args, "callout_id");
+        if (!removeCallout(picture, id)) throw new Error(`The picture has no callout with the id "${id}". Its callouts are: ${(picture.callouts ?? []).map((c) => c.id).join(", ") || "none"}.`);
+        return `Deleted the callout. The picture has ${picture.callouts?.length ?? 0} callout(s) now.`;
       }),
     },
     {

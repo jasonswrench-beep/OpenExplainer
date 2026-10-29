@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addNode, createProject, CURRENT_VERSION, findNode, indent, moveDown, moveUp, numbering, outdent, outline, removeNode, renameNode, setStatus, visibleNodes } from "../src/project/model.ts";
+import { addNode, createProject, CURRENT_VERSION, findNode, HOW_TO_BOOK_CHAPTERS, indent, moveDown, moveNode, moveUp, numbering, outdent, outline, removeNode, renameNode, setStatus, visibleNodes } from "../src/project/model.ts";
 import { fromFiles, toFiles } from "../src/project/files.ts";
 import { migrate } from "../src/project/migrate.ts";
 
@@ -108,4 +108,35 @@ test("damaged files are refused, and file names are made safe", async () => {
   await assert.rejects(() => unpackProject(bad));
   assert.equal(fileNameFor('My: "Book"?'), "My Book.openexplainer");
   assert.equal(fileNameFor("   "), "Untitled project.openexplainer");
+});
+
+test("the OpenStage how-to book template has 15 chapters and an appendix, in the reference how-to book pattern", () => {
+  const p = createProject("Book", "openstage-how-to-book");
+  assert.equal(p.tree.length, 16);
+  assert.equal(HOW_TO_BOOK_CHAPTERS.length, 16);
+  assert.deepEqual(p.tree.map((n) => n.title), HOW_TO_BOOK_CHAPTERS);
+  assert.equal(p.tree[0].title, "Introduction");
+  assert.equal(p.tree[15].title, "Appendix");
+  assert.equal(new Set(p.tree.map((n) => n.id)).size, 16, "every chapter has its own id");
+  assert.equal(createProject("Plain").tree.length, 0, "an empty project stays empty");
+});
+
+test("a node moves, with what is under it, to another place in the tree, and cannot go under itself", () => {
+  const p = createProject("Moves");
+  const a = addNode(p.tree, null, "A"), b = addNode(p.tree, null, "B");
+  const a1 = addNode(p.tree, a.id, "A1"), a2 = addNode(p.tree, a.id, "A2"), b1 = addNode(p.tree, b.id, "B1");
+  const deep = addNode(p.tree, a1.id, "Deep");
+  moveNode(p.tree, a2.id, b.id, 1);
+  assert.deepEqual(outline(p.tree), ["1 A", "  1.1 A1", "    1.1.1 Deep", "2 B", "  2.1 A2", "  2.2 B1"]);
+  moveNode(p.tree, a1.id, b.id);
+  assert.deepEqual(outline(p.tree), ["1 A", "2 B", "  2.1 A2", "  2.2 B1", "  2.3 A1", "    2.3.1 Deep"], "what is under it goes along, and no position means last");
+  moveNode(p.tree, b1.id, null, 1);
+  assert.deepEqual(p.tree.map((n) => n.title), ["B1", "A", "B"], "no parent makes it a chapter");
+  moveNode(p.tree, deep.id, null, 99);
+  assert.equal(p.tree[p.tree.length - 1].title, "Deep", "a position past the end means last");
+  assert.throws(() => moveNode(p.tree, b.id, b.id), /under itself/);
+  assert.throws(() => moveNode(p.tree, b.id, a1.id), /under itself or under one of its own topics/);
+  assert.throws(() => moveNode(p.tree, "nope", null), /was not found/);
+  assert.throws(() => moveNode(p.tree, a.id, "nope"), /parent topic was not found/);
+  assert.ok(findNode(p.tree, a1.id), "a refused move lost nothing");
 });

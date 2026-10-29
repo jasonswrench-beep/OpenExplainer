@@ -67,11 +67,12 @@ function topicHtml(node: TreeNode, depth: number, numbers: Map<string, string>, 
   const title = esc(fillVariables(node.title, ctx.project.variables));
   const children = node.children.map((child) => topicHtml(child, depth + 1, numbers, ctx)).join("\n");
   if (depth === 0) {
-    // A chapter starts a new sheet, with an opener that lists the topics in it.
+    // A chapter starts a new sheet, with an opener that lists the topics in it. A chapter named Appendix is an appendix, not "Chapter 16".
+    const appendix = /^appendix\b/i.test(fillVariables(node.title, ctx.project.variables).trim());
     const inside = node.children.length
-      ? `<div class="pv-in-chapter"><h2 class="pv-in-chapter-title">In This Chapter</h2><ul>${node.children.map((c) => `<li><a href="#${esc(topicAnchor(c.id))}" data-anchor="${esc(topicAnchor(c.id))}">${esc(fillVariables(c.title, ctx.project.variables))}</a></li>`).join("")}</ul></div>`
+      ? `<div class="pv-in-chapter"><h2 class="pv-in-chapter-title">In This ${appendix ? "Appendix" : "Chapter"}</h2><ul>${node.children.map((c) => `<li><a href="#${esc(topicAnchor(c.id))}" data-anchor="${esc(topicAnchor(c.id))}">${esc(fillVariables(c.title, ctx.project.variables))}</a></li>`).join("")}</ul></div>`
       : "";
-    return `<section class="pv-sheet pv-chapter" id="${esc(topicAnchor(node.id))}"><header class="pv-opener"><p class="pv-chapter-number">Chapter ${esc(number)}</p><h1>${title}</h1>${inside}</header>\n${blocksHtml(ctx, node, 1, `${number} ${node.title}`)}\n${children}</section>`;
+    return `<section class="pv-sheet pv-chapter" id="${esc(topicAnchor(node.id))}"><header class="pv-opener"><p class="pv-chapter-number">${appendix ? "Appendix" : `Chapter ${esc(number)}`}</p><h1>${title}</h1>${inside}</header>\n${blocksHtml(ctx, node, 1, `${number} ${node.title}`)}\n${children}</section>`;
   }
   return `<article class="pv-topic" id="${esc(topicAnchor(node.id))}"><h${level}><span class="pv-number">${esc(number)}</span> ${title}</h${level}>\n${blocksHtml(ctx, node, level, `${number} ${node.title}`)}\n${children}</article>`;
 }
