@@ -325,3 +325,32 @@ test("tools: create_project can start from the OpenStage how-to book template, a
   assert.deepEqual([topics[0].title, topics[14].title, topics[15].title, topics[15].number], ["Introduction", "Keyboard and Screen Reader", "Appendix", "16"]);
   assert.equal(session.project!.template, "openstage-how-to-book");
 });
+
+test("tools: an assistant can link topics in text and list See also topics, a link to nothing is refused, and deleting a topic says what happens to its links", async () => {
+  const { call, data, session } = setup();
+  await call("create_project", { name: "Links" });
+  const id = async (title: string, parent?: string) => /id is (\w+)/.exec((await call("add_topic", { title, ...(parent ? { parent_id: parent } : {}) })).text)![1];
+  const chapter = await id("Basics");
+  const saving = await id("Saving", chapter);
+  const printing = await id("Printing", chapter);
+  const written = await call("set_page", { topic_id: saving, blocks: [{ type: "paragraph", text: `Read [how to print](#${printing}) first.` }] });
+  assert.match(written.text, /now has 1 block\(s\)/);
+  const topic = await data("get_topic", { topic_id: saving });
+  assert.equal(topic.page[0].text, `Read [how to print](#${printing}) first.`, "a link comes back as it was written");
+  assert.match((await call("set_page", { topic_id: saving, blocks: [{ type: "paragraph", text: "See [nowhere](#ghost)." }] })).text, /The link "nowhere" goes to a topic that is not in the book \(id ghost\)\./);
+  assert.match((await call("append_blocks", { topic_id: saving, blocks: [{ type: "callout", kind: "caution", text: "[x](#ghost)" }] })).text, /goes to a topic that is not in the book/);
+  assert.equal((await data("get_topic", { topic_id: saving })).page.length, 1, "a refused page changes nothing");
+
+  assert.match((await call("set_see_also", { topic_id: saving, topic_ids: [printing] })).text, /now has a See also list of 1 topic\(s\)\./);
+  assert.deepEqual((await data("get_topic", { topic_id: saving })).see_also, [printing]);
+  assert.match((await call("set_see_also", { topic_id: saving, topic_ids: [saving] })).text, /cannot list itself/);
+  assert.match((await call("set_see_also", { topic_id: saving, topic_ids: ["ghost"] })).text, /There is no topic with the id "ghost"/);
+  assert.match((await call("set_see_also", { topic_id: saving, topic_ids: "x" })).text, /must be a list of topic ids/);
+  assert.deepEqual((await data("get_topic", { topic_id: saving })).see_also, [printing], "a refused list changes nothing");
+
+  const deleted = await call("delete_topic", { topic_id: printing, confirm: true });
+  assert.match(deleted.text, /Deleted "Printing" and what was under it\. Elsewhere in the book, 1 link in the text will become plain words, and 1 See also entry will be taken off\./);
+  assert.equal((await data("get_topic", { topic_id: saving })).page[0].text, "Read how to print first.");
+  assert.deepEqual((await data("get_topic", { topic_id: saving })).see_also, []);
+  assert.equal(session.project!.tree[0].children.length, 1);
+});

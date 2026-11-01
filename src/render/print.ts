@@ -3,7 +3,8 @@
 // the contents here has no page numbers. Comments are never part of it. Nothing here needs a screen.
 import { buildBookIndex, type IndexEntry } from "../project/book-index.ts";
 import { numbering, type Project, type TreeNode } from "../project/model.ts";
-import { blocksHtml, esc, fillVariables, type RenderContext } from "./html.ts";
+import { blocksHtml, esc, fillVariables, type RenderContext, type TopicLinks } from "./html.ts";
+import { seeAlsoHtml } from "./see-also.ts";
 import { indexHtml } from "./index-html.ts";
 
 /** The whole book as HTML, and the notes for the writer that the preview collected (also in the HTML, next to what they are about, as preview-only notes). */
@@ -72,17 +73,19 @@ function topicHtml(node: TreeNode, depth: number, numbers: Map<string, string>, 
     const inside = node.children.length
       ? `<div class="pv-in-chapter"><h2 class="pv-in-chapter-title">In This ${appendix ? "Appendix" : "Chapter"}</h2><ul>${node.children.map((c) => `<li><a href="#${esc(topicAnchor(c.id))}" data-anchor="${esc(topicAnchor(c.id))}">${esc(fillVariables(c.title, ctx.project.variables))}</a></li>`).join("")}</ul></div>`
       : "";
-    return `<section class="pv-sheet pv-chapter" id="${esc(topicAnchor(node.id))}"><header class="pv-opener"><p class="pv-chapter-number">${appendix ? "Appendix" : `Chapter ${esc(number)}`}</p><h1>${title}</h1>${inside}</header>\n${blocksHtml(ctx, node, 1, `${number} ${node.title}`)}\n${children}</section>`;
+    return `<section class="pv-sheet pv-chapter" id="${esc(topicAnchor(node.id))}"><header class="pv-opener"><p class="pv-chapter-number">${appendix ? "Appendix" : `Chapter ${esc(number)}`}</p><h1>${title}</h1>${inside}</header>\n${blocksHtml(ctx, node, 1, `${number} ${node.title}`)}${seeAlsoHtml(ctx, node, 1)}\n${children}</section>`;
   }
-  return `<article class="pv-topic" id="${esc(topicAnchor(node.id))}"><h${level}><span class="pv-number">${esc(number)}</span> ${title}</h${level}>\n${blocksHtml(ctx, node, level, `${number} ${node.title}`)}\n${children}</article>`;
+  return `<article class="pv-topic" id="${esc(topicAnchor(node.id))}"><h${level}><span class="pv-number">${esc(number)}</span> ${title}</h${level}>\n${blocksHtml(ctx, node, level, `${number} ${node.title}`)}${seeAlsoHtml(ctx, node, level)}\n${children}</article>`;
 }
 
 /** Writes the whole book as it will print. */
 export function renderPrintPreview(base: RenderContext, options: { pages?: ContentsPages } = {}): PrintPreview {
   const notes: string[] = [];
-  const ctx: RenderContext = { ...base, onNote: (words) => { notes.push(words); base.onNote?.(words); } };
-  const project: Project = ctx.project;
+  const project: Project = base.project;
   const numbers = numbering(project.tree);
+  // A link to another topic reaches it by its anchor, says its number, and, in a PDF that has been laid out once, its page.
+  const topicLinks: TopicLinks = { number: (id) => numbers.get(id) ?? null, attrs: (id) => `href="#${esc(topicAnchor(id))}" data-anchor="${esc(topicAnchor(id))}"`, showNumber: true, pages: options.pages };
+  const ctx: RenderContext = { ...base, topicLinks, onNote: (words) => { notes.push(words); base.onNote?.(words); } };
   const bookIndex = buildBookIndex(project, numbers);
   const title = esc(fillVariables(project.name, project.variables));
   const details = ["PRODUCT", "VERSION", "COMPANY"].map((key) => project.variables[key]?.trim()).filter(Boolean).map((v) => `<p>${esc(v)}</p>`).join("");

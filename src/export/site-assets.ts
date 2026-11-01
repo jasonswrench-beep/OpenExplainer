@@ -50,6 +50,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 .pv-box-power-tip { border-left-color: #5a2a82; }
 .pv-box-time-saver { border-left-color: #1b6b2f; }
 .pv-box-new-feature { border-left-color: #00606b; }
+.topic-link { color: var(--link, #0b57d0); text-decoration: underline; }
+.pv-see-also { margin: 1rem 0; }
+.pv-see-also h2, .pv-see-also h3, .pv-see-also h4, .pv-see-also h5, .pv-see-also h6 { font-size: 1rem; margin: 0.4rem 0; }
+.pv-see-also ul { margin: 0.2rem 0; padding-left: 1.4rem; }
 .pv-missing { color: #8a1c1c; font-weight: 600; }
 .site-footer { max-width: 70rem; margin: 0 auto; padding: 0 1rem 1.5rem; }
 @media (min-width: 52rem) { .hs { display: grid; grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr); gap: 1.5rem; } .hs-tree { border-right: 1px solid var(--line); padding-right: 0.8rem; } }

@@ -242,6 +242,16 @@ A **guide** is a few pages for one task, or for several (the quick, step-by-step
 - Not built yet: the third picture of the left layout (a step holds one picture today, so the left layout shows the picture and its close-up), exporting a guide as a help site, and book check rules for
   guides (a task whose topic has lost its steps shows a note for the writer in the preview).
 
+## Links between topics and See also
+
+Format version 17 (2026-11-01, from the comparison with help-authoring programs: a chapter move had broken typed references such as "topic 6.1"). Words in a paragraph, a boxed note or a step can **go to another topic**, and a topic can have a **See also** list.
+
+- **Link to a topic** is a button beside Bold, Italic and Control name in every text box. It opens a window with every chapter and topic of the book, numbered, and a box that narrows the list by what is typed. Choose one and press **Link to this topic**: the selected words become the link (with nothing selected, the topic's title is used). The text box then holds `[words](#topic-id)`, which can also be typed. The link holds the topic itself, not its number, so it stays right when chapters move.
+- **See also for this topic** is a box in a topic's Properties, with a list of the topics in it and a button **Choose See also topics**. The window has a tick box for each topic, the same narrowing box, and holds up to 12. Nothing changes until **Keep these topics**.
+- Both windows work by keyboard alone: Tab to the list, the arrow keys and Space to choose, the buttons to keep, Escape to cancel. A screen reader hears the number and title of each topic, how many are shown, and how many are chosen.
+- **Deleting a topic** says first how many links in the text will become plain words and how many See also entries will be taken off, and does exactly that. The book check lists any link or entry that goes nowhere.
+- In the print preview and the PDF a link is followed by the topic's number in brackets, and in a PDF by `, page N`. Word adds the number. The help site just links. A short guide shows the words only. See `docs/exports.md`.
+
 ## The index
 
 Jason's choice (2026-10-21): **the software writes the first pass of the index, the author edits it, and can update it.** Each topic keeps its own index terms (format version 13, see `docs/format-spec.md`,

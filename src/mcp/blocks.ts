@@ -10,7 +10,7 @@ import { formatMarks, parseMarks } from "../project/text.ts";
 
 export const BLOCK_HELP =
   "A block is one of: {type:'heading', text}, {type:'paragraph', text}, {type:'picture', picture_id}, {type:'procedure', steps:[{text, picture_id?, result?}]} or {type:'callout', kind, text}. " +
-  `Text can use **bold**, *italic* and [[Control name]] (the label of a button or menu, exactly as it appears on screen). A callout kind is one of: ${CALLOUT_KINDS.map((k) => k.id).join(", ")}. ` +
+  `Text can use **bold**, *italic*, [[Control name]] (the label of a button or menu, exactly as it appears on screen) and [words](#topic-id) for a link to another topic (get_outline gives the ids). A callout kind is one of: ${CALLOUT_KINDS.map((k) => k.id).join(", ")}. ` +
   "A picture_id is one of the topic's pictures (see get_topic).";
 
 const kinds = new Set<string>(CALLOUT_KINDS.map((k) => k.id));
@@ -72,6 +72,7 @@ export function topicToJson(node: TreeNode, number: string): Json {
     page: pageToJson(node.page),
     pictures: node.pictures.map(pictureToJson),
     index_terms: (node.index?.terms ?? []).map((t) => t.text),
+    see_also: node.seeAlso ?? [],
     children: node.children.map((c) => ({ id: c.id, title: c.title })),
   };
 }

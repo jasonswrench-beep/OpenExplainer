@@ -4,13 +4,21 @@
 // A control name is the label of a button, menu or box exactly as it appears on screen (shown in bold in print). A backslash makes the next
 // star or bracket an ordinary letter. Variables such as {{PRODUCT}} are ordinary text here; they are filled in when a book is exported.
 
-export type Mark = "bold" | "italic" | "control";
+export type Mark = "bold" | "italic" | "control" | "link";
 
-/** A piece of text with at most one mark. Neighbours with the same mark are always joined. */
+/**
+ * A piece of text with at most one mark. Neighbours with the same mark are always joined. A link (format version 17) is words that go to another topic: it keeps the topic's id, never its
+ * number, so it still goes to the right place when chapters move. It is typed as [words](#topic-id), and the Link to a topic button makes that for the author.
+ */
 export interface Run {
   text: string;
   mark?: Mark;
+  /** For a link: the id of the topic it goes to. */
+  topic?: string;
 }
+
+/** What a topic id looks like in a saved file and in the typed form of a link. */
+export const TOPIC_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 export const MARKS: { id: Mark; name: string; open: string; close: string }[] = [
   { id: "bold", name: "Bold", open: "**", close: "**" },
@@ -25,8 +33,8 @@ function join(runs: Run[]): Run[] {
   for (const run of runs) {
     if (run.text === "") continue;
     const last = out[out.length - 1];
-    if (last && last.mark === run.mark) last.text += run.text;
-    else out.push(run.mark ? { text: run.text, mark: run.mark } : { text: run.text });
+    if (last && last.mark === run.mark && last.topic === run.topic) last.text += run.text;
+    else out.push(run.mark ? { text: run.text, mark: run.mark, ...(run.mark === "link" && run.topic ? { topic: run.topic } : {}) } : { text: run.text });
   }
   return out;
 }
@@ -58,6 +66,23 @@ function unescape(text: string): string {
   return out;
 }
 
+/** A link typed as [words](#topic-id) at `i`: its words, the topic's id and where it ends. The words must not be empty or start or end with a space. `null` when what is there is not a link. */
+function linkAt(source: string, i: number): { words: string; topic: string; end: number } | null {
+  if (source[i] !== "[" || source[i + 1] === "[") return null;
+  let j = i + 1;
+  for (; j < source.length; j++) {
+    if (source[j] === "\\") { j++; continue; }
+    if (source[j] === "]") break;
+  }
+  if (j >= source.length || !source.startsWith("(#", j + 1)) return null;
+  const close = source.indexOf(")", j + 3);
+  if (close < 0) return null;
+  const topic = source.slice(j + 3, close);
+  const inner = source.slice(i + 1, j);
+  if (!TOPIC_ID.test(topic) || inner.length === 0 || inner !== inner.trim()) return null;
+  return { words: unescape(inner), topic, end: close + 1 };
+}
+
 /** Plain text with marks, as typed in a box, to runs. A marker with no partner stays as ordinary text. */
 export function parseMarks(source: string): Run[] {
   const runs: Run[] = [];
@@ -67,6 +92,14 @@ export function parseMarks(source: string): Run[] {
     if (source[i] === "\\" && i + 1 < source.length && SPECIAL.has(source[i + 1])) {
       plain += source[i + 1];
       i += 2;
+      continue;
+    }
+    const link = linkAt(source, i);
+    if (link) {
+      runs.push({ text: plain });
+      plain = "";
+      runs.push({ text: link.words, mark: "link", topic: link.topic });
+      i = link.end;
       continue;
     }
     const marker = markerAt(source, i);
@@ -97,10 +130,22 @@ function escape(text: string): string {
 export function formatMarks(runs: Run[]): string {
   return runs
     .map((run) => {
-      const marker = run.mark ? MARKS.find((m) => m.id === run.mark)! : null;
+      if (run.mark === "link" && run.topic) {
+        // The brackets must touch the words, so spaces at the edges are put outside them.
+        const lead = run.text.length - run.text.trimStart().length;
+        const trail = run.text.length - run.text.trimEnd().length;
+        const words = run.text.trim();
+        return words ? `${run.text.slice(0, lead)}[${escape(words)}](#${run.topic})${trail ? run.text.slice(run.text.length - trail) : ""}` : escape(run.text);
+      }
+      const marker = run.mark && run.mark !== "link" ? MARKS.find((m) => m.id === run.mark)! : null;
       return marker ? `${marker.open}${escape(run.text)}${marker.close}` : escape(run.text);
     })
     .join("");
+}
+
+/** Words that go to another topic. */
+export function linkRun(words: string, topicId: string): Run {
+  return { text: words, mark: "link", topic: topicId };
 }
 
 /** The words with no marks, for a search, a screen reader label and a contents list. */
@@ -114,8 +159,10 @@ export function cleanRuns(raw: unknown): Run[] {
   const runs: Run[] = [];
   for (const item of raw) {
     if (typeof item !== "object" || item === null) continue;
-    const { text, mark } = item as { text?: unknown; mark?: unknown };
+    const { text, mark, topic } = item as { text?: unknown; mark?: unknown; topic?: unknown };
     if (typeof text !== "string") continue;
+    // A link with no good topic id is only its words.
+    if (mark === "link") { runs.push(typeof topic === "string" && TOPIC_ID.test(topic) ? { text, mark: "link", topic } : { text }); continue; }
     runs.push(MARKS.some((m) => m.id === mark) ? { text, mark: mark as Mark } : { text });
   }
   return join(runs);

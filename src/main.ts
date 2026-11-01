@@ -51,6 +51,8 @@ import { renderHelpPage } from "./render/help.ts";
 import { addCalloutFromClick, setCallouts } from "./project/callouts.ts";
 import { blockLabel, calloutLabel, type Block } from "./project/page.ts";
 import { plainText } from "./project/text.ts";
+import { chooseSeeAlsoDialog, chooseTopicDialog } from "./links-dialog.ts";
+import { countLinksTo, linkLossWords, MOST_SEE_ALSO, setSeeAlso, subtreeIds } from "./project/links.ts";
 import { addedWords, picturesFromReview } from "./capture/review.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -170,6 +172,13 @@ app.innerHTML = `
           <p><button type="button" id="b-index-suggest">Suggest terms</button></p>
           <p id="index-line" class="help"></p>
         </div>
+        <div id="props-seealso">
+          <h4 id="props-seealso-heading">See also for this topic</h4>
+          <p class="help" id="props-seealso-help">Other topics worth reading next. They are listed under this topic in the book and the help site, each as a link.</p>
+          <ul id="seealso-list" aria-labelledby="props-seealso-heading"></ul>
+          <p id="seealso-line" class="help" role="status"></p>
+          <p><button type="button" id="b-seealso" aria-describedby="props-seealso-help">Choose See also topics</button></p>
+        </div>
         <div id="props-block" aria-live="off"></div>
       </section>
     </div>
@@ -214,6 +223,8 @@ const pageEditor = createPageEditor({
   changed: () => { markDirty(); renderProperties(); },
   announce: (text) => announce(text),
   selectionChanged: () => renderProperties(),
+  chooseTopic: () => chooseTopicDialog(project, { heading: "Link to a topic", help: "Choose the topic the words should go to. The link keeps the topic itself, so it still goes to the right place if chapters move. In the printed book it also says the topic's number, and in a PDF its page." }),
+  topicTitle: (id) => findNode(project.tree, id)?.title ?? "",
 });
 
 // ---- The print preview and the help site preview ------------------------------------------------
@@ -514,8 +525,40 @@ function indexLineFor(node: TreeNode): string {
     : `${terms.length} ${terms.length === 1 ? "term" : "terms"}: ${terms.length - own} proposed by the software and ${own} written or changed by you.`;
 }
 
+/** The See also list of the selected topic, as a list and a line in words, and the button that changes it. */
+function renderSeeAlso() {
+  const node = selected();
+  const list = $<HTMLUListElement>("seealso-list");
+  list.replaceChildren();
+  const numbers = numbering(project.tree);
+  for (const id of node?.seeAlso ?? []) {
+    const target = findNode(project.tree, id);
+    if (!target) continue;
+    const li = document.createElement("li");
+    li.textContent = `${numbers.get(id) ?? ""} ${target.title}`.trim();
+    list.append(li);
+  }
+  const count = list.children.length;
+  $("seealso-line").textContent = !node ? "" : count === 0 ? "This topic has no See also list." : `${count} ${count === 1 ? "topic" : "topics"} in the list.`;
+  $<HTMLButtonElement>("b-seealso").disabled = !node;
+}
+
+$("b-seealso").addEventListener("click", async () => {
+  const node = selected();
+  if (!node) return;
+  const chosen = await chooseSeeAlsoDialog(project, { heading: `See also for "${node.title}"`, help: `Tick the topics worth reading next, up to ${MOST_SEE_ALSO}. Nothing changes until you choose Keep these topics.`, leave: node.id, chosen: node.seeAlso ?? [] });
+  if (chosen === null) { $("b-seealso").focus(); return; }
+  setSeeAlso(project.tree, node.id, chosen);
+  markDirty();
+  renderProperties();
+  render(false);
+  announce(chosen.length === 0 ? `The See also list of ${node.title} is now empty.` : `See also for ${node.title}: ${chosen.length} ${chosen.length === 1 ? "topic" : "topics"}.`);
+  $("b-seealso").focus();
+});
+
 function renderProperties() {
   renderIndexTerms();
+  renderSeeAlso();
   const node = selected();
   const numbers = numbering(project.tree);
   const inBook = unresolvedCount(project.tree);
@@ -1098,7 +1141,8 @@ async function remove() {
   const node = selected();
   if (!node) return;
   const extra = node.children.length ? ` It also contains ${node.children.length} item(s) that will be deleted with it.` : "";
-  if (!(await confirmDialog("Delete", `Delete "${node.title}"?${extra}`, "Delete"))) return;
+  const loss = linkLossWords(countLinksTo(project.tree, subtreeIds(node)));
+  if (!(await confirmDialog("Delete", `Delete "${node.title}"?${extra}${loss ? ` Elsewhere in the book, ${loss}` : ""}`, "Delete"))) return;
   const where = locate(project.tree, node.id);
   const neighbour = where ? (where.siblings[where.index + 1] ?? where.siblings[where.index - 1] ?? where.parent) : null;
   removeNode(project.tree, node.id);

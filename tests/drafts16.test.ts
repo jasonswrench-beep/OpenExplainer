@@ -29,7 +29,7 @@ const box = (nodeId: string, evidence: string, words = "Use Save as to keep both
 
 test("an opener or summary draft is kept for a page that is there, one for each role, with words, cut to length", () => {
   const { project, chapter, saving } = book();
-  assert.equal(CURRENT_VERSION, 16);
+  assert.ok(CURRENT_VERSION >= 16);
   const a = addDraft(project, text(chapter, "opener", "After this chapter you can save and print."));
   const b = addDraft(project, text(chapter, "opener", "A newer opener."));
   assert.ok(a && b && a.id !== b.id);
@@ -173,7 +173,7 @@ test("format 16: the new drafts and the word list are saved and come back, and a
   addDraft(project, box(saving, "Closing the program ends the session."));
   project.avoidWords = [{ avoid: "file", use: "document" }];
   let files = toFiles(project);
-  assert.equal(JSON.parse(files[DRAFTS_FILE]).version, 16);
+  assert.equal(JSON.parse(files[DRAFTS_FILE]).version, CURRENT_VERSION);
   assert.deepEqual(JSON.parse(files[PROJECT_FILE]).avoidWords, [{ avoid: "file", use: "document" }]);
   assert.ok(!files[STRUCTURE_FILE].includes("An opener."));
   const back = fromFiles(files);
@@ -189,7 +189,7 @@ test("format 16: the new drafts and the word list are saved and come back, and a
   const as15: Record<string, string> = {};
   for (const [name, t] of Object.entries(files)) as15[name] = JSON.stringify({ ...JSON.parse(t), version: 15 });
   const opened = fromFiles(as15);
-  assert.equal(opened.version, 16);
+  assert.equal(opened.version, CURRENT_VERSION);
   assert.deepEqual(opened.avoidWords, []);
   assert.equal(opened.tree[0].children[0].page!.blocks.length, 3, "its pages come with it");
   assert.deepEqual(migrate({ version: 15, name: "M", template: "empty", variables: {}, avoidWords: 5, tree: [] }).avoidWords, []);

@@ -145,7 +145,7 @@ test("rejecting a draft removes it and changes nothing else", () => {
 
 test("drafts.json exists only when there are drafts, the notes only when written, and both come back", () => {
   const p = book();
-  assert.equal(CURRENT_VERSION, 16);
+  assert.ok(CURRENT_VERSION >= 16, "drafts arrived in format 14 and have stayed");
   let files = toFiles(p);
   assert.ok(!(DRAFTS_FILE in files), "no drafts, no file");
   assert.ok(!("writingStyle" in JSON.parse(files[PROJECT_FILE])), "no notes, no entry");

@@ -13,10 +13,11 @@ import type { Guide } from "./guides.ts";
 import type { TopicIndex } from "./book-index.ts";
 import type { Draft } from "./drafts.ts";
 import type { AvoidWord } from "./avoid-words.ts";
+import { forgetTopics } from "./links.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 16;
+export const CURRENT_VERSION = 17;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -94,6 +95,8 @@ export interface TreeNode {
   page?: Page;
   /** The topic's index terms (format version 13). Left out until it has some. */
   index?: TopicIndex;
+  /** Other topics worth reading next, as ids (format version 17). Left out until it has some. See src/project/links.ts. */
+  seeAlso?: string[];
   children: TreeNode[];
 }
 
@@ -241,7 +244,12 @@ export function setStatus(tree: TreeNode[], id: string, status: Status): void {
 export function removeNode(tree: TreeNode[], id: string): boolean {
   const where = locate(tree, id);
   if (!where) return false;
-  where.siblings.splice(where.index, 1);
+  const [removed] = where.siblings.splice(where.index, 1);
+  // A link to a topic that is gone is turned into its plain words, and it is taken off every See also list.
+  const gone = new Set<string>();
+  const collect = (node: TreeNode) => { gone.add(node.id); node.children.forEach(collect); };
+  collect(removed);
+  forgetTopics(tree, gone);
   return true;
 }
 

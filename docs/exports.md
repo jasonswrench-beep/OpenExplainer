@@ -6,6 +6,10 @@ the Export dialog is `src/export-dialog.ts`. Comments are working notes and are 
 The book is exported as it prints: pictures use the book's click circle and zoom settings (`place: "book"`). The two outputs made for paper, Word and PDF, also apply the automatic zoom for print when the project
 asks for it (see `docs/format-spec.md`, "Paper settings"): a picture that would print too small is made zoomed in on its click (`flattenPlaced(..., { paper: true })`). The help site, Markdown and JSON do not.
 
+## Links between topics
+
+A link in the text (format version 17, `docs/editor.md`, "Links between topics and See also") is written by `runsHtml` and the exporters from the topic's id, so it always goes to the topic as it is now: in the print preview and the PDF a link to the topic's heading (`href="#pv-topic-<id>"`) followed by `(4.2)`, and in a PDF `(4.2), page 31`: the pages are the same ones the contents uses, found by the same printing, and the first printing has stand-ins as wide as the real ones so nothing moves; in Word a link to the topic's heading (a bookmark numbered for every topic before the text is written, so a link can point forward) followed by `(4.2)`, with no page; on the help site a plain link to the topic's page, with no number; in Markdown the words followed by `(4.2)`; in a short guide only the words; in the JSON export the runs and each topic's `seeAlso` as they are. A topic's See also list is a short list of links with numbers under its page in the print preview, PDF, Word (a bold "See also" line and bullets), help site and Markdown (`**See also**` and a list). A link to a topic that is not in the book is only its words.
+
 ## The index
 
 When any topic has index terms (see `docs/editor.md`, "The index"), every output made for reading has the index, worked out by `buildBookIndex` and written by the same code where it can be (`src/render/index-html.ts`):

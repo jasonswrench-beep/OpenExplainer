@@ -12,6 +12,7 @@ import { cleanGuides } from "./guides.ts";
 import { cleanTreeIndex } from "./book-index.ts";
 import { cleanDrafts, cleanWritingStyle } from "./drafts.ts";
 import { cleanAvoidWords } from "./avoid-words.ts";
+import { cleanTreeSeeAlso } from "./links.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -58,6 +59,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   14: (raw) => ({ ...raw, version: 15 }),
   // Version 15 to 16: drafts.json can hold chapter openers, summaries and suggested boxes, and the project keeps a list of words to avoid. An older project has none.
   15: (raw) => ({ ...raw, version: 16, avoidWords: [] }),
+  // Version 16 to 17: words in a page can be a link to another topic, and a topic can have a See also list. An older project has neither.
+  16: (raw) => ({ ...raw, version: 17 }),
 };
 
 export function migrate(input: unknown): Project {
@@ -74,7 +77,7 @@ export function migrate(input: unknown): Project {
   }
   // A click note and the circle's settings are checked every time a project is opened, whatever version it was saved as.
   const project = raw as unknown as Project;
-  if (Array.isArray(project.tree)) project.tree = cleanTreeIndex(cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(project.tree as TreeNode[]))))));
+  if (Array.isArray(project.tree)) project.tree = cleanTreeSeeAlso(cleanTreeIndex(cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(project.tree as TreeNode[])))))));
   project.highlight = cleanHighlight(project.highlight);
   project.zoom = cleanZoom(project.zoom);
   project.styles = cleanStyles(project.styles);

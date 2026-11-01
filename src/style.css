@@ -125,6 +125,11 @@ fieldset.co-active { border: 2px solid var(--accent); padding: calc(0.25rem - 1p
 .pv-box-power-tip { border-left-color: #5a2a82; }
 .pv-box-time-saver { border-left-color: #1b6b2f; }
 .pv-box-new-feature { border-left-color: #00606b; }
+.topic-link { color: #0b57d0; text-decoration: underline; }
+.topic-link:focus-visible { outline: 3px solid #1a73e8; outline-offset: 2px; }
+.pv-see-also { margin: 1rem 0; font-family: system-ui, sans-serif; }
+.pv-see-also h3, .pv-see-also h2, .pv-see-also h4 { font-size: 1rem; margin: 0.4rem 0; }
+.pv-see-also ul { margin: 0.2rem 0; padding-left: 1.4rem; }
 .pv-note { background: #fff6d6; border: 1px dashed #8a6d00; padding: 0.3rem 0.6rem; margin: 0.4rem 0; font-family: system-ui, sans-serif; font-size: 0.85rem; color: #222; }
 .pv-missing { font-family: system-ui, sans-serif; color: #8a1c1c; font-weight: 600; }
 /* Short guides: one sheet for each task, each step a heading with its picture, a close-up of the clicked spot and its words, in one of two layouts. */

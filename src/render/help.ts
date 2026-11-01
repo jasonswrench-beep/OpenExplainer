@@ -3,6 +3,7 @@
 import { buildBookIndex } from "../project/book-index.ts";
 import { numbering, type Project, type TreeNode } from "../project/model.ts";
 import { blocksHtml, esc, fillVariables, type RenderContext } from "./html.ts";
+import { seeAlsoHtml } from "./see-also.ts";
 import { indexHtml, topicWords } from "./index-html.ts";
 
 /** Every topic in reading order (the order of the numbers), with the chain of titles above it. */
@@ -59,9 +60,11 @@ export function renderHelpIndexPage(ctx: RenderContext, links: LinkFor): string 
 }
 
 /** Writes one page of the help site, with its contents tree. `currentId` is the topic shown; with none, the page says so. */
-export function renderHelpPage(ctx: RenderContext, currentId: string | null, links?: LinkFor): string {
-  const project: Project = ctx.project;
+export function renderHelpPage(base: RenderContext, currentId: string | null, links?: LinkFor): string {
+  const project: Project = base.project;
   const numbers = numbering(project.tree);
+  // A link in the text reaches the other topic's page. The help site does not add the number: the link is enough.
+  const ctx: RenderContext = { ...base, topicLinks: { number: (id) => numbers.get(id) ?? null, attrs: (id) => topicLink(links, id), showNumber: false } };
   const all = placedTopics(project.tree);
   const at = all.findIndex((p) => p.node.id === currentId);
   const book = esc(fillVariables(project.name, project.variables));
@@ -82,5 +85,5 @@ export function renderHelpPage(ctx: RenderContext, currentId: string | null, lin
     ? `<section class="hs-inside"><h2>In this section</h2><ul>${node.children.map((c) => `<li><a ${topicLink(links, c.id)}>${esc(fillVariables(c.title, project.variables))}</a></li>`).join("")}</ul></section>`
     : "";
   const pager = `<nav class="hs-pager" aria-label="Previous and next topic">${link(all[at - 1], "Previous", "←", true)}${link(all[at + 1], "Next", "→", false)}</nav>`;
-  return `<div class="hs">${nav}<main class="hs-page" id="topic-main"><nav class="hs-crumbs" aria-label="Breadcrumb"><ol>${crumbs}</ol></nav><article><h1>${esc(numbers.get(node.id) ?? "")} ${esc(fillVariables(node.title, project.variables))}</h1>\n${blocksHtml(ctx, node, 1)}\n${inside}</article>${pager}</main></div>`;
+  return `<div class="hs">${nav}<main class="hs-page" id="topic-main"><nav class="hs-crumbs" aria-label="Breadcrumb"><ol>${crumbs}</ol></nav><article><h1>${esc(numbers.get(node.id) ?? "")} ${esc(fillVariables(node.title, project.variables))}</h1>\n${blocksHtml(ctx, node, 1)}${seeAlsoHtml(ctx, node, 1)}\n${inside}</article>${pager}</main></div>`;
 }

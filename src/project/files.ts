@@ -14,6 +14,7 @@ import { cleanGuides } from "./guides.ts";
 import { cleanTreeIndex } from "./book-index.ts";
 import { cleanDrafts, cleanWritingStyle } from "./drafts.ts";
 import { cleanAvoidWords } from "./avoid-words.ts";
+import { cleanTreeSeeAlso } from "./links.ts";
 
 export const PROJECT_FILE = "project.json";
 export const STRUCTURE_FILE = "structure.json";
@@ -79,7 +80,7 @@ function attachDrafts(project: Project, files: Record<string, string>, savedVers
 export function toFiles(project: Project): Record<string, string> {
   const { tree: rawTree, drafts: rawDrafts, writingStyle: rawStyle, avoidWords: rawAvoid, ...header } = project;
   // Click notes are checked on the way out too, so a password box can never be written to a file.
-  const tree = cleanTreeIndex(cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(rawTree))))));
+  const tree = cleanTreeSeeAlso(cleanTreeIndex(cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(rawTree)))))));
   const writingStyle = cleanWritingStyle(rawStyle);
   const avoidWords = cleanAvoidWords(rawAvoid);
   const files: Record<string, string> = {

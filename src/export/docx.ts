@@ -29,13 +29,23 @@ export function xml(text: string): string {
 export const run = (text: string, props = "") => `<w:r>${props ? `<w:rPr>${props}</w:rPr>` : ""}<w:t xml:space="preserve">${xml(text)}</w:t></w:r>`;
 export const para = (style: string, inner: string, extra = "") => `<w:p><w:pPr><w:pStyle w:val="${style}"/>${extra}</w:pPr>${inner}</w:p>`;
 
-export function runsXml(runs: Run[], variables: Record<string, string>): string {
+/** A link to a topic's heading: the words as a link, then the topic's number in brackets. Word has no page numbers to give until it lays the pages out, so none is said. */
+function topicLinkXml(ctx: Pick<Context, "bookmarks" | "numbers">, topic: string, words: string): string | null {
+  const bookmark = ctx.bookmarks.get(topic);
+  const number = ctx.numbers?.get(topic);
+  if (bookmark === undefined || number === undefined) return null;
+  return `<w:hyperlink w:anchor="_Toc${bookmark}" w:history="1">${run(words, '<w:rStyle w:val="Hyperlink"/>')}</w:hyperlink>${run(` (${number})`)}`;
+}
+
+/** Text with marks as Word runs. With `ctx`, a link to another topic is a link to its heading; without it (a guide), linked words are plain words. */
+export function runsXml(runs: Run[], variables: Record<string, string>, ctx?: Pick<Context, "bookmarks" | "numbers">): string {
   return runs
     .map((r) => {
       const text = fillVariables(r.text, variables);
       if (r.mark === "bold") return run(text, "<w:b/>");
       if (r.mark === "italic") return run(text, "<w:i/>");
       if (r.mark === "control") return run(text, '<w:rStyle w:val="ControlName"/>');
+      if (r.mark === "link" && r.topic && ctx) return topicLinkXml(ctx, r.topic, text) ?? run(text);
       return run(text);
     })
     .join("");
@@ -50,6 +60,8 @@ export interface Context {
   lists: number;
   bookmarks: Map<string, number>;
   drawingId: number;
+  /** The number of each topic, such as 4.2, for the links between topics. A guide has none, so linked words there are plain words. */
+  numbers?: Map<string, string>;
 }
 
 /** A step's picture is indented half an inch (48 pixels at 96 to the inch), so it is narrower to stay inside the margins. */
@@ -92,22 +104,22 @@ function pictureXml(ctx: Context, original: Picture, indent: boolean): string {
 function blockXml(ctx: Context, node: TreeNode, block: Block, level: number): string {
   const v = ctx.project.variables;
   switch (block.type) {
-    case "paragraph": return para("Normal", runsXml(block.text, v));
+    case "paragraph": return para("Normal", runsXml(block.text, v, ctx));
     case "heading": return block.text.trim() ? para(`Heading${Math.min(6, level + 1)}`, run(fillVariables(block.text, v))) : "";
     case "picture": {
       const picture = node.pictures.find((p) => p.id === block.pictureId);
       return picture ? pictureXml(ctx, picture, false) : "";
     }
-    case "callout": return para(`Callout${CALLOUT_KINDS.findIndex((k) => k.id === block.kind) + 1}`, run(`${calloutLabel(block.kind)}. `, "<w:b/>") + runsXml(block.text, v));
+    case "callout": return para(`Callout${CALLOUT_KINDS.findIndex((k) => k.id === block.kind) + 1}`, run(`${calloutLabel(block.kind)}. `, "<w:b/>") + runsXml(block.text, v, ctx));
     case "procedure": {
       const numId = ++ctx.lists + 1; // numId 1 is the bullets
       return block.steps
         .map((step) => {
           const picture = step.pictureId ? node.pictures.find((p) => p.id === step.pictureId) : undefined;
           // A step with a picture stays on the same page as it, so the words are never left alone above a page break.
-          let out = para("Step", runsXml(step.text, v), `${picture ? "<w:keepNext/>" : ""}<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${numId}"/></w:numPr>`);
+          let out = para("Step", runsXml(step.text, v, ctx), `${picture ? "<w:keepNext/>" : ""}<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${numId}"/></w:numPr>`);
           if (picture) out += pictureXml(ctx, picture, true);
-          if (step.result && step.result.length) out += para("StepContinued", run("Result: ", "<w:b/>") + runsXml(step.result, v));
+          if (step.result && step.result.length) out += para("StepContinued", run("Result: ", "<w:b/>") + runsXml(step.result, v, ctx));
           return out;
         })
         .join("");
@@ -117,10 +129,22 @@ function blockXml(ctx: Context, node: TreeNode, block: Block, level: number): st
 
 /** A topic's heading, with a bookmark the contents list links to. A chapter starts a new page. */
 function heading(ctx: Context, level: number, number: string, title: string, id: string): string {
-  const n = ctx.bookmarks.size + 1;
+  // Every topic's bookmark was numbered before the headings were written, so a link can point forward to a topic not yet written.
+  const n = ctx.bookmarks.get(id) ?? ctx.bookmarks.size + 1;
   ctx.bookmarks.set(id, n);
   const pageBreak = level === 1 ? "<w:pageBreakBefore/>" : "";
   return para(`Heading${Math.min(6, level)}`, `<w:bookmarkStart w:id="${n}" w:name="_Toc${n}"/>${run(`${number ? `${number} ` : ""}${fillVariables(title, ctx.project.variables)}`)}<w:bookmarkEnd w:id="${n}"/>`, pageBreak);
+}
+
+/** The See also list of a topic: a bold line, then each topic as a bullet with a link to its heading. */
+function seeAlsoXml(ctx: Context, node: TreeNode, numbers: Map<string, string>): string {
+  const titles = new Map<string, string>();
+  const collect = (nodes: TreeNode[]) => nodes.forEach((n) => { titles.set(n.id, n.title); collect(n.children); });
+  collect(ctx.project.tree);
+  const items = (node.seeAlso ?? []).filter((id) => titles.has(id) && numbers.has(id)).map((id) => topicLinkXml(ctx, id, fillVariables(titles.get(id)!, ctx.project.variables))).filter((x): x is string => x !== null);
+  if (items.length === 0) return "";
+  const bullet = '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>';
+  return para("Normal", run("See also", "<w:b/>"), "<w:keepNext/>") + items.map((link) => para("ListBullet", link, bullet)).join("");
 }
 
 function topicXml(ctx: Context, node: TreeNode, depth: number, numbers: Map<string, string>): string {
@@ -131,6 +155,7 @@ function topicXml(ctx: Context, node: TreeNode, depth: number, numbers: Map<stri
     out += node.children.map((c) => para("ListBullet", run(fillVariables(c.title, ctx.project.variables)), '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>')).join("");
   }
   for (const block of node.page?.blocks ?? []) out += blockXml(ctx, node, block, level);
+  out += seeAlsoXml(ctx, node, numbers);
   for (const child of node.children) out += topicXml(ctx, child, depth + 1, numbers);
   return out;
 }
@@ -270,7 +295,10 @@ export function assembleDocx(ctx: Context, title: string, body: string, options:
 /** The files of a Word export, by their path inside the .docx. */
 export function buildDocxParts(project: Project, flat: Map<string, FlatPicture>, options: { now?: string } = {}): Record<string, Uint8Array> {
   const numbers = numbering(project.tree);
-  const ctx: Context = { project, flat, images: [], lists: 0, bookmarks: new Map(), drawingId: 0 };
+  const ctx: Context = { project, flat, images: [], lists: 0, bookmarks: new Map(), drawingId: 0, numbers };
+  // Number every topic's bookmark first, in reading order, so a link in the text can point to a topic that comes later.
+  const assign = (nodes: TreeNode[]) => nodes.forEach((n) => { ctx.bookmarks.set(n.id, ctx.bookmarks.size + 1); assign(n.children); });
+  assign(project.tree);
   const title = fillVariables(project.name, project.variables);
   const details = ["PRODUCT", "VERSION", "COMPANY"].map((k) => project.variables[k]?.trim()).filter(Boolean);
   // The headings are made first so the contents can link to them; the contents then goes in front of them.

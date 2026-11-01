@@ -12,6 +12,21 @@ import { forPaper, isWhole, MIN_PRINT_SCALE, PRINT_TEXT_WIDTH, printScale, shown
 export { MIN_PRINT_SCALE, PRINT_TEXT_WIDTH, printScale };
 import { calloutInView, overlayFor, overlaySvg } from "./overlay.ts";
 
+/**
+ * How a link from one topic to another is written where the page is shown (format version 17). A page of a guide has none, so linked words there are plain words. In the book and the
+ * help site each linked topic is reached with the attributes of an <a>; the book also says the topic's number after the words, and a PDF its page.
+ */
+export interface TopicLinks {
+  /** A topic's number, such as 4.2, or `null` when the book has no such topic (the words are then plain). */
+  number(id: string): string | null;
+  /** The attributes that reach a topic, such as `href="#pv-topic-x"`. */
+  attrs(id: string): string;
+  /** Say the topic's number after the words, as in print and Word. The help site does not: a link there is enough. */
+  showNumber: boolean;
+  /** The page each topic is on, once a PDF has been laid out; a link then says "(4.2), page 31". Without it, no page is said. */
+  pages?: Map<string, string>;
+}
+
 /** What a page needs to know to be written out. */
 export interface RenderContext {
   project: Project;
@@ -30,6 +45,8 @@ export interface RenderContext {
   flat?: boolean;
   /** Told each note as it is written (with where it is, when known), so a preview can list them all. */
   onNote?(words: string): void;
+  /** How a link to another topic is written. Left out where there is nothing to link to. */
+  topicLinks?: TopicLinks;
 }
 
 /** Text made safe to put in HTML. */
@@ -49,7 +66,17 @@ export function noteHtml(ctx: RenderContext, words: string, where?: string): str
   return `<p class="pv-note" data-preview-only="true"><strong>Note for the writer:</strong> ${esc(words)}</p>`;
 }
 
-/** Text with marks as HTML: bold, italic, and a control name (the label of a button or menu, in bold). */
+/** The words of a link to another topic, as a link, with the topic's number (and, in a PDF, its page) after them. A link to a topic that is not there is only its words. */
+function linkHtml(ctx: RenderContext, run: Run, words: string): string {
+  const links = ctx.topicLinks;
+  const number = links && run.topic ? links.number(run.topic) : null;
+  if (!links || !run.topic || number === null) return words;
+  const page = links.pages?.get(run.topic);
+  const after = links.showNumber ? `<span class="pv-ref"> (${esc(number)})${page !== undefined ? `, page ${esc(page)}` : ""}</span>` : "";
+  return `<a class="topic-link" ${links.attrs(run.topic)}>${words}</a>${after}`;
+}
+
+/** Text with marks as HTML: bold, italic, a control name (the label of a button or menu, in bold) and a link to another topic. */
 export function runsHtml(ctx: RenderContext, runs: Run[]): string {
   return runs
     .map((run) => {
@@ -57,6 +84,7 @@ export function runsHtml(ctx: RenderContext, runs: Run[]): string {
       if (run.mark === "bold") return `<strong>${words}</strong>`;
       if (run.mark === "italic") return `<em>${words}</em>`;
       if (run.mark === "control") return `<strong class="control-name">${words}</strong>`;
+      if (run.mark === "link") return linkHtml(ctx, run, words);
       return words;
     })
     .join("");

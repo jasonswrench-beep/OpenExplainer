@@ -5,6 +5,7 @@
 import { consistencyIssues, knownControls } from "./consistency.ts";
 import { failing, kindName, needsAlt, shapeChecks } from "./shapes.ts";
 import { CORE_VARIABLES, numbering, type Picture, type Project, type TreeNode } from "./model.ts";
+import { brokenLinksOf, topicIds } from "./links.ts";
 import { calloutLabel, placedPictureIds, type Block, type Step } from "./page.ts";
 import { plainText } from "./text.ts";
 import { forPaper, MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
@@ -12,7 +13,7 @@ import { forPaper, MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
 export type CheckKind =
   | "picture-alt" | "mark-alt" | "mark-contrast" | "callout-name" | "callout-description"
   | "empty-topic" | "empty-block" | "missing-file" | "picture-unplaced" | "variable-empty" | "variable-unused" | "print-small" | "ai-draft"
-  | "control-name" | "step-verb" | "avoid-word";
+  | "control-name" | "step-verb" | "avoid-word" | "broken-link";
 
 export interface CheckKindInfo {
   id: CheckKind;
@@ -40,6 +41,7 @@ export const CHECK_KINDS: CheckKindInfo[] = [
   { id: "control-name", group: "book", severity: "note", title: "Control names that differ from the name the program showed" },
   { id: "step-verb", group: "book", severity: "note", title: "Steps that start with a verb that does not suit the control" },
   { id: "avoid-word", group: "book", severity: "note", title: "Words from your Words to avoid list" },
+  { id: "broken-link", group: "book", severity: "problem", title: "Links and See also entries that go to a topic that is not in the book" },
 ];
 
 export const kindInfo = (kind: CheckKind): CheckKindInfo => CHECK_KINDS.find((k) => k.id === kind)!;
@@ -114,6 +116,7 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
   const known = knownControls(project);
   const issues: Issue[] = [];
   const add = (issue: Issue) => issues.push(issue);
+  const allIds = topicIds(project.tree);
 
   const visit = (nodes: TreeNode[]) => {
     for (const node of nodes) {
@@ -148,6 +151,12 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
           });
         }
       });
+
+      // A link in the text, or a See also entry, that goes to a topic that is gone. (Deleting a topic turns its links into plain words, so this is only found in a file that was changed another way.)
+      for (const broken of brokenLinksOf(node, allIds)) {
+        const what = broken.words === null ? "A See also entry" : `The link "${broken.words}"`;
+        add({ ...base, key: `broken-link:${node.id}:${broken.topic}:${broken.words ?? "see-also"}`, kind: "broken-link", words: `${what} in "${where}" goes to a topic that is not in the book.`, fix: broken.words === null ? "Open the topic's See also list and choose the topics again." : "Select the linked words and use Link to a topic to choose another topic, or retype them as plain words." });
+      }
 
       // The consistency notes (control names, step verbs, words to avoid) are worked out from the book every time, by rules, with no AI.
       for (const note of consistencyIssues(node, where, known, project.avoidWords)) add(note);

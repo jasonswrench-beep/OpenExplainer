@@ -64,6 +64,10 @@ p { margin: 0.4em 0; orphans: 3; widows: 3; }
 .pv-box-power-tip { border-left-color: #5a2a82; }
 .pv-box-time-saver { border-left-color: #1b6b2f; }
 .pv-box-new-feature { border-left-color: #00606b; }
+.topic-link { color: #0b57d0; text-decoration: underline; }
+.pv-see-also { margin: 0.9em 0; font-family: "Segoe UI", Calibri, Arial, sans-serif; font-size: 10.5pt; break-inside: avoid; }
+.pv-see-also h2, .pv-see-also h3, .pv-see-also h4, .pv-see-also h5, .pv-see-also h6 { font-size: 11pt; margin: 0.4em 0 0.2em; }
+.pv-see-also ul { margin: 0.2em 0; padding-left: 1.4em; }
 .pv-missing { font-family: "Segoe UI", Calibri, Arial, sans-serif; color: #8a1c1c; font-weight: 600; }
 .pv-index-groups { column-count: 2; column-gap: 0.4in; font-size: 10pt; }
 .pv-index-group { break-inside: avoid-column; margin: 0 0 0.6em; }

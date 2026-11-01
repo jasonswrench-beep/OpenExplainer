@@ -29,7 +29,7 @@ export function escapeMarkdown(text: string): string {
 }
 
 /** Text with marks as Markdown. `lineStart` says the first words are at the start of a line, so they are escaped for that. */
-function runsMarkdown(runs: Run[], variables: Record<string, string>, lineStart = false): string {
+function runsMarkdown(runs: Run[], variables: Record<string, string>, lineStart = false, numbers?: Map<string, string>): string {
   return runs
     .map((run, i) => {
       const filled = fillVariables(run.text, variables);
@@ -37,6 +37,8 @@ function runsMarkdown(runs: Run[], variables: Record<string, string>, lineStart 
       if (words.trim() === "") return words;
       if (run.mark === "bold" || run.mark === "control") return `**${words}**`;
       if (run.mark === "italic") return `*${words}*`;
+      // A link to another topic is its words and the topic's number: a Markdown reader has no page to jump to.
+      if (run.mark === "link" && run.topic && numbers?.has(run.topic)) return `${words} (${numbers.get(run.topic)})`;
       return words;
     })
     .join("");
@@ -57,23 +59,23 @@ function pictureMarkdown(project: Project, picture: Picture, flat: Map<string, F
   return [`![${alt}](${made.path})`, ...(list.length ? ["", ...list] : [])].join("\n");
 }
 
-function blockMarkdown(project: Project, node: TreeNode, block: Block, level: number, flat: Map<string, FlatPicture>): string {
+function blockMarkdown(project: Project, node: TreeNode, block: Block, level: number, flat: Map<string, FlatPicture>, numbers: Map<string, string>): string {
   const v = project.variables;
   switch (block.type) {
-    case "paragraph": return runsMarkdown(block.text, v, true);
+    case "paragraph": return runsMarkdown(block.text, v, true, numbers);
     case "heading": return block.text.trim() ? `${"#".repeat(Math.min(6, level + 1))} ${escapeInline(one(fillVariables(block.text, v)))}` : "";
     case "picture": {
       const picture = node.pictures.find((p) => p.id === block.pictureId);
       return picture ? pictureMarkdown(project, picture, flat) : "";
     }
-    case "callout": return `> **${calloutLabel(block.kind)}.** ${runsMarkdown(block.text, v)}`;
+    case "callout": return `> **${calloutLabel(block.kind)}.** ${runsMarkdown(block.text, v, false, numbers)}`;
     case "procedure":
       return block.steps
         .map((step, i) => {
-          const lines = [`${i + 1}. ${runsMarkdown(step.text, v)}`];
+          const lines = [`${i + 1}. ${runsMarkdown(step.text, v, false, numbers)}`];
           const picture = step.pictureId ? node.pictures.find((p) => p.id === step.pictureId) : undefined;
           if (picture) lines.push("", ...pictureMarkdown(project, picture, flat).split("\n").map((l) => (l ? `   ${l}` : l)));
-          if (step.result && step.result.length) lines.push("", `   *Result:* ${runsMarkdown(step.result, v)}`);
+          if (step.result && step.result.length) lines.push("", `   *Result:* ${runsMarkdown(step.result, v, false, numbers)}`);
           return lines.join("\n");
         })
         .join("\n\n");
@@ -88,9 +90,14 @@ function topicMarkdown(project: Project, node: TreeNode, depth: number, numbers:
   const level = Math.min(6, depth + 2);
   const out = [`${"#".repeat(level)} ${escapeInline(`${numbers.get(node.id)} ${one(fillVariables(node.title, project.variables))}`)}`];
   for (const block of node.page?.blocks ?? []) {
-    const text = blockMarkdown(project, node, block, level, flat);
+    const text = blockMarkdown(project, node, block, level, flat, numbers);
     if (text) out.push(text);
   }
+  const titles = new Map<string, string>();
+  const collect = (nodes: TreeNode[]) => nodes.forEach((n) => { titles.set(n.id, n.title); collect(n.children); });
+  collect(project.tree);
+  const related = (node.seeAlso ?? []).filter((id) => titles.has(id) && numbers.has(id));
+  if (related.length > 0) out.push("**See also**", related.map((id) => `- ${escapeInline(`${numbers.get(id)} ${one(fillVariables(titles.get(id)!, project.variables))}`)}`).join("\n"));
   for (const child of node.children) out.push(...topicMarkdown(project, child, depth + 1, numbers, flat));
   return out;
 }

@@ -9,7 +9,7 @@ A saved project is ONE file named after the project, such as `Test1.openexplaine
 `src/project/package.ts`. Any zip program can open it for inspection. Inside it, the current format holds two files, a page file for each topic that has a page, a file of drafts when any are waiting, and a picture folder:
 
 - `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others), `highlight` (the look of the click circle, see "The click highlight"), `zoom`, `styles`, `checks`, `guides` (see "Short guides") and `paper` (see "Paper settings") and `writingStyle` and `avoidWords` (see "Drafts and writing style"; each left out while empty).
-- `structure.json`: `version` and `tree`, the chapters and topics (each with its status, pictures and, if it has any, its index terms, see "The book index").
+- `structure.json`: `version` and `tree`, the chapters and topics (each with its status, pictures and, if it has any, its index terms, see "The book index", and its See also list, see "Links between topics").
 - `topics/<topic id>.json`: the page of a topic, only for a topic that has something on its page (see "The page").
 - `drafts.json`: the AI drafts waiting for the author, `{ version, drafts }`, only when there is at least one (see "Drafts and writing style").
 - `images/`: one file per picture, named `images/<picture id>.png` or `.jpg`. Only pictures a topic still uses are saved.
@@ -79,7 +79,7 @@ Every block has an `id` (permanent, like a node's) and a `type`:
 or box exactly as it appears on screen, shown in bold in print). A run has at most one mark and neighbours with the same mark are joined. Variables
 such as `{{PRODUCT}}` are ordinary text and are filled in on export. In an edit box the same text is typed as `**bold**`, `*italic*` and
 `[[Control name]]`; a backslash makes the next `*`, `[`, `]` or `\` an ordinary letter, and a marker with no partner, or with a space against it,
-stays ordinary text (`src/project/text.ts`).
+stays ordinary text (`src/project/text.ts`). A fourth mark, `link` (format version 17), is words that go to another topic: see "Links between topics".
 
 Rules enforced in code (`src/project/page.ts`), when a project is opened and when it is saved:
 - Only blocks of the kinds above are kept; anything else is dropped. A callout of an unknown kind becomes `design-tip`. Two blocks with one id get
@@ -179,6 +179,18 @@ that is not one becomes the starting one; a repeated id gets a new one; and a pi
 **copying** its colours onto a mark (an arrow takes the outline colour; a marker takes the fill, or the outline when there is none; a text box takes all three; a rectangle takes the fill and
 the outline), so a mark never depends on a style and every picture is complete by itself. A name is at most 40 letters and no two styles have the same name, capitals aside. A style's own
 colours get the same contrast check as a mark's (its words on its fill). Cleaned when a project is opened and saved.
+
+## Links between topics
+
+Format version 17. **A link** is a run with `mark: "link"` and `topic`, the id of the topic it goes to: `{ text: "how to print", mark: "link", topic: "nxy12" }`. It holds the id, never the number, so it still goes to the right
+place when chapters are added, moved or renumbered. In an edit box it is typed `[how to print](#nxy12)`; the words must not be empty or start or end with a space, the id is letters, digits, `_` and `-` (at most 64), and a
+bracket with a backslash before it is an ordinary letter. A link holds only words (no other mark inside it), and two links in a row to different topics stay two runs. A link with no good topic id is read as its plain words.
+Links are in a paragraph, a boxed note, and a step's words and result. **A See also list** is `seeAlso` on a topic in `structure.json`: a list of other topics' ids, each once, never the topic itself, at most 12, left out when empty.
+It is cleaned when a project is opened and saved: an id that is not a topic of the book, a repeat, itself, and anything over the most are dropped.
+Deleting a topic turns every link to it (and to the topics under it) into its plain words and takes it off every See also list, so nothing is left pointing at nothing (`src/project/links.ts`). The book check still lists a
+link or an entry that goes nowhere (`broken-link:<topic id>:<id it goes to>:<words>`), which can only come from a file changed another way. How a link comes out: in the print preview and the PDF it is a link to the topic's
+heading followed by the topic's number in brackets, and in a PDF also `, page N` (found by printing once, as the contents' page numbers are); in Word it is a link to the topic's heading followed by the number (no page, because
+only Word knows the pages); on the help site it is a link to the topic's page; in Markdown it is the words and the number; in the JSON export the runs and `seeAlso` are kept as they are; in a short guide it is only the words.
 
 ## The book check
 
@@ -311,6 +323,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 17: words in a page can be a link to another topic (the `link` mark with the topic's `topic` id) and a topic can have a See also list (`seeAlso`). A version 16 project upgrades with neither. A copy of OpenExplainer that only knows version 16 refuses a version 17 project, so it can never open one and save it without the links.
 - Version 16: `drafts.json` can hold two more kinds of draft, the opener or summary of a chapter (`chapter-text`) and a suggested boxed note (`box`), and the project keeps a list of words to avoid (`avoidWords`). A version 15 project upgrades with an empty list. A copy of OpenExplainer that only knows version 15 refuses a version 16 project, so it can never open one and drop the drafts or the list.
 - Version 15: `drafts.json` can hold a second kind of draft, a numbered procedure made from a topic's click pictures. A version 14 project upgrades unchanged. A copy of OpenExplainer that only knows version 14 refuses a version 15 project, so it can never open one and drop the procedure drafts.
 - Version 14: the project keeps writing-style notes for the AI (`writingStyle`), and AI drafts wait in their own file (`drafts.json`). A version 13 project upgrades with no notes and no drafts. A copy of OpenExplainer that only knows version 13 refuses a version 14 project, so it can never open one and save it without the drafts.

@@ -9,7 +9,7 @@ import {
   addBlock, blockLabel, BLOCK_TYPES, CALLOUT_KINDS, calloutLabel, makeBlock, makeStep, moveBlock, moveItem, removeBlock,
   type Block, type BlockType, type CalloutBlock, type CalloutKind, type HeadingBlock, type ParagraphBlock, type PictureBlock, type ProcedureBlock, type Step,
 } from "./project/page.ts";
-import { applyMark, formatMarks, MARKS, parseMarks, plainText, type Mark, type Run } from "./project/text.ts";
+import { applyMark, formatMarks, linkRun, MARKS, parseMarks, plainText, type Mark, type Run } from "./project/text.ts";
 
 export interface PageEditorDeps {
   /** Where the blocks are drawn. */
@@ -31,6 +31,10 @@ export interface PageEditorDeps {
   announce(text: string): void;
   /** The block that has the keyboard changed, or there is none. */
   selectionChanged(): void;
+  /** Asks which topic a link should go to. Returns its id, or `null` if the author cancels. */
+  chooseTopic(): Promise<string | null>;
+  /** A topic's title, for the words of a link made with nothing selected. */
+  topicTitle(id: string): string;
 }
 
 export interface SelectedBlock {
@@ -63,8 +67,9 @@ function drawRuns(into: HTMLElement, runs: Run[]) {
   into.replaceChildren();
   for (const run of runs) {
     if (!run.mark) { into.append(run.text); continue; }
-    const el = document.createElement(run.mark === "italic" ? "em" : "strong");
+    const el = document.createElement(run.mark === "italic" ? "em" : run.mark === "link" ? "span" : "strong");
     if (run.mark === "control") el.className = "control-name";
+    if (run.mark === "link") el.className = "topic-link";
     el.textContent = run.text;
     into.append(el);
   }
@@ -149,6 +154,25 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
       });
       tools.append(button, " ");
     }
+    const linkButton = document.createElement("button");
+    linkButton.type = "button";
+    linkButton.textContent = "Link to a topic";
+    linkButton.dataset.role = "mark-link";
+    linkButton.addEventListener("click", async () => {
+      const start = area.selectionStart;
+      const end = area.selectionEnd;
+      const picked = area.value.slice(start, end).trim();
+      const id = await deps.chooseTopic();
+      if (!id) { area.focus(); return deps.announce("No link was made."); }
+      const made = formatMarks([linkRun(picked || deps.topicTitle(id), id)]);
+      area.value = area.value.slice(0, start) + made + area.value.slice(end);
+      const after = start + made.length;
+      area.setSelectionRange(after, after);
+      area.focus();
+      changed();
+      deps.announce(`Link to ${deps.topicTitle(id)} added${picked ? " round the selected words" : ""}.`);
+    });
+    tools.append(linkButton, " ");
     wrap.append(lab, document.createElement("br"), area, tools, preview);
     return wrap;
   }
@@ -367,7 +391,7 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
       const help = document.createElement("p");
       help.id = helpId;
       help.className = "help";
-      help.textContent = "Marks: **bold**, *italic*, [[Control name]]. Select words and press a button, or type the marks. A backslash before a star or bracket keeps it as an ordinary letter.";
+      help.textContent = "Marks: **bold**, *italic*, [[Control name]], and [words](#topic-id) for a link to another topic. Select words and press a button, or type the marks. Link to a topic asks which topic and types the link for you. A backslash before a star or bracket keeps it as an ordinary letter.";
       return help;
     };
     if (block.type === "paragraph") {

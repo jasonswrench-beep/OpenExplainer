@@ -2,6 +2,7 @@
 // describe the callouts on its pictures, set index terms, check the book, save, and export in any kind. Each does what its description says and answers in plain words; a call that cannot be
 // done says why, and changes nothing. Every change is saved at once (the assistant may never think to). The capture tools are in `src/mcp/capture-tools.ts`.
 import { buildBookIndex, indexSummary, setTermLines, updateBookIndex } from "../project/book-index.ts";
+import { countLinksTo, linkLossWords, linksInBlocks, setSeeAlso, subtreeIds, topicIds } from "../project/links.ts";
 import { addCallout, addCalloutFromClick, clipToPicture, letterFor, MOST_TEXT, placeMarker, removeCallout, type Callout } from "../project/callouts.ts";
 import { checkProject, splitIssues, summaryWords } from "../project/checks.ts";
 import { avoidWordsFromLines, MOST_AVOID_WORDS } from "../project/avoid-words.ts";
@@ -37,6 +38,7 @@ export const INSTRUCTIONS =
   "To document a program: list_windows, capture_window for a screen, or start_click_capture (naming the window), then use the program yourself, then stop_click_capture. Each click becomes a picture with a note of what was clicked; " +
   "view_picture shows you a picture and get_topic lists them. Capture is one window at a time. " +
   "Name and describe the callouts on a picture with describe_picture, and give every picture a plain description (alt_text) for readers who cannot see it. Never write about a control that is not in the capture. " +
+  "[words](#topic-id) in text is a link to another topic and set_see_also lists topics to read next. " +
   "A window, region or brought-in picture (import_picture) has no click, so add_callout puts a callout round a part of it you name in pixels, and delete_callout takes one off. move_topic moves a chapter or topic, with its pictures, to another place. " +
   "set_picture_view crops a tall or wide picture to the part that matters; set_book_settings sets the zoom, the click circle, the writing style and the words to avoid; update_guide and delete_guide change guides. " +
   "Every change is saved as it is made. When the book is ready, run check_book, update_index, and export_book (help-site, json, markdown, word, pdf, guide-word, guide-pdf). " +
@@ -64,6 +66,13 @@ function topic(project: Project, id: string): TreeNode {
   const node = findNode(project.tree, id);
   if (!node) throw new Error(`There is no topic with the id "${id}". get_outline lists the topics and their ids.`);
   return node;
+}
+
+/** Refuses blocks with a link to a topic that is not in the book, saying which, so nothing is changed. */
+function refuseUnknownLinks(project: Project, blocks: Parameters<typeof linksInBlocks>[0]): void {
+  const ids = topicIds(project.tree);
+  const bad = linksInBlocks(blocks).find((l) => !ids.has(l.topic));
+  if (bad) throw new Error(`The link "${bad.words}" goes to a topic that is not in the book (id ${bad.topic}). get_outline lists the topics and their ids. Write a link as [words](#topic-id).`);
 }
 
 function pictureOf(node: TreeNode, id: string): Picture {
@@ -213,9 +222,11 @@ export function createTools(deps: ToolDeps): ToolDef[] {
       handler: changes((args, project) => {
         if (args.confirm !== true) throw new Error("Nothing was deleted. Send confirm: true to delete the topic and everything under it.");
         const node = topic(project, string(args, "topic_id"));
+        const gone = subtreeIds(node);
+        const loss = linkLossWords(countLinksTo(project.tree, gone));
         removeNode(project.tree, node.id);
         project.guides = project.guides.map((g) => ({ ...g, tasks: g.tasks.filter((id) => id !== node.id) }));
-        return `Deleted "${node.title}" and what was under it.`;
+        return `Deleted "${node.title}" and what was under it.${loss ? ` Elsewhere in the book, ${loss}` : ""}`;
       }),
     },
     {
@@ -240,7 +251,9 @@ export function createTools(deps: ToolDeps): ToolDef[] {
       handler: changes((args, project) => {
         const node = topic(project, string(args, "topic_id"));
         const ids = new Set(node.pictures.map((p) => p.id));
-        node.page = pageFromBlocks(blocksFromJson(args.blocks, ids), ids);
+        const written = blocksFromJson(args.blocks, ids);
+        refuseUnknownLinks(project, written);
+        node.page = pageFromBlocks(written, ids);
         if (node.page.blocks.length === 0) delete node.page;
         return `The page of "${node.title}" now has ${node.page?.blocks.length ?? 0} block(s).`;
       }),
@@ -253,6 +266,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         const node = topic(project, string(args, "topic_id"));
         const ids = new Set(node.pictures.map((p) => p.id));
         const added = blocksFromJson(args.blocks, ids);
+        refuseUnknownLinks(project, added);
         node.page = pageFromBlocks([...(node.page?.blocks ?? []), ...added], ids);
         return `Added ${added.length} block(s); the page of "${node.title}" now has ${node.page.blocks.length}.`;
       }),
@@ -336,6 +350,17 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         };
         addCallout(picture, callout);
         return `Added callout ${letterFor((picture.callouts?.length ?? 1) - 1)} (id ${callout.id}) round the part from ${target.x}, ${target.y}, ${target.width} wide and ${target.height} high.`;
+      }),
+    },
+    {
+      name: "set_see_also",
+      description: "Sets a topic's See also list: the other topics worth reading next, listed under it in the book and the help site. It replaces the list. An empty list clears it. Use the topic ids from get_outline.",
+      inputSchema: schema({ topic_id: str("The topic's id."), topic_ids: { type: "array", items: { type: "string" }, description: "The ids of the topics to list, in order, up to 12. None of them can be the topic itself." } }, ["topic_id", "topic_ids"]),
+      handler: changes((args, project) => {
+        const node = topic(project, string(args, "topic_id"));
+        if (!Array.isArray(args.topic_ids) || args.topic_ids.some((id) => typeof id !== "string")) throw new Error("topic_ids must be a list of topic ids.");
+        const count = setSeeAlso(project.tree, node.id, args.topic_ids as string[]);
+        return count === 0 ? `The See also list of "${node.title}" is now empty.` : `"${node.title}" now has a See also list of ${count} topic(s).`;
       }),
     },
     {
