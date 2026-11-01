@@ -5,6 +5,7 @@ import type { Assets } from "../project/package.ts";
 import type { Project } from "../project/model.ts";
 import { packDocx } from "./docx.ts";
 import { packEpub } from "./epub.ts";
+import { buildXliff, XLIFF_EXTENSION } from "../translate/xliff.ts";
 import { packGuideDocx } from "./guide-docx.ts";
 import { buildHelpSite } from "./help-site.ts";
 import { packJsonExport } from "./json.ts";
@@ -17,14 +18,14 @@ import { expandOutput } from "../project/snippets.ts";
 /** The key of the logo among the flat pictures of an output. */
 export const LOGO_KEY = "@logo";
 
-export type ExportKind = "help-site" | "json" | "markdown" | "word" | "word-review" | "epub" | "pdf" | "guide-word" | "guide-pdf";
+export type ExportKind = "help-site" | "json" | "markdown" | "word" | "word-review" | "epub" | "xliff" | "pdf" | "guide-word" | "guide-pdf";
 
 /** The kinds that export one guide. */
 export const GUIDE_KINDS: ExportKind[] = ["guide-word", "guide-pdf"];
 
 /** What file a kind makes: a zip to unzip, a Word file, an e-book or a PDF. */
-export const EXPORT_EXTENSION: Record<ExportKind, "zip" | "docx" | "epub" | "pdf"> = {
-  "help-site": "zip", json: "zip", markdown: "zip", word: "docx", "word-review": "docx", epub: "epub", pdf: "pdf", "guide-word": "docx", "guide-pdf": "pdf",
+export const EXPORT_EXTENSION: Record<ExportKind, "zip" | "docx" | "epub" | "xlf" | "pdf"> = {
+  "help-site": "zip", json: "zip", markdown: "zip", word: "docx", "word-review": "docx", epub: "epub", xliff: XLIFF_EXTENSION, pdf: "pdf", "guide-word": "docx", "guide-pdf": "pdf",
 };
 
 export interface MakeOptions {
@@ -36,13 +37,15 @@ export interface MakeOptions {
   flatten: Flattener;
   /** When it was made, for the JSON export. */
   now?: string;
+  /** For the translation file (xliff): the language to translate into, as a tag such as fr or pt-BR. */
+  language?: string;
   /** For every kind but JSON: the id of the target to make it for (see src/project/snippets.ts). Without one, nothing is left out. JSON always holds the whole project. */
   targetId?: string;
 }
 
 export interface MadeExport {
   bytes: Uint8Array;
-  extension: "zip" | "docx" | "epub" | "pdf";
+  extension: "zip" | "docx" | "epub" | "xlf" | "pdf";
   /** What could not be included, in plain words, for the person to read after. */
   notes: string[];
 }
@@ -50,7 +53,8 @@ export interface MadeExport {
 /** Makes an export. Throws an error whose words say why, such as a guide that is not in the project. Nothing in the project is changed. */
 export async function makeExport(whole: Project, assets: Assets, kind: ExportKind, options: MakeOptions): Promise<MadeExport> {
   // Every output but JSON sees the book with its snippets written out and, for a target, what the target hides left out. JSON is the whole project, as it is.
-  const project = kind === "json" ? whole : expandOutput(whole, options.targetId);
+  // JSON and the translation file hold the whole book as it is (snippets as snippets), not an output of it.
+  const project = kind === "json" || kind === "xliff" ? whole : expandOutput(whole, options.targetId);
   const guide = GUIDE_KINDS.includes(kind) ? project.guides.find((g) => g.id === options.guideId) : undefined;
   if (GUIDE_KINDS.includes(kind) && !guide) throw new Error("There is no guide to export. Make one first (the guides are listed by list_guides in MCP, or under Guides in the app).");
   const notes: string[] = [];
@@ -59,6 +63,12 @@ export async function makeExport(whole: Project, assets: Assets, kind: ExportKin
     const made = packJsonExport(project, assets, { comments: options.comments === true, now: options.now });
     notes.push(...made.missing.map((file) => `The picture file ${file} is missing from the project, so it is not in the export.`));
     return { bytes: made.bytes, extension, notes };
+  }
+  if (kind === "xliff") {
+    if (!options.language) throw new Error("Say which language to translate into, such as fr or pt-BR.");
+    const made = buildXliff(project, options.language, { now: options.now });
+    notes.push(`The file holds ${made.units} pieces of text, about ${made.words} words, for the translator.`);
+    return { bytes: new TextEncoder().encode(made.xml), extension, notes };
   }
   // The printed outputs (Word and the PDF) may zoom in on a picture that would print too small; the help site and Markdown are not for paper.
   const flat = guide ? await flattenGuide(project, guide, assets, options.flatten) : await flattenPlaced(project, assets, "book", options.flatten, { paper: kind === "word" || kind === "word-review" || kind === "pdf" });

@@ -15,7 +15,9 @@ import { normalizeHex } from "../project/contrast.ts";
 import { newId } from "../project/ids.ts";
 import { addNode, cleanVariableName, createProject, findNode, moveNode, numbering, removeNode, setPictureView, STATUSES, TEMPLATES, type Picture, type Project, type Status, type TreeNode } from "../project/model.ts";
 import { ZOOM_LIMITS, viewWords } from "../project/views.ts";
-import { fileNameFor } from "../project/package.ts";
+import { fileNameFor, packProject } from "../project/package.ts";
+import { translatedCopy } from "../translate/xliff.ts";
+import { replacePictureFile } from "../project/replace-picture.ts";
 import { EXPORT_EXTENSION, type ExportKind, type MadeExport } from "../export/make.ts";
 import { BLOCK_HELP, blocksFromJson, pageFromBlocks, pictureToJson, topicToJson, type ReuseLookup, type ReuseNames } from "./blocks.ts";
 import { conditionIds, conditionNames, deleteSnippet, setConditionNames, setSnippet, setTargetList, snippetFromText, snippetToText, snippetUses } from "../project/snippets.ts";
@@ -26,6 +28,7 @@ import { unresolvedIn } from "../project/comment-list.ts";
 import { setResolved } from "../project/comments.ts";
 import { whenWords } from "../project/history.ts";
 import { addSnapshot, compareWithSnapshot, comparisonLines, deleteSnapshot, findSnapshot, renameSnapshot, restoreTopic, restoreWhole, snapshotWords, takeSnapshot } from "../project/snapshots.ts";
+import { languageWords, tidyLanguage } from "../project/language.ts";
 import { keepPicture } from "./capture-tools.ts";
 import { baseName, folderOf, projectFile, resolveInside, PROJECT_EXTENSION } from "./paths.ts";
 import { failed, text, type ToolDef, type ToolResult } from "./protocol.ts";
@@ -34,7 +37,7 @@ import type { Session } from "./session.ts";
 export interface ToolDeps {
   session: Session;
   /** Makes an export of the open project (src/export/make.ts, with the app's drawing and printing). */
-  exporter(kind: ExportKind, options: { guideId?: string; comments?: boolean; targetId?: string }): Promise<MadeExport>;
+  exporter(kind: ExportKind, options: { guideId?: string; comments?: boolean; targetId?: string; language?: string }): Promise<MadeExport>;
 }
 
 type Args = Record<string, unknown>;
@@ -685,6 +688,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
             page_size: { type: "string", enum: PAGE_SIZES.map((p) => p.id), description: "The paper size of the PDF and the Word file." },
           },
         },
+        language: str("The language the book is written in, as a code such as en, fr or pt-BR. The PDF, Word file, e-book and help site say it, so a screen reader chooses the right voice."),
         writing_style: str(`Notes for the AI about how the book should read, up to ${MOST_STYLE} letters. Empty text clears them.`),
         words_to_avoid: { type: "array", items: { type: "string" }, description: `Words or phrases the book should not use, up to ${MOST_AVOID_WORDS}: "file => document", or just "file". An empty list clears it.` },
       }),
@@ -730,6 +734,12 @@ export function createTools(deps: ToolDeps): ToolDef[] {
           }
           lookNext = cleanLook(next);
         }
+        let language: string | undefined;
+        if (args.language !== undefined) {
+          const tag = tidyLanguage(args.language);
+          if (!tag) throw new Error("language must be a language code such as en, fr or pt-BR.");
+          language = tag;
+        }
         let style: string | undefined;
         if (args.writing_style !== undefined) {
           if (typeof args.writing_style !== "string") throw new Error("writing_style must be text.");
@@ -746,6 +756,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         if (zoomGuide !== undefined) { project.zoom.guide.size = zoomGuide; done.push("zoom for a quick guide"); }
         if (typeof args.auto_zoom_for_print === "boolean") { project.paper.autoZoom = args.auto_zoom_for_print; done.push("automatic zoom for print"); }
         if (lookNext) { project.look = lookNext; done.push(`look (${lookWords(lookNext)})`); }
+        if (language !== undefined) { project.language = language; done.push(`language (${languageWords(language)})`); }
         for (const [kind, key, next] of circles) { Object.assign(project.highlight[kind], next); done.push(key.replace(/_/g, " ")); }
         if (style !== undefined) { project.writingStyle = style.replace(/\r\n?/g, "\n").trim(); done.push("writing style"); }
         if (avoid !== undefined) { project.avoidWords = avoid; done.push("words to avoid"); }
@@ -777,6 +788,45 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         }
         return text(`Saved to ${await session.save()}.`);
       },
+    },
+    {
+      name: "import_translation",
+      description:
+        "Reads a translation (an XLIFF 1.2 file from a translation program, made from export_book kind xliff) and saves a COPY of the book in the language it was translated into, as a new project file in the MCP folder. The open book is not changed and stays open. " +
+        "Pieces of text with no translation stay in the original language, and the answer says how many. The copy's pictures are the original's: open the copy (open_project) and use replace_picture to put in pictures of the same size that show the translated program. It starts with no AI drafts and no snapshots.",
+      inputSchema: schema({ file: str("The .xlf (or .xliff) file, inside the MCP folder."), save_as: str("The name of the new project file, inside the MCP folder. Left out, it is the translated book's name.") }, ["file"]),
+      handler: async (args) => {
+        const project = session.require();
+        const path = resolveInside(session.settings.folder, string(args, "file"));
+        if (!path) throw new Error("That file is not inside the folder MCP may use.");
+        if (!(await session.files.exists(path))) throw new Error(`There is no file at ${path}.`);
+        const bytes = await session.files.read(path);
+        if (bytes.length > MOST_WORD_BYTES) throw new Error(`That file is ${Math.round(bytes.length / 1048576)} MB, more than a translation file can be.`);
+        const result = translatedCopy(project, new TextDecoder().decode(bytes));
+        const target = projectFile(session.settings.folder, optionalString(args, "save_as") ?? fileNameFor(result.project.name));
+        if (!target) throw new Error("save_as is not inside the folder MCP may use.");
+        if (await session.files.exists(target)) throw new Error(`There is already a project at ${target}, and it was not replaced. Give save_as a different name.`);
+        await session.files.makeFolder(folderOf(target));
+        await session.files.write(target, packProject(result.project, session.assets));
+        return text(`Saved the copy "${result.project.name}" (language ${result.language}) at ${target}. The book that is open was not changed; open_project opens the copy.\n${result.report.join("\n")}`);
+      },
+    },
+    {
+      name: "replace_picture",
+      description:
+        "Puts another PNG or JPEG file from the MCP folder in the place of a picture, for a book in another language or a program that looks different now. The picture keeps its id, description, callouts, marks, view and click, so the new file must be exactly the same size in pixels; one that is not is refused with both sizes.",
+      inputSchema: schema({ topic_id: str("The topic's id."), picture_id: str("The picture's id."), file: str("The new picture file, inside the MCP folder.") }, ["topic_id", "picture_id", "file"]),
+      handler: changes(async (args, project) => {
+        const picture = pictureOf(topic(project, string(args, "topic_id")), string(args, "picture_id"));
+        const path = resolveInside(session.settings.folder, string(args, "file"));
+        if (!path) throw new Error("That file is not inside the folder MCP may use.");
+        if (!(await session.files.exists(path))) throw new Error(`There is no file at ${path}.`);
+        const bytes = await session.files.read(path);
+        if (bytes.length > MOST_PICTURE_BYTES) throw new Error(`That file is ${Math.round(bytes.length / 1048576)} MB. A picture can be up to ${MOST_PICTURE_BYTES / 1048576} MB.`);
+        const done = replacePictureFile(picture, session.assets, bytes, baseName(path));
+        if (!done.ok) throw new Error(done.message);
+        return `The picture now shows ${baseName(path)}. Its description, callouts and marks are as they were.`;
+      }),
     },
     {
       name: "list_comments",
@@ -886,11 +936,12 @@ export function createTools(deps: ToolDeps): ToolDef[] {
     {
       name: "export_book",
       description:
-        "Makes an export and saves it in the MCP folder. kind: help-site, json and markdown make a zip file; word, word-review (a Word file for reviewers, with the open comments as Word comments) and guide-word make a .docx; epub makes an e-book; pdf and guide-pdf make a PDF. The guide kinds need guide_id from list_guides. The project is not changed.",
+        "Makes an export and saves it in the MCP folder. kind: help-site, json and markdown make a zip file; word, word-review (a Word file for reviewers, with the open comments as Word comments) and guide-word make a .docx; epub makes an e-book; xliff (needs language) makes an XLIFF 1.2 translation file (.xlf) of every piece of text; pdf and guide-pdf make a PDF. The guide kinds need guide_id from list_guides. The project is not changed.",
       inputSchema: schema({
         kind: { type: "string", enum: Object.keys(EXPORT_EXTENSION), description: "The kind of export." },
-        file: str("The file to make, inside the MCP folder. Its ending (.zip, .docx, .epub or .pdf) is added if left off."), guide_id: str("For a guide kind: which guide."),
+        file: str("The file to make, inside the MCP folder. Its ending (.zip, .docx, .epub, .xlf or .pdf) is added if left off."), guide_id: str("For a guide kind: which guide."),
         include_comments: { type: "boolean", description: "For json: include the working comments." },
+        language: str("For xliff: the language to translate into, such as fr or pt-BR."),
         target: str("For every kind but json: the name of a target (set_targets) to make it for. Content with a condition that target hides is left out. Without it nothing is left out."),
       }, ["kind", "file"]),
       handler: async (args) => {
@@ -905,7 +956,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         const project = session.require();
         const target = targetName ? project.targets.find((t) => t.name.toLowerCase() === targetName.trim().toLowerCase()) : undefined;
         if (targetName && !target) throw new Error(`There is no target called "${targetName}" (${project.targets.map((t) => t.name).join(", ") || "none have been made; set_targets makes them"}).`);
-        const made = await deps.exporter(kind, { guideId: optionalString(args, "guide_id"), comments: args.include_comments === true, ...(target ? { targetId: target.id } : {}) });
+        const made = await deps.exporter(kind, { guideId: optionalString(args, "guide_id"), ...(optionalString(args, "language") ? { language: optionalString(args, "language") } : {}), comments: args.include_comments === true, ...(target ? { targetId: target.id } : {}) });
         await session.files.makeFolder(folderOf(path));
         await session.files.write(path, made.bytes);
         return text(`Made the ${kind} export: ${path} (${made.bytes.length} bytes, ${baseName(path)}).${made.notes.length ? `\nNot everything could be included:\n${made.notes.join("\n")}` : ""}`);

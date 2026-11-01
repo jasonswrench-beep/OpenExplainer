@@ -8,7 +8,7 @@ A saved project is ONE file named after the project, such as `Test1.openexplaine
 (stored without compression, so pictures are not compressed twice), written and read by `src/project/zip.ts` and
 `src/project/package.ts`. Any zip program can open it for inspection. Inside it, the current format holds two files, a page file for each topic that has a page, a file of drafts when any are waiting, and a picture folder:
 
-- `project.json`: `version`, `name`, `template`, `variables` (PRODUCT, VERSION, COMPANY and any others), `highlight` (the look of the click circle, see "The click highlight"), `zoom`, `styles`, `checks`, `guides` (see "Short guides") and `paper` (see "Paper settings") and `writingStyle` and `avoidWords` (see "Drafts and writing style"; each left out while empty).
+- `project.json`: `version`, `name`, `template`, `language` (see "The language of the book"), `variables` (PRODUCT, VERSION, COMPANY and any others), `highlight` (the look of the click circle, see "The click highlight"), `zoom`, `styles`, `checks`, `guides` (see "Short guides") and `paper` (see "Paper settings") and `writingStyle` and `avoidWords` (see "Drafts and writing style"; each left out while empty).
 - `structure.json`: `version` and `tree`, the chapters and topics (each with its status, pictures and, if it has any, its index terms, see "The book index", and its See also list, see "Links between topics").
 - `topics/<topic id>.json`: the page of a topic, only for a topic that has something on its page (see "The page").
 - `drafts.json`: the AI drafts waiting for the author, `{ version, drafts }`, only when there is at least one (see "Drafts and writing style").
@@ -181,6 +181,10 @@ that is not one becomes the starting one; a repeated id gets a new one; and a pi
 the outline), so a mark never depends on a style and every picture is complete by itself. A name is at most 40 letters and no two styles have the same name, capitals aside. A style's own
 colours get the same contrast check as a mark's (its words on its fill). Cleaned when a project is opened and saved.
 
+## The language of the book
+
+Format version 21 (`src/project/language.ts`). `project.json` has `language`, a language tag for the language the book is written in: a 2 or 3 letter language, then optional parts of 1 to 8 letters or digits divided by hyphens (`en`, `fr`, `pt-BR`, `zh-Hant`, `es-419`), at most 35 letters. Cleaned when a project is opened and saved: underscores become hyphens, the language is lower case, a 4 letter script is Title case, a 2 letter region is upper case; anything that is not a tag becomes `en`. The tag is not looked up in a list, so a rare language can be used. The outputs say it so a screen reader chooses its voice: `<html lang>` in the help site, the e-book (also `dc:language` and the package's `xml:lang`) and the PDF, and `w:lang` and `dc:language` in Word (plain `en` is written `en-US`, as the Word export always did). A translated copy of a book (see `docs/exports.md`, "Translation") has the language it was translated into. A project from before version 21 is English.
+
 ## Snapshots
 
 Format version 20 (`src/project/history.ts`, `src/project/snapshots.ts`). A snapshot is a dated copy of the whole book kept inside the project file, so there is a way back from a bad edit. A project holds up to 20, oldest first (`project.history` in memory).
@@ -344,6 +348,7 @@ A project saved by a newer version is refused with a message asking the author t
 
 - Version 1: chapters, topics, status, variables.
 - Version 2: every node can hold pictures. A version 1 project upgrades with empty picture lists.
+- Version 21: the project keeps the language the book is written in (`language` in `project.json`). A version 20 project upgrades as English. A copy of OpenExplainer that only knows version 20 refuses a version 21 project, so it can never open one and save it without its language.
 - Version 20: the project can hold snapshots of the whole book (`history/` in the package, `history` in memory). A version 19 project upgrades with none. A copy of OpenExplainer that only knows version 19 refuses a version 20 project, so it can never open one and save it without its snapshots.
 - Version 19: the project can hold snippets, conditions and targets (`snippets`, `conditions`, `targets`), a page can hold a snippet block, and blocks, steps and topics can carry conditions. A version 18 project upgrades with none. A copy of OpenExplainer that only knows version 18 refuses a version 19 project, so it can never open one and save it without them.
 - Version 18: the project keeps the look of the outputs (`look`): fonts, an accent colour, a logo, a cover, header and footer words and the paper size. A version 17 project upgrades with the starting look. A copy of OpenExplainer that only knows version 17 refuses a version 18 project, so it can never open one and save it without the look.

@@ -95,7 +95,7 @@ export function buildEpubParts(project: Project, flat: Map<string, FlatPicture>,
   const ctx: RenderContext = { project, place: "book", notes: false, flat: true, imageSrc: (p) => flat.get(p.id)?.path ?? null, topicLinks };
 
   const page = (title: string, body: string) =>
-    `${XML_HEAD}<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">\n<head>\n<meta charset="utf-8"/>\n<title>${esc(title)}</title>\n<link rel="stylesheet" type="text/css" href="styles.css"/>\n</head>\n<body>\n${xhtml(body)}\n</body>\n</html>\n`;
+    `${XML_HEAD}<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="${esc(project.language)}" xml:lang="${esc(project.language)}">\n<head>\n<meta charset="utf-8"/>\n<title>${esc(title)}</title>\n<link rel="stylesheet" type="text/css" href="styles.css"/>\n</head>\n<body>\n${xhtml(body)}\n</body>\n</html>\n`;
 
   const topicHtml = (node: TreeNode, depth: number): string => {
     const level = Math.min(6, depth + 1);
@@ -154,11 +154,11 @@ export function buildEpubParts(project: Project, flat: Map<string, FlatPicture>,
   const a11y = accessibility(project, withIndex);
   const meta = (property: string, value: string) => `<meta property="${property}">${esc(value)}</meta>`;
   const publisher = v.COMPANY?.trim();
-  const opf = `${XML_HEAD}<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="en">
+  const opf = `${XML_HEAD}<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="${esc(project.language)}">
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
 <dc:identifier id="book-id">${esc(identifier)}</dc:identifier>
 <dc:title>${esc(bookTitle)}</dc:title>
-<dc:language>en</dc:language>
+<dc:language>${esc(project.language)}</dc:language>
 ${publisher ? `<dc:publisher>${esc(publisher)}</dc:publisher>\n` : ""}${meta("dcterms:modified", modified)}
 ${a11y.modes.map((m) => meta("schema:accessMode", m)).join("\n")}
 ${a11y.sufficient.map((m) => meta("schema:accessModeSufficient", m)).join("\n")}

@@ -25,7 +25,7 @@ export function pictureFiles(flat: Map<string, FlatPicture>): Record<string, Uin
 function document(project: Project, title: string, header: string, bareFirstPage: boolean, body: string): string {
   // The page can show only its own words and pictures: no script, and nothing from the network.
   return `<!doctype html>
-<html lang="en">
+<html lang="${esc(project.language)}">
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'">

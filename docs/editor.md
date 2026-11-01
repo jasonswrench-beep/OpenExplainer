@@ -255,6 +255,15 @@ Format version 19 (2026-11-01, from the comparison with help-authoring programs:
 - **Seeing a target.** When the book has targets, the print, help site and guide previews have **Show the book for**, and Export has **Make it for**. JSON always holds the whole book. Without a target nothing is left out.
 - The window and the Conditions buttons work by keyboard alone; names that are empty or repeated are said in words before anything is kept; nothing changes until **Save** / **Keep these**. The book check notes snippets that nothing uses and conditions nothing carries.
 
+## Translation: sending the words out and bringing them back
+
+Format version 21 added the **language of the book**, a field in **Look of the book** (a code such as en, fr or pt-BR; the window says the language's name and warns in words if the code is not one). The PDF, Word file, e-book and help site say it, so a screen reader chooses its voice.
+
+- **Export**, kind **Translation file (XLIFF)**: a field asks which language to translate into (a code; the dialog says its name, and will not go on with a code that is not one). It saves an `.xlf` file for a translation program.
+- **Import a translation** (a toolbar button): chooses the returned file, shows how many pieces were translated and what was not (and what was wrong with the file), and after a question saves a **copy** of the book in the new language as a new project file you name. The book you have open is not changed; choose Open project to work on the copy.
+- **Replace the picture file** (a button under each picture): chooses a PNG or JPEG of the **same size** and puts it in the place of the picture, keeping its description, callouts, marks and click. A file of another size is refused in words, with both sizes. Use it in the copy to show the translated program. The details are in `docs/exports.md` ("Translation").
+- The dialogs close by keyboard alone; every result is announced.
+
 ## History: snapshots of the book
 
 Format version 20 (2026-11-01, from the comparison with help-authoring programs: a help-authoring program keeps a full history; before this the program had no way back from a bad edit). **History** (a toolbar button) opens a window with a list box of the book's snapshots, oldest first, each with its name, whether you or the program took it, and when. A snapshot is a dated copy of the whole book kept inside the project file. The window has:

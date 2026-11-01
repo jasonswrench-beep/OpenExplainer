@@ -1,6 +1,7 @@
 // The Export dialog: which kind of export to make and its options. The author can run the book check first (optional, never required). Making the files and saving them is done by main.ts;
 // this only asks. The kinds are made by src/export/.
 import { open } from "./dialogs.ts";
+import { languageWords, tidyLanguage } from "./project/language.ts";
 
 import { GUIDE_KINDS, type ExportKind } from "./export/make.ts";
 
@@ -13,6 +14,8 @@ export interface ExportChoice {
   comments: boolean;
   /** For a guide: which one. */
   guideId?: string;
+  /** For the translation file: the language to translate into. */
+  language?: string;
   /** For every kind but JSON: the target to make it for, or none for everything. */
   targetId?: string;
 }
@@ -24,6 +27,7 @@ export const EXPORT_KINDS: { id: ExportKind; name: string; words: string }[] = [
   { id: "word", name: "Word", words: "The whole book as one Word document (.docx) that you can edit and restyle: real headings, numbered steps that start again at 1 for each procedure, callout boxes, a contents list with links, and every picture cut to the part shown with its marks drawn in and its description as alternative text." },
   { id: "word-review", name: "Word review copy", words: "The whole book as a Word document made for a review round: your open comments are in it as real Word comments, and it asks reviewers to add theirs in Word and send the file back. Choose Bring in review comments to put their comments on the right blocks of the book. Reviewers comment, they do not edit." },
   { id: "epub", name: "E-book (EPUB)", words: "The whole book as an EPUB 3 e-book that reflows to fit any screen, for e-readers and reading apps: a contents list, a page for each chapter with its topics, the index, links between topics, every picture cut to the part shown with its marks drawn in and its description as alternative text, and the accessibility features the book has written in the file. It has no page numbers, because the pages depend on the reader's screen." },
+  { id: "xliff", name: "Translation file (XLIFF)", words: "Every piece of text a reader sees, as an XLIFF 1.2 file that translation programs (OmegaT, Weblate and others) open: titles, paragraphs, steps, boxed notes, picture descriptions and callout names, with bold words, control names and links kept as tags and variables protected. Choose the language below. When it comes back translated, choose Import a translation to make a copy of the book in that language; this book is not changed." },
   { id: "pdf", name: "PDF", words: "The whole book as a PDF made for paper: tagged so a screen reader can read it, with a bookmark for each heading, a running header, page numbers, and a contents list with page numbers. Making it takes a moment." },
   { id: "guide-word", name: "Guide (Word)", words: "One short step-by-step guide, chosen below, as a Word document you can edit: its name, each task, and each step with its heading, its picture with the step's number beside the clicked spot, a close-up, and its words, in the layout the guide uses." },
   { id: "guide-pdf", name: "Guide (PDF)", words: "One short step-by-step guide, chosen below, as a PDF made for paper, tagged for a screen reader, with a bookmark for each heading, a running header and page numbers." },
@@ -39,6 +43,7 @@ export async function exportDialog(options: { checkFirst(): void; unresolved: nu
       <p class="help" id="ex-intro">Choose what to make. The book is exported as it prints: pictures use the book's click circle and zoom settings. Comments are working notes and are not included unless you ask for them in the JSON export.</p>
       <fieldset id="ex-kinds"><legend>What to export</legend></fieldset>
       <p id="ex-json" hidden><label><input type="checkbox" id="ex-comments"> Include the working comments in the JSON export</label></p>
+      <p id="ex-language" hidden><label for="ex-language-input">Translate into (a language code such as fr, de or pt-BR)</label> <input id="ex-language-input" type="text" size="10" maxlength="35" autocomplete="off" aria-describedby="ex-language-line"><br><span class="help" id="ex-language-line" role="status"></span></p>
       <p id="ex-guide" hidden><label for="ex-guide-pick">Guide to export</label> <select id="ex-guide-pick"></select></p>
       <p id="ex-target" hidden><label for="ex-target-pick">Make it for</label> <select id="ex-target-pick" aria-describedby="ex-target-help"></select><br><span class="help" id="ex-target-help">A target leaves out everything that carries a condition it hides. JSON always holds the whole book.</span></p>
       <p class="help" id="ex-check-note"></p>
@@ -91,14 +96,24 @@ export async function exportDialog(options: { checkFirst(): void; unresolved: nu
     guidePick.append(option);
   }
   const selected = () => (dialog.querySelector<HTMLInputElement>('input[name="ex-kind"]:checked')!.value as ExportKind);
-  const sync = () => { jsonBox.hidden = selected() !== "json"; guideBox.hidden = !GUIDE_KINDS.includes(selected()); targetBox.hidden = (options.targets ?? []).length === 0 || selected() === "json"; };
+  const languageBox = dialog.querySelector<HTMLElement>("#ex-language")!;
+  const languageInput = dialog.querySelector<HTMLInputElement>("#ex-language-input")!;
+  const languageLine = dialog.querySelector<HTMLElement>("#ex-language-line")!;
+  const languageWordsNow = () => { const tag = tidyLanguage(languageInput.value); return tag ? `✓ ${languageWords(tag)}` : "⚠ Type a language code: two or three letters such as fr, with a region if you want one, such as pt-BR."; };
+  languageInput.addEventListener("input", () => { languageLine.textContent = languageWordsNow(); });
+  const sync = () => { languageBox.hidden = selected() !== "xliff"; jsonBox.hidden = selected() !== "json"; guideBox.hidden = !GUIDE_KINDS.includes(selected()); targetBox.hidden = (options.targets ?? []).length === 0 || selected() === "json"; };
   dialog.querySelectorAll('input[name="ex-kind"]').forEach((r) => r.addEventListener("change", sync));
   dialog.querySelector("#ex-check")!.addEventListener("click", () => options.checkFirst());
   let result: ExportChoice | null = null;
   dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
     event.preventDefault();
     if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return dialog.close("cancel");
-    result = { kind: selected(), comments: selected() === "json" && dialog.querySelector<HTMLInputElement>("#ex-comments")!.checked, ...(GUIDE_KINDS.includes(selected()) ? { guideId: guidePick.value } : {}), ...(selected() !== "json" && targetPick.value ? { targetId: targetPick.value } : {}) };
+    if (selected() === "xliff" && !tidyLanguage(languageInput.value)) {
+      languageLine.textContent = languageWordsNow();
+      languageInput.focus();
+      return;
+    }
+    result = { kind: selected(), ...(selected() === "xliff" ? { language: tidyLanguage(languageInput.value)! } : {}), comments: selected() === "json" && dialog.querySelector<HTMLInputElement>("#ex-comments")!.checked, ...(GUIDE_KINDS.includes(selected()) ? { guideId: guidePick.value } : {}), ...(selected() !== "json" && targetPick.value ? { targetId: targetPick.value } : {}) };
     dialog.close("ok");
   });
   sync();

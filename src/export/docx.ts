@@ -273,7 +273,10 @@ export const BOX_COLOURS: Record<string, string> = { "design-tip": "1F4E8C", cau
 /** Word's font settings for a role: the font's name on every script slot. */
 const fontXml = (name: string) => `<w:rFonts w:ascii="${xml(name)}" w:hAnsi="${xml(name)}" w:eastAsia="${xml(name)}" w:cs="${xml(name)}"/>`;
 
-function stylesXml(guide: boolean, look: Look, comments = false): string {
+/** The language tag as Word wants it: plain English is U.S. English, as the Word export always said. */
+const wordLanguage = (tag: string) => (tag === "en" ? "en-US" : tag);
+
+function stylesXml(guide: boolean, look: Look, comments = false, language = "en"): string {
   const headingFont = fontXml(wordFont(look, "heading"));
   const accent = look.accent ? `<w:color w:val="${look.accent.slice(1)}"/>` : "";
   const heading = (n: number, size: number, before: number) =>
@@ -282,7 +285,7 @@ function stylesXml(guide: boolean, look: Look, comments = false): string {
     `<w:style w:type="paragraph" w:customStyle="1" w:styleId="Callout${i + 1}"><w:name w:val="Callout box, ${calloutLabel(k.id)}"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:keepLines/><w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="767676"/><w:left w:val="single" w:sz="48" w:space="6" w:color="${BOX_COLOURS[k.id]}"/><w:bottom w:val="single" w:sz="4" w:space="4" w:color="767676"/><w:right w:val="single" w:sz="4" w:space="4" w:color="767676"/></w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="F4F6F9"/><w:spacing w:before="160" w:after="160"/><w:ind w:left="240" w:right="240"/></w:pPr></w:style>`).join("");
   const contents = [1, 2, 3].map((n) => `<w:style w:type="paragraph" w:styleId="Contents${n}"><w:name w:val="toc ${n}"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="39"/><w:pPr><w:spacing w:after="40"/><w:ind w:left="${(n - 1) * 360}"/></w:pPr></w:style>`).join("");
   return `${XML_HEAD}<w:styles xmlns:w="${NS_W}">
-<w:docDefaults><w:rPrDefault><w:rPr>${fontXml(wordFont(look, "body"))}<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
+<w:docDefaults><w:rPrDefault><w:rPr>${fontXml(wordFont(look, "body"))}<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="${xml(wordLanguage(language))}" w:eastAsia="${xml(wordLanguage(language))}" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
 <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
 <w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/></w:style>
 <w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="10"/><w:qFormat/>${guide ? '<w:pPr><w:spacing w:before="0" w:after="200"/></w:pPr><w:rPr><w:b/><w:sz w:val="48"/><w:szCs w:val="48"/></w:rPr>' : '<w:pPr><w:spacing w:before="2400" w:after="240"/><w:jc w:val="center"/></w:pPr><w:rPr><w:b/><w:sz w:val="56"/><w:szCs w:val="56"/></w:rPr>'}</w:style>
@@ -341,11 +344,11 @@ export function assembleDocx(ctx: Context, title: string, body: string, options:
     "_rels/.rels": `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${NS_R}/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`,
     "word/document.xml": document,
     "word/_rels/document.xml.rels": `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels}</Relationships>`,
-    "word/styles.xml": stylesXml(options.guide === true, ctx.project.look, !!ctx.review),
+    "word/styles.xml": stylesXml(options.guide === true, ctx.project.look, !!ctx.review, ctx.project.language),
     "word/numbering.xml": numberingXml(ctx.lists),
     "word/header1.xml": `${XML_HEAD}<w:hdr xmlns:w="${NS_W}" xmlns:r="${NS_R}">${para("Header", run(!options.guide && look.header ? fillVariables(look.header, ctx.project.variables) : title))}</w:hdr>`,
     "word/footer1.xml": `${XML_HEAD}<w:ftr xmlns:w="${NS_W}" xmlns:r="${NS_R}">${look.footer ? para("Footer", run(fillVariables(look.footer, ctx.project.variables))) : ""}<w:p><w:pPr><w:pStyle w:val="Footer"/></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`,
-    "docProps/core.xml": `${XML_HEAD}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xml(title)}</dc:title><dc:language>en-US</dc:language><dcterms:created xsi:type="dcterms:W3CDTF">${xml(now)}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${xml(now)}</dcterms:modified></cp:coreProperties>`,
+    "docProps/core.xml": `${XML_HEAD}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xml(title)}</dc:title><dc:language>${xml(wordLanguage(ctx.project.language))}</dc:language><dcterms:created xsi:type="dcterms:W3CDTF">${xml(now)}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${xml(now)}</dcterms:modified></cp:coreProperties>`,
   };
   if (ctx.review) files["word/comments.xml"] = commentsXml(ctx.review.notes);
   const out: Record<string, Uint8Array> = {};

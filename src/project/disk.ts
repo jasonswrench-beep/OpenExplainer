@@ -45,10 +45,11 @@ const zipFilters = [{ name: "Zip file", extensions: ["zip"] }];
 const docxFilters = [{ name: "Word document", extensions: ["docx"] }];
 const pdfFilters = [{ name: "PDF document", extensions: ["pdf"] }];
 const epubFilters = [{ name: "E-book (EPUB)", extensions: ["epub"] }];
+const xliffFilters = [{ name: "Translation file (XLIFF)", extensions: ["xlf", "xliff"] }];
 
 /** Asks where to save an export (a zip file, a Word document when `extension` is "docx", or a PDF when it is "pdf"). `null` if cancelled. */
-export async function chooseExportPath(suggestedName: string, extension: "zip" | "docx" | "epub" | "pdf" = "zip"): Promise<string | null> {
-  const picked = await save({ title: "Save the export", defaultPath: suggestedName, filters: extension === "docx" ? docxFilters : extension === "epub" ? epubFilters : extension === "pdf" ? pdfFilters : zipFilters });
+export async function chooseExportPath(suggestedName: string, extension: "zip" | "docx" | "epub" | "xlf" | "pdf" = "zip"): Promise<string | null> {
+  const picked = await save({ title: "Save the export", defaultPath: suggestedName, filters: extension === "docx" ? docxFilters : extension === "epub" ? epubFilters : extension === "xlf" ? xliffFilters : extension === "pdf" ? pdfFilters : zipFilters });
   if (!picked) return null;
   return picked.toLowerCase().endsWith(`.${extension}`) ? picked : `${picked}.${extension}`;
 }
@@ -62,6 +63,12 @@ export async function chooseImportPath(): Promise<string | null> {
 /** Asks which Word document (.docx) to bring into the book. `null` if cancelled. */
 export async function chooseWordPath(title = "Import from Word"): Promise<string | null> {
   const picked = await open({ title, multiple: false, directory: false, filters: docxFilters });
+  return typeof picked === "string" ? picked : null;
+}
+
+/** Asks which translation file (XLIFF) to read into a copy of the book. `null` if cancelled. */
+export async function chooseXliffPath(): Promise<string | null> {
+  const picked = await open({ title: "Import a translation", multiple: false, directory: false, filters: xliffFilters });
   return typeof picked === "string" ? picked : null;
 }
 

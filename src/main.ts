@@ -4,7 +4,9 @@ import {
   outdent, removeNode, renameNode, setStatus, visibleNodes, findNodes, replaceInTitles,
   addPicture, removePicture, setAltText, setPictureHighlight, setPictureView, newId, type Picture, type Project, type Status, type TreeNode,
 } from "./project/model.ts";
-import { chooseExportPath, chooseImages, chooseImportPath, chooseOpenPath, chooseSavePath, chooseWordPath, loadProject, readBytes, saveProject, writeBytes } from "./project/disk.ts";
+import { chooseExportPath, chooseImages, chooseImportPath, chooseOpenPath, chooseSavePath, chooseWordPath, chooseXliffPath, loadProject, readBytes, saveProject, writeBytes } from "./project/disk.ts";
+import { translatedCopy } from "./translate/xliff.ts";
+import { replacePictureFile } from "./project/replace-picture.ts";
 import { importDocx } from "./import/docx.ts";
 import { historyDialog } from "./history-dialog.ts";
 import { addReviewComments, readReviewComments } from "./import/review.ts";
@@ -44,6 +46,7 @@ import { lookDialog } from "./look-dialog.ts";
 import { conditionsDialog, reuseDialog, reuseStateOf } from "./reuse-dialog.ts";
 import { applyReuse, expandOutput, snippetGist, snippetUses } from "./project/snippets.ts";
 import { cleanLook, lookWords } from "./project/look.ts";
+import { languageWords } from "./project/language.ts";
 import { acceptDraft, draftCount, draftRows, rejectDraft, type DraftRow } from "./project/drafts.ts";
 import { draftProcedure } from "./project/procedure-draft.ts";
 import { aiStatusWords } from "./ai/settings.ts";
@@ -89,6 +92,7 @@ app.innerHTML = `
       <button type="button" id="b-import-export">Import an export</button>
       <button type="button" id="b-import-word">Import from Word</button>
       <button type="button" id="b-review-in">Bring in review comments</button>
+      <button type="button" id="b-import-translation">Import a translation</button>
       <button type="button" id="b-vars">Project variables</button>
       <button type="button" id="b-style">Writing style</button>
       <button type="button" id="b-look">Look of the book</button>
@@ -442,10 +446,12 @@ $("b-reuse").addEventListener("click", () => void editReuse());
 /** The Look of the book window, shown again after a logo is chosen or removed, until the author saves or cancels. */
 async function editLook() {
   let look = project.look;
+  let language = project.language;
   for (;;) {
-    const answer = await lookDialog(look);
+    const answer = await lookDialog(look, language);
     if (!answer) { $("b-look").focus(); return; }
     look = answer.look;
+    language = answer.language;
     if (answer.action === "save") break;
     if (answer.action === "remove-logo") { delete look.logo; continue; }
     try {
@@ -463,8 +469,9 @@ async function editLook() {
   }
   const kept = cleanLook(look);
   if (JSON.stringify(kept) !== JSON.stringify(project.look)) { project.look = kept; markDirty(); }
+  if (language !== project.language) { project.language = language; markDirty(); }
   renderPreview();
-  announce(`Look kept: ${lookWords(project.look)}.`);
+  announce(`Look kept: ${lookWords(project.look)}. Language: ${languageWords(project.language)}.`);
   $("b-look").focus();
 }
 $("b-look").addEventListener("click", () => void editLook());
@@ -951,6 +958,12 @@ function renderPictures() {
     edit.dataset.edit = picture.id;
     edit.setAttribute("aria-label", `Edit description of ${name}`);
     edit.addEventListener("click", () => void editDescription(node.id, picture));
+    const replace = document.createElement("button");
+    replace.type = "button";
+    replace.textContent = "Replace the picture file";
+    replace.dataset.replace = picture.id;
+    replace.setAttribute("aria-label", `Replace the file of ${name} with another of the same size`);
+    replace.addEventListener("click", () => void replaceFile(node.id, picture, name));
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "Remove picture";
@@ -1036,7 +1049,7 @@ function renderPictures() {
     draftButton.dataset.draft = picture.id;
     draftButton.setAttribute("aria-label", `Draft callout text for ${name} with AI`);
     draftButton.addEventListener("click", () => void draftFor(node.id, picture.id, () => document.querySelector<HTMLElement>(`[data-draft="${picture.id}"]`)?.focus()));
-    info.append(edit, " ", viewButton, " ", calloutsButton, ...((picture.callouts ?? []).length > 0 ? [" ", draftButton] : []), " ", drawingButton, " ", remove);
+    info.append(edit, " ", viewButton, " ", calloutsButton, ...((picture.callouts ?? []).length > 0 ? [" ", draftButton] : []), " ", drawingButton, " ", replace, " ", remove);
     li.append(info);
     list.append(li);
   }
@@ -1049,6 +1062,22 @@ async function editDescription(nodeId: string, picture: Picture) {
   markDirty();
   renderPictures();
   announce("Description saved");
+}
+
+/** Puts another picture file in a picture's place, keeping its description, callouts, marks and click. It must be the same size, so they still point at the right places. */
+async function replaceFile(nodeId: string, picture: Picture, name: string) {
+  try {
+    const first = (await chooseImages())[0];
+    if (!first) return;
+    const done = replacePictureFile(picture, assets, first.bytes, first.name);
+    if (!done.ok) { await messageDialog("The picture was not replaced", done.message); return; }
+    markDirty();
+    renderPictures();
+    announce(`The file of ${name} is now ${first.name}. Its description, callouts and marks are as they were.`);
+  } catch (error) {
+    await messageDialog("Could not replace the picture", error instanceof Error ? error.message : String(error));
+  }
+  void nodeId;
 }
 
 async function removeOnePicture(nodeId: string, picture: Picture, name: string) {
@@ -1353,9 +1382,9 @@ if (import.meta.env?.DEV) {
 }
 
 /** A safe file name for an export, such as "My Book help site.zip" (or "My Book.docx" for Word). */
-function exportFileName(kind: string, extension = "zip"): string {
+function exportFileName(kind: string, extension = "zip", suffix = ""): string {
   const base = projectFileName(project.name).replace(/\.openexplainer$/, "");
-  return extension === "zip" ? `${base} ${kind}.zip` : `${base}.${extension}`;
+  return extension === "zip" ? `${base} ${kind}.zip` : `${base}${suffix}.${extension}`;
 }
 
 /** Makes an export of the whole book as one zip file the author chooses where to save. Nothing in the project changes. */
@@ -1373,12 +1402,12 @@ async function exportBook() {
     if (GUIDE_KINDS.includes(choice.kind) && !guide) throw new Error("There is no guide to export. Choose Guides to make one.");
     const extension = EXPORT_EXTENSION[choice.kind];
     const path = await chooseExportPath(
-      guide ? `${projectFileName(guide.name).replace(/\.openexplainer$/, "")}.${extension}` : exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown", extension),
+      guide ? `${projectFileName(guide.name).replace(/\.openexplainer$/, "")}.${extension}` : exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown", extension, choice.kind === "word-review" ? " review copy" : choice.kind === "xliff" ? ` ${choice.language}` : ""),
       extension,
     );
     if (!path) return $("b-export").focus();
     announce(`Making the ${name} export. This can take a moment.`);
-    const made = await makeExport(project, assets, choice.kind, { guideId: choice.guideId, comments: choice.comments, targetId: choice.targetId, flatten: flattenPicture, now: new Date().toISOString() });
+    const made = await makeExport(project, assets, choice.kind, { guideId: choice.guideId, comments: choice.comments, targetId: choice.targetId, language: choice.language, flatten: flattenPicture, now: new Date().toISOString() });
     const bytes = made.bytes;
     const left = made.notes;
     await writeBytes(path, bytes);
@@ -1436,6 +1465,28 @@ async function importWord() {
   }
 }
 
+/** Reads a translation (an XLIFF file back from a translator) and saves a copy of the book in the new language as a new project file. The book that is open is not changed. */
+async function importTranslation() {
+  const picked = await chooseXliffPath();
+  if (!picked) return $("b-import-translation").focus();
+  try {
+    const name = picked.split(/[\\/]/).pop() ?? picked;
+    announce(`Reading ${name}. This can take a moment.`);
+    const result = translatedCopy(project, new TextDecoder().decode(await readBytes(picked)));
+    const yes = await confirmDialog("Import a translation", `${name}\n\n${result.report.join("\n")}\n\nThis makes a copy of the book in ${languageWords(result.language)}, called "${result.project.name}", and saves it as a new project file. The book you have open is not changed.`, "Make the copy");
+    if (!yes) { announce("No copy was made."); return; }
+    const target = await chooseSavePath(result.project.name);
+    if (!target) { announce("No copy was made."); return; }
+    await saveProject(target, result.project, assets);
+    announce(`The ${languageWords(result.language)} copy was saved to ${target}.`);
+    await messageDialog("Translation imported", `The copy of the book in ${languageWords(result.language)} was saved to ${target}. Choose Open project to work on it. The book you had open is unchanged.`);
+  } catch (error) {
+    await messageDialog("Could not import the translation", `${error instanceof Error ? error.message : String(error)}\nNothing was changed.`);
+  } finally {
+    $("b-import-translation").focus();
+  }
+}
+
 /** Reads the comments reviewers made in a review copy (Export, Word review copy) and adds each to the block it was made on, after the author has read how many will come in. */
 async function importReview() {
   const picked = await chooseWordPath("Bring in review comments");
@@ -1476,6 +1527,7 @@ $("b-history").addEventListener("click", () => void editHistory());
 
 $("b-export").addEventListener("click", () => void exportBook());
 $("b-review-in").addEventListener("click", () => void importReview());
+$("b-import-translation").addEventListener("click", () => void importTranslation());
 $("b-import-word").addEventListener("click", () => void importWord());
 $("b-import-export").addEventListener("click", () => void importExport());
 

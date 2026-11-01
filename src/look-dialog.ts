@@ -4,6 +4,7 @@
 import { open } from "./dialogs.ts";
 import { accentCheck, FONTS, MOST_LOOK_TEXT, PAGE_SIZES, type Look } from "./project/look.ts";
 import { normalizeHex } from "./project/contrast.ts";
+import { languageWords, tidyLanguage } from "./project/language.ts";
 
 /** Ready-made accent colours, all dark enough for text on white. The author can still type any colour. */
 export const ACCENT_PRESETS: { name: string; code: string }[] = [
@@ -23,7 +24,7 @@ const esc = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").
  * Shows the look. Returns what the author chose and what to do next: `save` keeps it, `choose-logo` and `remove-logo` ask the caller to change the logo (the caller then shows the window again with the new
  * logo). `null` if cancelled.
  */
-export async function lookDialog(current: Look): Promise<{ look: Look; action: LookAction } | null> {
+export async function lookDialog(current: Look, language = "en"): Promise<{ look: Look; action: LookAction; language: string } | null> {
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-labelledby", "look-title");
   const fontOptions = (chosen: string) => FONTS.map((f) => `<option value="${f.id}"${f.id === chosen ? " selected" : ""}>${esc(f.name)}</option>`).join("");
@@ -44,6 +45,8 @@ export async function lookDialog(current: Look): Promise<{ look: Look; action: L
       <p><label for="look-footer">Words at the bottom of every page, beside the page number (empty: none)</label><br><input id="look-footer" type="text" size="50" maxlength="${MOST_LOOK_TEXT}" aria-describedby="look-text-help"></p>
       <p class="help" id="look-text-help">Up to ${MOST_LOOK_TEXT} letters. Variables such as {{PRODUCT}} and {{COMPANY}} are filled in.</p>
       <p><label for="look-size">Paper size of the PDF and the Word file</label><br><select id="look-size">${sizeOptions}</select></p>
+      <p><label for="look-language">Language of the book, as a code such as en, fr or pt-BR</label><br><input id="look-language" type="text" size="12" maxlength="35" autocomplete="off" aria-describedby="look-language-line"></p>
+      <p id="look-language-line" class="help" role="status"></p>
       <fieldset id="look-logo-box"><legend>Logo</legend>
         <p id="look-logo-line" class="help" role="status"></p>
         <p id="look-alt-row"><label for="look-alt">What the logo shows, for a reader who cannot see it</label><br><input id="look-alt" type="text" size="50" maxlength="300"></p>
@@ -61,6 +64,15 @@ export async function lookDialog(current: Look): Promise<{ look: Look; action: L
   const header = q<HTMLInputElement>("look-header");
   const footer = q<HTMLInputElement>("look-footer");
   const size = q<HTMLSelectElement>("look-size");
+  const lang = q<HTMLInputElement>("look-language");
+  const langLine = q("look-language-line");
+  lang.value = language;
+  const langWords = () => {
+    const tag = tidyLanguage(lang.value);
+    return tag ? `✓ ${languageWords(tag)}. A screen reader uses this to choose its voice, and the PDF, Word file, e-book and help site all say it.` : "⚠ That is not a language code. Use two or three letters such as en or fr, with a region if you want one, such as pt-BR.";
+  };
+  lang.addEventListener("input", () => { langLine.textContent = langWords(); });
+  langLine.textContent = langWords();
   const logoLine = q("look-logo-line");
   const alt = q<HTMLInputElement>("look-alt");
   const logo = current.logo;
@@ -116,8 +128,13 @@ export async function lookDialog(current: Look): Promise<{ look: Look; action: L
       accent.focus();
       return;
     }
+    if (!tidyLanguage(lang.value)) {
+      langLine.textContent = langWords();
+      lang.focus();
+      return;
+    }
     done("save");
   });
   await open(dialog, body);
-  return dialog.returnValue === "ok" ? { look: chosen(), action } : null;
+  return dialog.returnValue === "ok" ? { look: chosen(), action, language: tidyLanguage(lang.value) ?? language } : null;
 }

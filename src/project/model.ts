@@ -13,6 +13,7 @@ import type { Guide } from "./guides.ts";
 import type { TopicIndex } from "./book-index.ts";
 import type { Draft } from "./drafts.ts";
 import type { Snapshot } from "./history.ts";
+import { DEFAULT_LANGUAGE } from "./language.ts";
 import type { AvoidWord } from "./avoid-words.ts";
 import { forgetTopics } from "./links.ts";
 import { defaultLook, type Look } from "./look.ts";
@@ -20,7 +21,7 @@ import type { Condition, Snippet, Target } from "./snippets.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 20;
+export const CURRENT_VERSION = 21;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -109,6 +110,8 @@ export interface Project {
   version: number;
   name: string;
   template: "openstage-how-to-book" | "software-user-guide" | "empty";
+  /** The language the book is written in, as a tag such as en or fr-CA (format version 21). Put in the pages of the outputs so a screen reader chooses the right voice. See src/project/language.ts. */
+  language: string;
   variables: Record<string, string>;
   /** The look of the click circle where pictures are used, and whether it is drawn (format version 4). */
   highlight: HighlightSettings;
@@ -162,6 +165,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     version: CURRENT_VERSION,
     name,
     template,
+    language: DEFAULT_LANGUAGE,
     variables: { PRODUCT: "", VERSION: "", COMPANY: "" },
     highlight: defaultHighlight(),
     zoom: defaultZoom(),

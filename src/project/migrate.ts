@@ -16,6 +16,7 @@ import { cleanTreeSeeAlso } from "./links.ts";
 import { cleanLook, defaultLook } from "./look.ts";
 import { cleanConditions, cleanSnippets, cleanTargets, cleanTreeConditions } from "./snippets.ts";
 import { cleanHistory } from "./history.ts";
+import { cleanLanguage, DEFAULT_LANGUAGE } from "./language.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -70,6 +71,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   18: (raw) => ({ ...raw, version: 19, snippets: [], conditions: [], targets: [] }),
   // Version 19 to 20: the project can hold snapshots of the whole book (history/ in the package). An older project has none.
   19: (raw) => ({ ...raw, version: 20, history: [] }),
+  // Version 20 to 21: the project keeps the language the book is written in. An older project is English, which is what its outputs always said.
+  20: (raw) => ({ ...raw, version: 21, language: DEFAULT_LANGUAGE }),
 };
 
 export function migrate(input: unknown): Project {
@@ -94,6 +97,7 @@ export function migrate(input: unknown): Project {
   project.guides = cleanGuides(project.guides, project.tree ?? []);
   project.paper = cleanPaper(project.paper);
   project.look = cleanLook(project.look);
+  project.language = cleanLanguage(project.language);
   project.snippets = cleanSnippets(project.snippets);
   project.conditions = cleanConditions(project.conditions);
   project.targets = cleanTargets(project.targets, project.conditions);

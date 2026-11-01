@@ -100,7 +100,7 @@ export function buildHelpSiteText(project: Project, flat: Map<string, FlatPictur
   const mdFile = new Map([...files].map(([id, name]) => [id, name.replace(/\.html$/, ".md")]));
   const document = (title: string, body: string, markdown?: string) =>
     `<!DOCTYPE html>
-<html lang="en">
+<html lang="${esc(project.language)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

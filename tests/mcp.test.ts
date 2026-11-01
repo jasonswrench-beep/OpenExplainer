@@ -9,6 +9,7 @@ import { addNode, addPicture, createProject, ensurePage, type Picture } from "..
 import { unpackProject } from "../src/project/package.ts";
 import { zip } from "../src/project/zip.ts";
 import { addComment } from "../src/project/comments.ts";
+import { buildXliff } from "../src/translate/xliff.ts";
 
 const FOLDER = "C:\\Docs\\OpenExplainer";
 
@@ -533,4 +534,54 @@ test("tools: list_comments and resolve_comment work on the open comments of the 
   assert.match((await call("import_review_comments", { file: "notes.txt" })).text, /This is not a Word file/);
   assert.match((await call("import_review_comments", { file: "missing.docx" })).text, /There is no file at/);
   assert.match((await call("import_review_comments", { file: "..\\x.docx" })).text, /not inside the folder/);
+});
+
+test("tools: a translation file comes back as a copy saved beside the open book, a picture file can be replaced by one of the same size, and the book's language can be set", async () => {
+  const { call, data, files, session, made } = setup();
+  await call("create_project", { name: "Translate" });
+  const topicId = /id is (\w+)/.exec((await call("add_topic", { title: "Saving" })).text)![1];
+  await call("set_page", { topic_id: topicId, blocks: [{ type: "paragraph", text: "Press **Save**." }] });
+  assert.match((await call("set_book_settings", { language: "fr-ca" })).text, /language \(Canadian French\)/);
+  assert.equal(session.project!.language, "fr-CA");
+  assert.match((await call("set_book_settings", { language: "klingon!" })).text, /language must be a language code/);
+  await call("set_book_settings", { language: "en" });
+
+  // The export tool passes the language on.
+  await call("export_book", { kind: "xliff", file: "Out\\Translate", language: "fr" });
+  assert.deepEqual((made.at(-1)!.options as { language?: string }).language, "fr");
+
+  // A translator's file, made here from the book.
+  const xliff = buildXliff(session.project!, "fr", { now: "2026-11-01T10:00:00.000Z" }).xml;
+  const translated = xliff.replace(/<source xml:lang="en">([^<]*)<\/source>/g, (whole, words: string) => `${whole}<target xml:lang="fr" state="translated">${words === "Saving" ? "Enregistrer" : words}</target>`);
+  files.map.set(`${FOLDER}\\fr\\translate.xlf`.toLowerCase(), new TextEncoder().encode(translated));
+  const done = await call("import_translation", { file: "fr\\translate.xlf" });
+  assert.match(done.text, /Saved the copy "Translate \(fr\)" \(language fr\) at C:\\Docs\\OpenExplainer\\Translate \(fr\)\.openexplainer\./);
+  assert.match(done.text, /The book that is open was not changed/);
+  assert.equal(session.project!.name, "Translate");
+  assert.equal(session.project!.tree[0].title, "Saving", "the open book is as it was");
+  const savedCopy = files.map.get(`${FOLDER}\\Translate (fr).openexplainer`.toLowerCase());
+  assert.ok(savedCopy, "the copy is a file in the folder");
+  const copy = (await unpackProject(savedCopy!)).project;
+  assert.deepEqual([copy.language, copy.tree[0].title, copy.name], ["fr", "Enregistrer", "Translate (fr)"]);
+  assert.match((await call("import_translation", { file: "fr\\translate.xlf" })).text, /There is already a project at .* it was not replaced/);
+  assert.match((await call("import_translation", { file: "fr\\translate.xlf", save_as: "Other (fr)" })).text, /Saved the copy .* at C:\\Docs\\OpenExplainer\\Other \(fr\)\.openexplainer\./);
+  files.map.set(`${FOLDER}\\bad.xlf`.toLowerCase(), new TextEncoder().encode("<html/>"));
+  assert.match((await call("import_translation", { file: "bad.xlf" })).text, /not an XLIFF file/);
+  assert.match((await call("import_translation", { file: "..\\x.xlf" })).text, /not inside the folder/);
+
+  // Replacing a picture's file.
+  files.map.set(`${FOLDER}\\art\\logo.png`.toLowerCase(), tinyPng(300, 200));
+  files.map.set(`${FOLDER}\\art\\french.png`.toLowerCase(), tinyPng(300, 200));
+  files.map.set(`${FOLDER}\\art\\big.png`.toLowerCase(), tinyPng(400, 200));
+  await call("import_picture", { topic_id: topicId, file: "art\\logo.png", alt_text: "The logo." });
+  const pic = (await data("get_topic", { topic_id: topicId })).pictures[0];
+  const oldFile = session.project!.tree[0].pictures[0].file;
+  assert.match((await call("replace_picture", { topic_id: topicId, picture_id: pic.id, file: "art\\french.png" })).text, /The picture now shows french\.png\. Its description, callouts and marks are as they were\./);
+  const now = session.project!.tree[0].pictures[0];
+  assert.notEqual(now.file, oldFile);
+  assert.deepEqual([now.id, now.altText, session.assets.has(now.file)], [pic.id, "The logo.", true]);
+  assert.match((await call("replace_picture", { topic_id: topicId, picture_id: pic.id, file: "art\\big.png" })).text, /big\.png is 400 by 200 pixels, and the picture it would replace is 300 by 200/);
+  assert.equal(session.project!.tree[0].pictures[0].file, now.file, "a refused replacement changes nothing");
+  assert.match((await call("replace_picture", { topic_id: topicId, picture_id: "nope", file: "art\\french.png" })).text, /has no picture with the id "nope"/);
+  assert.match((await call("replace_picture", { topic_id: topicId, picture_id: pic.id, file: "..\\x.png" })).text, /not inside the folder/);
 });
