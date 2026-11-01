@@ -15,6 +15,7 @@ import { cleanTreeIndex } from "./book-index.ts";
 import { cleanDrafts, cleanWritingStyle } from "./drafts.ts";
 import { cleanAvoidWords } from "./avoid-words.ts";
 import { cleanTreeSeeAlso } from "./links.ts";
+import { cleanLook } from "./look.ts";
 
 export const PROJECT_FILE = "project.json";
 export const STRUCTURE_FILE = "structure.json";
@@ -84,7 +85,7 @@ export function toFiles(project: Project): Record<string, string> {
   const writingStyle = cleanWritingStyle(rawStyle);
   const avoidWords = cleanAvoidWords(rawAvoid);
   const files: Record<string, string> = {
-    [PROJECT_FILE]: JSON.stringify({ ...header, highlight: cleanHighlight(header.highlight), zoom: cleanZoom(header.zoom), styles: cleanStyles(header.styles), checks: cleanChecks(header.checks), guides: cleanGuides(header.guides, tree), paper: cleanPaper(header.paper), ...(writingStyle ? { writingStyle } : {}), ...(avoidWords.length > 0 ? { avoidWords } : {}) }, null, 2) + "\n",
+    [PROJECT_FILE]: JSON.stringify({ ...header, highlight: cleanHighlight(header.highlight), zoom: cleanZoom(header.zoom), styles: cleanStyles(header.styles), checks: cleanChecks(header.checks), guides: cleanGuides(header.guides, tree), paper: cleanPaper(header.paper), look: cleanLook(header.look), ...(writingStyle ? { writingStyle } : {}), ...(avoidWords.length > 0 ? { avoidWords } : {}) }, null, 2) + "\n",
     [STRUCTURE_FILE]: JSON.stringify({ version: project.version, tree: withoutPages(tree) }, null, 2) + "\n",
   };
   pageFiles(tree, project.version, files);

@@ -7,7 +7,7 @@ import { entries, entryWords } from "../project/callouts.ts";
 import { esc, fillVariables, type RenderContext } from "../render/html.ts";
 import { hasIndex, placedTopics, renderHelpIndexPage, renderHelpPage } from "../render/help.ts";
 import { flatFiles, type FlatPicture } from "./pictures.ts";
-import { SITE_CSS, SITE_JS } from "./site-assets.ts";
+import { siteCss, SITE_JS } from "./site-assets.ts";
 
 const encoder = new TextEncoder();
 
@@ -62,6 +62,9 @@ export function buildHelpSiteText(project: Project, flat: Map<string, FlatPictur
   const out: Record<string, string> = {};
   // A book with an index has an Index page, linked from the header of every page.
   const withIndex = hasIndex(project);
+  const logo = flat.get("@logo");
+  const logoImg = logo ? `<img class="site-logo" src="${esc(logo.path)}" alt="">` : "";
+  const footerWords = project.look.footer ? `<span class="site-footer-text">${esc(fillVariables(project.look.footer, project.variables))}</span>` : "";
   const indexLink = withIndex ? `<nav class="site-nav" aria-label="Site"><a href="book-index.html">Index</a></nav>` : "";
   const document = (title: string, body: string) =>
     `<!DOCTYPE html>
@@ -75,13 +78,13 @@ export function buildHelpSiteText(project: Project, flat: Map<string, FlatPictur
 <body>
 <a class="skip-link" href="#topic-main">Skip to the topic</a>
 <header class="site-header">
-<p class="site-title"><a href="index.html">${book}</a></p>
+<p class="site-title"><a href="index.html">${logoImg}${book}</a></p>
 ${indexLink}
 <form id="site-search" role="search" class="site-search"><label for="site-search-input">Search this help</label> <input id="site-search-input" type="search" autocomplete="off"> <button type="submit">Search</button></form>
 </header>
 <div id="search-results" class="search-results" hidden tabindex="-1"><h2 id="search-title"></h2><ol id="search-list"></ol><p><button type="button" id="search-close">Close the results</button></p></div>
 ${body}
-<p class="site-footer"><button type="button" id="print-page">Print this page</button></p>
+<p class="site-footer">${footerWords}<button type="button" id="print-page">Print this page</button></p>
 <script src="assets/search-index.js"></script>
 <script src="assets/site.js"></script>
 </body>
@@ -97,7 +100,7 @@ ${body}
   if (withIndex) out["book-index.html"] = document(`Index - ${fillVariables(project.name, project.variables)}`, renderHelpIndexPage(ctx, links));
   const index = topics.map(({ node }) => ({ number: numbers.get(node.id) ?? "", title: fillVariables(node.title, project.variables), url: files.get(node.id)!, text: topicText(project, node) }));
   out["assets/search-index.js"] = `window.SEARCH_INDEX = ${JSON.stringify(index).replace(/</g, "\\u003c")};\n`;
-  out["assets/site.css"] = SITE_CSS;
+  out["assets/site.css"] = siteCss(project.look);
   out["assets/site.js"] = SITE_JS;
   return out;
 }

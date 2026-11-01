@@ -5,6 +5,7 @@ import { buildBookIndex, type IndexEntry } from "../project/book-index.ts";
 import { numbering, type Project, type TreeNode } from "../project/model.ts";
 import { blocksHtml, esc, fillVariables, type RenderContext, type TopicLinks } from "./html.ts";
 import { seeAlsoHtml } from "./see-also.ts";
+import { lookCssVariables, type Look } from "../project/look.ts";
 import { indexHtml } from "./index-html.ts";
 
 /** The whole book as HTML, and the notes for the writer that the preview collected (also in the HTML, next to what they are about, as preview-only notes). */
@@ -78,6 +79,14 @@ function topicHtml(node: TreeNode, depth: number, numbers: Map<string, string>, 
   return `<article class="pv-topic" id="${esc(topicAnchor(node.id))}"><h${level}><span class="pv-number">${esc(number)}</span> ${title}</h${level}>\n${blocksHtml(ctx, node, level, `${number} ${node.title}`)}${seeAlsoHtml(ctx, node, level)}\n${children}</article>`;
 }
 
+/** The logo on the title page, if the project has one and its file can be shown. */
+export function logoHtml(ctx: RenderContext, look: Look): string {
+  if (!look.logo) return "";
+  const src = ctx.imageSrc({ id: "@logo", file: look.logo.file, width: look.logo.width, height: look.logo.height, altText: look.logo.alt, source: { kind: "import", capturedAt: "" } });
+  if (!src) return "";
+  return `<img class="pv-logo" src="${esc(src)}" alt="${esc(look.logo.alt)}" width="${look.logo.width}" height="${look.logo.height}">`;
+}
+
 /** Writes the whole book as it will print. */
 export function renderPrintPreview(base: RenderContext, options: { pages?: ContentsPages } = {}): PrintPreview {
   const notes: string[] = [];
@@ -90,11 +99,11 @@ export function renderPrintPreview(base: RenderContext, options: { pages?: Conte
   const title = esc(fillVariables(project.name, project.variables));
   const details = ["PRODUCT", "VERSION", "COMPANY"].map((key) => project.variables[key]?.trim()).filter(Boolean).map((v) => `<p>${esc(v)}</p>`).join("");
   const parts = [
-    `<section class="pv-sheet pv-title-page"><h1 class="pv-book-title">${title}</h1>${details}</section>`,
+    project.look.cover ? `<section class="pv-sheet pv-title-page">${logoHtml(ctx, project.look)}<h1 class="pv-book-title">${title}</h1>${details}</section>` : "",
     project.tree.length ? `<section class="pv-sheet pv-toc"><h1>Contents</h1>${contentsHtml(project.tree, numbers, ctx, options.pages, bookIndex.terms > 0)}</section>` : "",
     ...project.tree.map((chapter) => topicHtml(chapter, 0, numbers, ctx)),
     bookIndex.terms > 0 ? `<section class="pv-sheet pv-index" id="${INDEX_ANCHOR}"><h1>Index</h1>${indexHtml(bookIndex, (entry) => locatorsFor(entry, options.pages), project.variables)}</section>` : "",
   ].filter(Boolean);
-  const html = `<div class="pv-book">${parts.join("\n")}</div>`;
+  const html = `<div class="pv-book" style="${esc(lookCssVariables(project.look))}">${parts.join("\n")}</div>`;
   return { html, notes };
 }

@@ -87,11 +87,11 @@ test("a topic's See also list holds other topics of the book only, each once, up
   assert.deepEqual(cleanSeeAlso(["a", "a", "b", "c", 5, "b!"], "b", ids), ["a"], "itself, strangers and bad ids are dropped");
 });
 
-test("a project with links and a See also list is saved, opened again and is the same, and the format is 17", () => {
+test("a project with links and a See also list is saved, opened again and is the same", () => {
   const { project, saving } = sample();
-  assert.equal(CURRENT_VERSION, 17);
+  assert.ok(CURRENT_VERSION >= 17, "links arrived in format 17");
   const files = toFiles(project);
-  assert.equal(JSON.parse(files["project.json"]).version, 17);
+  assert.equal(JSON.parse(files["project.json"]).version, CURRENT_VERSION);
   assert.deepEqual(JSON.parse(files["structure.json"]).tree[0].children[0].seeAlso, project.tree[0].children[0].seeAlso, "the list is in structure.json");
   const again = fromFiles(files);
   assert.deepEqual(again, project);
@@ -103,7 +103,7 @@ test("a project with links and a See also list is saved, opened again and is the
 
 test("an older project (format 16) opens with no links and no lists, and is upgraded", () => {
   const old = migrate({ version: 16, name: "Old", template: "empty", variables: {}, highlight: {}, tree: [{ id: "a", title: "A", status: "captured", pictures: [], children: [] }] });
-  assert.equal(old.version, 17);
+  assert.equal(old.version, CURRENT_VERSION);
   assert.equal(old.tree[0].seeAlso, undefined);
 });
 

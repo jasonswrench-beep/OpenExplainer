@@ -3,6 +3,18 @@
 // pages are opened straight from a folder, where a browser will not fetch a JSON file) and a Print this page button. Colours are chosen to meet WCAG 2.2 AA (tests/builtin-contrast.test.ts
 // checks them); a keyboard user gets a skip link, a visible focus outline everywhere and landmarks.
 
+import { automaticFonts, fontById, type Look } from "../project/look.ts";
+
+/** The style sheet with the look's choices after it: the accent colour for the header bar, the links and the headings, and the fonts when the author chose some. */
+export function siteCss(look: Look): string {
+  const extra: string[] = [".site-logo { height: 2rem; width: auto; vertical-align: middle; margin-right: 0.6rem; background: #ffffff; padding: 0.15rem; border-radius: 3px; }", ".site-footer-text { margin-right: 1rem; }"];
+  if (look.accent) extra.push(`:root { --accent: ${look.accent}; --link: ${look.accent}; }`, `h1, h2, h3, h4, h5, h6 { color: ${look.accent}; }`);
+  if (!automaticFonts(look)) {
+    extra.push(`body { font-family: ${fontById(look.bodyFont).css}; }`, `h1, h2, h3, h4, h5, h6, .site-title, .site-header, .hs-tree, .hs-crumbs, .pv-box, .pv-entries { font-family: ${fontById(look.headingFont).css}; }`);
+  }
+  return `${SITE_CSS}\n${extra.join("\n")}\n`;
+}
+
 export const SITE_CSS = `:root { --text: #1a1a1a; --muted: #444444; --link: #0b57d0; --accent: #1f4e8c; --focus: #b35c00; --line: #767676; --panel: #f4f6f9; }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; line-height: 1.55; color: var(--text); background: #ffffff; }

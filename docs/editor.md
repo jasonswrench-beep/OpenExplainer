@@ -242,6 +242,15 @@ A **guide** is a few pages for one task, or for several (the quick, step-by-step
 - Not built yet: the third picture of the left layout (a step holds one picture today, so the left layout shows the picture and its close-up), exporting a guide as a help site, and book check rules for
   guides (a task whose topic has lost its steps shows a note for the writer in the preview).
 
+## Look of the book
+
+Format version 18 (2026-11-01, from the comparison with help-authoring programs: they all have a way to give a book a house style). **Look of the book** (a toolbar button) sets, for the whole project: the **font of the text** and the **font of the headings**, an **accent colour**, a **logo**, whether the book **starts with a title page**, the **words at the top** of every page after the first and the **words at the bottom** beside the page number, and the **paper size** (Letter or A4). They are used by the print preview, the PDF, the Word file and the help site, so the book looks the same everywhere. Until the author chooses, each output keeps the look it always had.
+
+- The accent colour is a list of dark ready-made colours or any six hex digits. A line under it says, in words and with a tick or a warning sign (never by colour alone), how readable the colour is as text on white. A colour that is too light is still used; the book check lists it as a problem to look at. The check only warns.
+- **Choose a logo picture** opens the usual file window for a PNG or JPEG, asks what it shows (a screen reader reads that on the title page) and brings the window back. **Remove the logo** takes it off. The logo is on the title page and, as decoration beside the book's name, in the help site's header. A logo with no description is listed by the book check.
+- The window works by keyboard alone (Tab, the arrow keys in the lists, Space, Enter, Escape). Nothing is kept until **Save**.
+- An assistant sets the same things with `set_book_settings` (`look`) and `set_logo`.
+
 ## Links between topics and See also
 
 Format version 17 (2026-11-01, from the comparison with help-authoring programs: a chapter move had broken typed references such as "topic 6.1"). Words in a paragraph, a boxed note or a step can **go to another topic**, and a topic can have a **See also** list.

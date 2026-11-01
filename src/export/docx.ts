@@ -8,6 +8,7 @@ import { numbering, type Picture, type Project, type TreeNode } from "../project
 import { CALLOUT_KINDS, calloutLabel, type Block } from "../project/page.ts";
 import type { Run } from "../project/text.ts";
 import { forPaper, PRINT_TEXT_WIDTH, shownPart } from "../project/views.ts";
+import { pageSizeById, wordFont, type Look } from "../project/look.ts";
 import { altTextFor, fillVariables } from "../render/html.ts";
 import { calloutInView } from "../render/overlay.ts";
 import type { FlatPicture } from "./pictures.ts";
@@ -214,20 +215,25 @@ function contentsXml(ctx: Context, nodes: TreeNode[], numbers: Map<string, strin
 
 export const BOX_COLOURS: Record<string, string> = { "design-tip": "1F4E8C", caution: "A31515", "bright-idea": "8A6D00", "power-tip": "5A2A82", "time-saver": "1B6B2F", "new-feature": "00606B" };
 
-function stylesXml(guide: boolean): string {
+/** Word's font settings for a role: the font's name on every script slot. */
+const fontXml = (name: string) => `<w:rFonts w:ascii="${xml(name)}" w:hAnsi="${xml(name)}" w:eastAsia="${xml(name)}" w:cs="${xml(name)}"/>`;
+
+function stylesXml(guide: boolean, look: Look): string {
+  const headingFont = fontXml(wordFont(look, "heading"));
+  const accent = look.accent ? `<w:color w:val="${look.accent.slice(1)}"/>` : "";
   const heading = (n: number, size: number, before: number) =>
-    `<w:style w:type="paragraph" w:styleId="Heading${n}"><w:name w:val="heading ${n}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="9"/><w:qFormat/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="${before}" w:after="80"/><w:outlineLvl w:val="${n - 1}"/></w:pPr><w:rPr><w:b/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr></w:style>`;
+    `<w:style w:type="paragraph" w:styleId="Heading${n}"><w:name w:val="heading ${n}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="9"/><w:qFormat/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="${before}" w:after="80"/><w:outlineLvl w:val="${n - 1}"/></w:pPr><w:rPr>${headingFont}<w:b/>${accent}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr></w:style>`;
   const box = CALLOUT_KINDS.map((k, i) =>
     `<w:style w:type="paragraph" w:customStyle="1" w:styleId="Callout${i + 1}"><w:name w:val="Callout box, ${calloutLabel(k.id)}"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:keepLines/><w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="767676"/><w:left w:val="single" w:sz="48" w:space="6" w:color="${BOX_COLOURS[k.id]}"/><w:bottom w:val="single" w:sz="4" w:space="4" w:color="767676"/><w:right w:val="single" w:sz="4" w:space="4" w:color="767676"/></w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="F4F6F9"/><w:spacing w:before="160" w:after="160"/><w:ind w:left="240" w:right="240"/></w:pPr></w:style>`).join("");
   const contents = [1, 2, 3].map((n) => `<w:style w:type="paragraph" w:styleId="Contents${n}"><w:name w:val="toc ${n}"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="39"/><w:pPr><w:spacing w:after="40"/><w:ind w:left="${(n - 1) * 360}"/></w:pPr></w:style>`).join("");
   return `${XML_HEAD}<w:styles xmlns:w="${NS_W}">
-<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
+<w:docDefaults><w:rPrDefault><w:rPr>${fontXml(wordFont(look, "body"))}<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
 <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
 <w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/></w:style>
 <w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="10"/><w:qFormat/>${guide ? '<w:pPr><w:spacing w:before="0" w:after="200"/></w:pPr><w:rPr><w:b/><w:sz w:val="48"/><w:szCs w:val="48"/></w:rPr>' : '<w:pPr><w:spacing w:before="2400" w:after="240"/><w:jc w:val="center"/></w:pPr><w:rPr><w:b/><w:sz w:val="56"/><w:szCs w:val="56"/></w:rPr>'}</w:style>
-<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="11"/><w:qFormat/><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="11"/><w:qFormat/><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr>${headingFont}<w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style>
 ${heading(1, 40, 360)}${heading(2, 32, 280)}${heading(3, 28, 240)}${heading(4, 26, 200)}${heading(5, 24, 200)}${heading(6, 22, 200)}
-<w:style w:type="paragraph" w:customStyle="1" w:styleId="ContentsHeading"><w:name w:val="Contents heading"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="160"/></w:pPr><w:rPr><w:b/><w:sz w:val="36"/><w:szCs w:val="36"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:customStyle="1" w:styleId="ContentsHeading"><w:name w:val="Contents heading"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="160"/></w:pPr><w:rPr>${headingFont}<w:b/>${accent}<w:sz w:val="36"/><w:szCs w:val="36"/></w:rPr></w:style>
 ${contents}
 <w:style w:type="paragraph" w:customStyle="1" w:styleId="IndexHeading"><w:name w:val="Index letter"/><w:basedOn w:val="Normal"/><w:next w:val="Index1"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="200" w:after="60"/></w:pPr><w:rPr><w:b/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr></w:style>
 <w:style w:type="paragraph" w:styleId="Index1"><w:name w:val="index 1"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="99"/><w:pPr><w:spacing w:after="20"/><w:ind w:left="240" w:hanging="240"/></w:pPr></w:style>
@@ -238,7 +244,7 @@ ${contents}
 <w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="35"/><w:qFormat/><w:pPr><w:spacing w:after="20"/></w:pPr><w:rPr><w:sz w:val="19"/><w:szCs w:val="19"/></w:rPr></w:style>
 ${box}
 <w:style w:type="character" w:customStyle="1" w:styleId="ControlName"><w:name w:val="Control name"/><w:basedOn w:val="DefaultParagraphFont"/><w:qFormat/><w:rPr><w:b/></w:rPr></w:style>
-<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="99"/><w:rPr><w:color w:val="0B57D0"/><w:u w:val="single"/></w:rPr></w:style>
+<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="99"/><w:rPr><w:color w:val="${look.accent ? look.accent.slice(1) : "0B57D0"}"/><w:u w:val="single"/></w:rPr></w:style>
 <w:style w:type="paragraph" w:styleId="Header"><w:name w:val="header"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="99"/><w:pPr><w:spacing w:after="0"/></w:pPr><w:rPr><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>
 <w:style w:type="paragraph" w:styleId="Footer"><w:name w:val="footer"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="99"/><w:pPr><w:spacing w:after="0"/><w:jc w:val="center"/></w:pPr><w:rPr><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>
 </w:styles>`;
@@ -259,7 +265,7 @@ function numberingXml(lists: number): string {
  */
 export function assembleDocx(ctx: Context, title: string, body: string, options: { now?: string; guide?: boolean } = {}): Record<string, Uint8Array> {
   const document = `${XML_HEAD}<w:document xmlns:w="${NS_W}" xmlns:r="${NS_R}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
-<w:body>${body}<w:sectPr><w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body>
+<w:body>${body}<w:sectPr><w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="${pageSizeById(ctx.project.look.pageSize).wordWidth}" w:h="${pageSizeById(ctx.project.look.pageSize).wordHeight}"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body>
 </w:document>`;
   const rels = [
     `<Relationship Id="rIdStyles" Type="${NS_R}/styles" Target="styles.xml"/>`,
@@ -269,18 +275,19 @@ export function assembleDocx(ctx: Context, title: string, body: string, options:
     ...ctx.images.map((i) => `<Relationship Id="${i.id}" Type="${NS_R}/image" Target="media/${xml(i.path.replace("images/", ""))}"/>`),
   ].join("");
   const now = options.now ?? new Date().toISOString();
+  const look = ctx.project.look;
   const files: Record<string, string> = {
-    "[Content_Types].xml": `${XML_HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/>`
+    "[Content_Types].xml": `${XML_HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/>`
       + `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>`
       + `<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>`
       + `<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`,
     "_rels/.rels": `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${NS_R}/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`,
     "word/document.xml": document,
     "word/_rels/document.xml.rels": `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels}</Relationships>`,
-    "word/styles.xml": stylesXml(options.guide === true),
+    "word/styles.xml": stylesXml(options.guide === true, ctx.project.look),
     "word/numbering.xml": numberingXml(ctx.lists),
-    "word/header1.xml": `${XML_HEAD}<w:hdr xmlns:w="${NS_W}" xmlns:r="${NS_R}">${para("Header", run(title))}</w:hdr>`,
-    "word/footer1.xml": `${XML_HEAD}<w:ftr xmlns:w="${NS_W}" xmlns:r="${NS_R}"><w:p><w:pPr><w:pStyle w:val="Footer"/></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`,
+    "word/header1.xml": `${XML_HEAD}<w:hdr xmlns:w="${NS_W}" xmlns:r="${NS_R}">${para("Header", run(!options.guide && look.header ? fillVariables(look.header, ctx.project.variables) : title))}</w:hdr>`,
+    "word/footer1.xml": `${XML_HEAD}<w:ftr xmlns:w="${NS_W}" xmlns:r="${NS_R}">${look.footer ? para("Footer", run(fillVariables(look.footer, ctx.project.variables))) : ""}<w:p><w:pPr><w:pStyle w:val="Footer"/></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`,
     "docProps/core.xml": `${XML_HEAD}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xml(title)}</dc:title><dc:language>en-US</dc:language><dcterms:created xsi:type="dcterms:W3CDTF">${xml(now)}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${xml(now)}</dcterms:modified></cp:coreProperties>`,
   };
   const out: Record<string, Uint8Array> = {};
@@ -306,7 +313,9 @@ export function buildDocxParts(project: Project, flat: Map<string, FlatPicture>,
   // The index comes after the last chapter; it is made now so its heading has a bookmark for the contents to link to.
   const bookIndex = buildBookIndex(project, numbers);
   const indexPart = bookIndex.terms > 0 ? indexXml(ctx, bookIndex) : "";
-  const front = para("Title", run(title)) + details.map((d) => para("Subtitle", run(d))).join("");
+  const logo = ctx.flat.get("@logo");
+  const logoParagraph = logo && project.look.logo ? para("Subtitle", drawing(ctx, logo, project.look.logo.alt, 288)) : "";
+  const front = project.look.cover ? logoParagraph + para("Title", run(title)) + details.map((d) => para("Subtitle", run(d))).join("") : "";
   const contents = project.tree.length > 0 ? para("ContentsHeading", run("Contents"), '<w:pageBreakBefore/>') + contentsXml(ctx, project.tree, numbers, indexPart !== "") : "";
   return assembleDocx(ctx, title, `${front}${contents}${body}${indexPart}`, options);
 }

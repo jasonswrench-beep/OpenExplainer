@@ -12,6 +12,9 @@ import { makeBookPdf, makeGuidePdf } from "./pdf-make.ts";
 import { flattenGuide, flattenPlaced, type Flattener } from "./pictures.ts";
 import { zip } from "../project/zip.ts";
 
+/** The key of the logo among the flat pictures of an output. */
+export const LOGO_KEY = "@logo";
+
 export type ExportKind = "help-site" | "json" | "markdown" | "word" | "pdf" | "guide-word" | "guide-pdf";
 
 /** The kinds that export one guide. */
@@ -53,6 +56,12 @@ export async function makeExport(project: Project, assets: Assets, kind: ExportK
   }
   // The printed outputs (Word and the PDF) may zoom in on a picture that would print too small; the help site and Markdown are not for paper.
   const flat = guide ? await flattenGuide(project, guide, assets, options.flatten) : await flattenPlaced(project, assets, "book", options.flatten, { paper: kind === "word" || kind === "pdf" });
+  // The logo is not drawn on: it goes into the output as the file it is, for the title page and the help site's header.
+  const logo = project.look.logo ? assets.get(project.look.logo.file) : undefined;
+  if (project.look.logo && !guide) {
+    if (logo) flat.flat.set(LOGO_KEY, { path: `images/logo${project.look.logo.file.endsWith(".png") ? ".png" : ".jpg"}`, bytes: logo, width: project.look.logo.width, height: project.look.logo.height });
+    else notes.push("The logo file is missing from the project, so it is not in the export.");
+  }
   notes.push(...flat.missing.map((m) => `The picture "${m}" is missing from the project, so it is not in the export.`), ...flat.failed.map((m) => `The picture "${m}" could not be drawn, so it is not in the export.`));
   let bytes: Uint8Array;
   if (kind === "pdf") {

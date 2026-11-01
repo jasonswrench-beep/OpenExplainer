@@ -97,8 +97,11 @@ fieldset.co-active { border: 2px solid var(--accent); padding: calc(0.25rem - 1p
 #preview-notes { margin: 0.5rem 0; padding: 0.3rem 0.6rem; background: #fff6d6; border: 1px dashed #8a6d00; }
 #preview-notes summary { font-weight: 600; }
 .preview-content { container-type: inline-size; border: 1px solid #b0b0b0; background: #e6e8eb; padding: 0.75rem; max-height: calc(100vh - 14rem); overflow: auto; }
-.pv-sheet { background: #fff; color: #111; max-width: 8.5in; margin: 0 auto 1rem; padding: clamp(1rem, 7%, 0.9in); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); font-family: Georgia, "Times New Roman", serif; line-height: 1.45; box-sizing: border-box; }
+.pv-sheet { background: #fff; color: #111; max-width: 8.5in; margin: 0 auto 1rem; padding: clamp(1rem, 7%, 0.9in); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); font-family: var(--look-body, Georgia, "Times New Roman", serif); line-height: 1.45; box-sizing: border-box; }
 .pv-sheet h1 { font-size: 1.8rem; margin: 0.2rem 0 0.8rem; }
+.pv-book h1, .pv-book h2, .pv-book h3, .pv-book h4, .pv-book h5, .pv-book h6 { font-family: var(--look-heading, inherit); color: var(--look-accent, inherit); }
+.pv-book .topic-link { color: var(--look-accent, #0b57d0); }
+.pv-logo { display: block; margin: 0 auto 1rem; max-width: 40%; height: auto; }
 .pv-title-page { text-align: center; min-height: 14rem; display: flex; flex-direction: column; justify-content: center; }
 .pv-book-title { font-size: 2.4rem !important; }
 .pv-toc-list { list-style: none; padding-left: 1.2rem; margin: 0.2rem 0; }

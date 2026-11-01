@@ -36,6 +36,8 @@ import { draftsDialog } from "./drafts-dialog.ts";
 import { draftBoxesFor, draftCalloutText, draftChapterTextFor } from "./drafting-ui.ts";
 import type { ChapterTextRole } from "./ai/chapter-text.ts";
 import { styleDialog } from "./style-dialog.ts";
+import { lookDialog } from "./look-dialog.ts";
+import { cleanLook, lookWords } from "./project/look.ts";
 import { acceptDraft, draftCount, draftRows, rejectDraft, type DraftRow } from "./project/drafts.ts";
 import { draftProcedure } from "./project/procedure-draft.ts";
 import { aiStatusWords } from "./ai/settings.ts";
@@ -81,6 +83,7 @@ app.innerHTML = `
       <button type="button" id="b-import-export">Import an export</button>
       <button type="button" id="b-vars">Project variables</button>
       <button type="button" id="b-style">Writing style</button>
+      <button type="button" id="b-look">Look of the book</button>
       <button type="button" id="b-drafts">Drafts</button>
       <button type="button" id="b-guides">Guides</button>
       <button type="button" id="b-index">Index</button>
@@ -372,6 +375,37 @@ indexBox.addEventListener("change", () => {
   $("index-line").textContent = indexLineFor(node);
   announce(`Index terms kept for ${node.title}: ${kept.length}.${skipped > 0 ? ` ${skipped} ${skipped === 1 ? "line was" : "lines were"} left out: a term needs a letter, at least 2 characters, at most 60, and each term is listed once.` : ""}`);
 });
+
+// ---- The look of the book ----------------------------------------------------------------------------------
+/** The Look of the book window, shown again after a logo is chosen or removed, until the author saves or cancels. */
+async function editLook() {
+  let look = project.look;
+  for (;;) {
+    const answer = await lookDialog(look);
+    if (!answer) { $("b-look").focus(); return; }
+    look = answer.look;
+    if (answer.action === "save") break;
+    if (answer.action === "remove-logo") { delete look.logo; continue; }
+    try {
+      const first = (await chooseImages())[0];
+      if (!first) continue;
+      const info = readImageInfo(first.bytes);
+      if (!info) { await messageDialog("That is not a picture", `${first.name} is not a PNG or JPEG picture.`); continue; }
+      const alt = await promptText("Describe the logo", `What does ${first.name} show? A screen reader reads this aloud on the title page. Leave it empty to add it later.`, look.logo?.alt ?? "", true);
+      const file = `images/${newId()}.${info.extension}`;
+      assets.set(file, first.bytes);
+      look = { ...look, logo: { file, width: info.width, height: info.height, alt: alt ?? "" } };
+    } catch (error) {
+      await messageDialog("Could not use the logo", error instanceof Error ? error.message : String(error));
+    }
+  }
+  const kept = cleanLook(look);
+  if (JSON.stringify(kept) !== JSON.stringify(project.look)) { project.look = kept; markDirty(); }
+  renderPreview();
+  announce(`Look kept: ${lookWords(project.look)}.`);
+  $("b-look").focus();
+}
+$("b-look").addEventListener("click", () => void editLook());
 
 $("b-index-suggest").addEventListener("click", () => {
   const node = selected();

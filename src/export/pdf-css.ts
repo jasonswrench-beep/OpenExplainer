@@ -2,6 +2,8 @@
 // the margin (written as CSS margin boxes, which the browser engine prints), each chapter or task on a new page, pictures that never split across pages, and the book's contents with page
 // numbers and dotted leaders. The page's text is black on white and the sizes are in points and inches, because this is for paper, not for a screen.
 
+import { fontById, pageSizeById, type Look } from "../project/look.ts";
+
 /** A piece of text as a CSS string, safe to put between double quotes. */
 export function cssString(text: string): string {
   return text.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\r\n]+/g, " ").replace(/</g, "\\3C ");
@@ -12,17 +14,26 @@ export interface PdfCssOptions {
   header: string;
   /** The first page is a title page, with no running header and no page number. */
   bareFirstPage: boolean;
+  /** The look of the outputs: fonts, accent colour, footer and paper size. Without it, the look a project had before the setting existed. */
+  look?: Look;
 }
 
+/** The two font lists the stylesheet is written with; they are replaced by the look's own choices. */
+const SERIF = 'Georgia, "Times New Roman", serif';
+const SANS = '"Segoe UI", Calibri, Arial, sans-serif';
+
 export function pdfCss(options: PdfCssOptions): string {
-  const first = options.bareFirstPage ? "@page :first { @top-left { content: none; } @bottom-center { content: none; } }" : "";
-  return `
+  const look = options.look;
+  const first = options.bareFirstPage ? `@page :first { @top-left { content: none; } @bottom-center { content: none; }${look?.footer ? " @bottom-left { content: none; }" : ""} }` : "";
+  const footer = look?.footer ? `  @bottom-left { content: "${cssString(look.footer)}"; font: 9pt ${SANS}; color: #333; }
+` : "";
+  const css = `
 @page {
-  size: Letter;
+  size: ${pageSizeById(look?.pageSize ?? "letter").css};
   margin: 1in 1in 0.9in 1in;
-  @top-left { content: "${cssString(options.header)}"; font: 9pt "Segoe UI", Calibri, Arial, sans-serif; color: #333; }
-  @bottom-center { content: counter(page); font: 10pt "Segoe UI", Calibri, Arial, sans-serif; color: #333; }
-}
+  @top-left { content: "${cssString(options.header)}"; font: 9pt ${SANS}; color: #333; }
+  @bottom-center { content: counter(page); font: 10pt ${SANS}; color: #333; }
+${footer}}
 ${first}
 html { font-family: Georgia, "Times New Roman", serif; font-size: 11pt; line-height: 1.4; color: #111; background: #fff; }
 body { margin: 0; }
@@ -89,4 +100,11 @@ p { margin: 0.4em 0; orphans: 3; widows: 3; }
 .gd-step-left.gd-step-nopicture { display: block; }
 .gd-step { break-inside: avoid; }
 `;
+  // The look's fonts and accent colour take the place of the two font lists the sheet is written with.
+  let out = css.split(SANS).join(fontById(look?.headingFont ?? "segoe").css).split(SERIF).join(fontById(look?.bodyFont ?? "georgia").css);
+  if (look?.accent) out += `
+h1, h2, h3, h4, h5, h6, .pv-chapter-number, .pv-number { color: ${look.accent}; }
+.topic-link { color: ${look.accent}; }
+`;
+  return out;
 }

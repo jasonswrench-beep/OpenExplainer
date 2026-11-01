@@ -2,8 +2,8 @@
 // every page, the callouts and marks of every picture, the variables, the click circle and zoom settings, and the named styles. It is saved as a zip. Comments are working notes and are left
 // out unless the author asks for them. An export can be read back into a project (readJsonExport). Nothing here needs a screen.
 import { fromFiles } from "../project/files.ts";
-import { numbering, pictureFiles, type Project, type TreeNode } from "../project/model.ts";
-import type { Assets } from "../project/package.ts";
+import { numbering, type Project, type TreeNode } from "../project/model.ts";
+import { assetFiles, type Assets } from "../project/package.ts";
 import { PROJECT_FILE, STRUCTURE_FILE, topicFile } from "../project/files.ts";
 import { unzip, zip } from "../project/zip.ts";
 
@@ -60,13 +60,14 @@ export function buildJsonExport(project: Project, assets: Assets, options: JsonE
     styles: project.styles,
     guides: project.guides,
     paper: project.paper,
+    look: project.look,
     ...(project.writingStyle ? { writingStyle: project.writingStyle } : {}),
     ...(project.avoidWords.length > 0 ? { avoidWords: project.avoidWords } : {}),
     tree: exportNodes(project.tree, numbers, options.comments === true),
   };
   const files: Record<string, Uint8Array> = { [BOOK_FILE]: encoder.encode(JSON.stringify(book, null, 2) + "\n") };
   const missing: string[] = [];
-  for (const file of pictureFiles(project.tree)) {
+  for (const file of assetFiles(project)) {
     const bytes = assets.get(file);
     if (bytes) files[file] = bytes;
     else missing.push(file);
@@ -108,7 +109,7 @@ export function readJsonExport(files: Record<string, Uint8Array>): { project: Pr
       return { ...rest, children: strip(children) };
     });
   const tree = strip(book.tree);
-  const header = { version, name: book.name, template: book.template, variables: book.variables, highlight: book.highlight, zoom: book.zoom, styles: book.styles, guides: book.guides, paper: book.paper, writingStyle: book.writingStyle, avoidWords: book.avoidWords };
+  const header = { version, name: book.name, template: book.template, variables: book.variables, highlight: book.highlight, zoom: book.zoom, styles: book.styles, guides: book.guides, paper: book.paper, look: book.look, writingStyle: book.writingStyle, avoidWords: book.avoidWords };
   const project = fromFiles({
     [PROJECT_FILE]: JSON.stringify(header),
     [STRUCTURE_FILE]: JSON.stringify({ version, tree }),
@@ -116,7 +117,7 @@ export function readJsonExport(files: Record<string, Uint8Array>): { project: Pr
   });
   const assets: Assets = new Map();
   for (const [name, data] of Object.entries(files)) if (name.startsWith("images/")) assets.set(name, data);
-  const missing = [...pictureFiles(project.tree)].filter((file) => !assets.has(file));
+  const missing = [...assetFiles(project)].filter((file) => !assets.has(file));
   return { project, assets, missing };
 }
 

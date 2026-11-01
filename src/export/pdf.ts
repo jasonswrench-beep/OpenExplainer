@@ -22,7 +22,7 @@ export function pictureFiles(flat: Map<string, FlatPicture>): Record<string, Uin
   return out;
 }
 
-function document(title: string, header: string, bareFirstPage: boolean, body: string): string {
+function document(project: Project, title: string, header: string, bareFirstPage: boolean, body: string): string {
   // The page can show only its own words and pictures: no script, and nothing from the network.
   return `<!doctype html>
 <html lang="en">
@@ -30,7 +30,7 @@ function document(title: string, header: string, bareFirstPage: boolean, body: s
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'">
 <title>${esc(title)}</title>
-<style>${pdfCss({ header, bareFirstPage })}</style>
+<style>${pdfCss({ header, bareFirstPage, look: project.look })}</style>
 </head>
 <body>
 ${body}
@@ -67,13 +67,15 @@ export function placeholderPages(project: Project): ContentsPages {
 export function bookPdfHtml(project: Project, flat: Map<string, FlatPicture>, pages?: ContentsPages): string {
   const title = fillVariables(project.name, project.variables);
   const built = renderPrintPreview(context(project, flat), { pages });
-  return document(title, title, true, built.html);
+  // The running header is the look's words if it has some, else the book's title. With no title page the first page has a header like the rest.
+  const header = project.look.header ? fillVariables(project.look.header, project.variables) : title;
+  return document(project, title, header, project.look.cover, built.html);
 }
 
 /** One guide as the page to print. */
 export function guidePdfHtml(project: Project, guide: Guide, flat: Map<string, FlatPicture>): string {
   const title = fillVariables(guide.name, project.variables);
-  return document(title, title, false, renderGuide(context(project, flat), guide).html);
+  return document(project, title, title, false, renderGuide(context(project, flat), guide).html);
 }
 
 // ---- Reading where each topic landed --------------------------------------------------------------------------

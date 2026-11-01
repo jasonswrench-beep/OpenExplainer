@@ -354,3 +354,34 @@ test("tools: an assistant can link topics in text and list See also topics, a li
   assert.deepEqual((await data("get_topic", { topic_id: saving })).see_also, []);
   assert.equal(session.project!.tree[0].children.length, 1);
 });
+
+test("tools: an assistant can set the look of the outputs and a logo, and a wrong value changes nothing", async () => {
+  const { call, files, session } = setup();
+  await call("create_project", { name: "Look" });
+  const set = await call("set_book_settings", { look: { body_font: "cambria", heading_font: "arial", accent: "#1f4e8c", cover: false, header: "{{PRODUCT}} manual", footer: "Acme", page_size: "a4" } });
+  assert.match(set.text, /Set: look \(text in Cambria, headings in Arial, accent #1F4E8C, no logo, no title page, A4, header "\{\{PRODUCT\}\} manual", footer "Acme"\)\./);
+  assert.deepEqual(session.project!.look, { bodyFont: "cambria", headingFont: "arial", accent: "#1F4E8C", cover: false, header: "{{PRODUCT}} manual", footer: "Acme", pageSize: "a4" });
+  assert.match((await call("set_book_settings", { look: { accent: "" } })).text, /Set: look/);
+  assert.equal(session.project!.look.accent, "", "an empty accent clears it");
+  assert.equal(session.project!.look.cover, false, "what was not given is left alone");
+  for (const [bad, words] of [[{ body_font: "comic" }, /look\.body_font must be one of: georgia/], [{ page_size: "legal" }, /look\.page_size must be one of: letter, a4/], [{ accent: "pink" }, /look\.accent must be six hex digits/],
+    [{ cover: "yes" }, /look\.cover must be true or false/], [{ header: "x".repeat(121) }, /look\.header must be text of up to 120 letters/], [{ footer: 5 }, /look\.footer must be text of up to 120 letters/]] as const) {
+    assert.match((await call("set_book_settings", { auto_zoom_for_print: true, look: bad })).text, words);
+  }
+  assert.equal(session.project!.paper.autoZoom, false, "a refused call changes nothing, not even the settings that were fine");
+  assert.match((await call("set_book_settings", { look: "x" })).text, /look must be an object/);
+
+  files.map.set(`${FOLDER}\\art\\logo.png`.toLowerCase(), tinyPng(300, 100));
+  files.map.set(`${FOLDER}\\notes.txt`.toLowerCase(), new TextEncoder().encode("no"));
+  assert.match((await call("set_logo", { file: "art\\logo.png" })).text, /The logo is now logo\.png \(300 by 100\)\. It has no description yet/);
+  assert.match((await call("set_logo", { file: "art\\logo.png", alt_text: "The Acme logo" })).text, /^The logo is now logo\.png \(300 by 100\)\.\nSaved to /);
+  const logo = session.project!.look.logo!;
+  assert.deepEqual([logo.width, logo.height, logo.alt], [300, 100, "The Acme logo"]);
+  assert.ok(session.assets.has(logo.file), "the logo's file is in the project");
+  assert.match((await call("set_logo", { file: "notes.txt" })).text, /not a PNG or JPEG picture/);
+  assert.match((await call("set_logo", { file: "missing.png" })).text, /There is no file at/);
+  assert.match((await call("set_logo", { file: "C:\\Windows\\x.png" })).text, /not inside the folder/);
+  assert.equal(session.project!.look.logo!.file, logo.file, "a refused logo changes nothing");
+  assert.match((await call("set_logo", { remove: true })).text, /^Removed the logo\./);
+  assert.equal(session.project!.look.logo, undefined);
+});

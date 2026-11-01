@@ -14,10 +14,11 @@ import type { TopicIndex } from "./book-index.ts";
 import type { Draft } from "./drafts.ts";
 import type { AvoidWord } from "./avoid-words.ts";
 import { forgetTopics } from "./links.ts";
+import { defaultLook, type Look } from "./look.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 17;
+export const CURRENT_VERSION = 18;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -117,6 +118,8 @@ export interface Project {
   guides: Guide[];
   /** Choices about the printed book (format version 12). */
   paper: PaperSettings;
+  /** The look of the outputs: fonts, accent colour, logo, cover, header and footer, paper size (format version 18). */
+  look: Look;
   /** Notes about voice and wording that the AI reads before every draft (format version 14). Empty to begin with. */
   writingStyle: string;
   /** Words the book should not use and what to use instead, for the consistency check (format version 16). Empty to begin with. */
@@ -154,6 +157,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     checks: emptyCheckSettings(),
     guides: [],
     paper: defaultPaper(),
+    look: defaultLook(),
     writingStyle: "",
     avoidWords: [],
     drafts: [],

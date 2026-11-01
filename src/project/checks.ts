@@ -6,6 +6,7 @@ import { consistencyIssues, knownControls } from "./consistency.ts";
 import { failing, kindName, needsAlt, shapeChecks } from "./shapes.ts";
 import { CORE_VARIABLES, numbering, type Picture, type Project, type TreeNode } from "./model.ts";
 import { brokenLinksOf, topicIds } from "./links.ts";
+import { accentCheck } from "./look.ts";
 import { calloutLabel, placedPictureIds, type Block, type Step } from "./page.ts";
 import { plainText } from "./text.ts";
 import { forPaper, MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
@@ -13,7 +14,7 @@ import { forPaper, MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
 export type CheckKind =
   | "picture-alt" | "mark-alt" | "mark-contrast" | "callout-name" | "callout-description"
   | "empty-topic" | "empty-block" | "missing-file" | "picture-unplaced" | "variable-empty" | "variable-unused" | "print-small" | "ai-draft"
-  | "control-name" | "step-verb" | "avoid-word" | "broken-link";
+  | "control-name" | "step-verb" | "avoid-word" | "broken-link" | "look-contrast" | "logo-alt";
 
 export interface CheckKindInfo {
   id: CheckKind;
@@ -42,6 +43,8 @@ export const CHECK_KINDS: CheckKindInfo[] = [
   { id: "step-verb", group: "book", severity: "note", title: "Steps that start with a verb that does not suit the control" },
   { id: "avoid-word", group: "book", severity: "note", title: "Words from your Words to avoid list" },
   { id: "broken-link", group: "book", severity: "problem", title: "Links and See also entries that go to a topic that is not in the book" },
+  { id: "look-contrast", group: "accessibility", severity: "problem", title: "An accent colour too light for text on white" },
+  { id: "logo-alt", group: "accessibility", severity: "problem", title: "A logo with no description" },
 ];
 
 export const kindInfo = (kind: CheckKind): CheckKindInfo => CHECK_KINDS.find((k) => k.id === kind)!;
@@ -89,7 +92,8 @@ const blockIsEmpty = (block: Block): boolean => {
 
 /** All the words in the project that can hold a {{VARIABLE}}, so unused and empty ones can be found. */
 function wordsOf(project: Project): string[] {
-  const out: string[] = [project.name];
+  // The words in the running header and footer can hold variables too.
+  const out: string[] = [project.name, project.look.header, project.look.footer];
   const walk = (nodes: TreeNode[]) => {
     for (const node of nodes) {
       out.push(node.title);
@@ -212,6 +216,10 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
       add({ nodeId: null, where: "Project variables", key: `variable-empty:${name}`, kind: "variable-empty", words: `The variable {{${name}}} is used in the book but has no value, so it would appear as {{${name}}}.`, fix: "Choose Project variables and give it a value." });
     }
   }
+  // The look of the outputs: an accent colour too light for text on white, and a logo with no description.
+  const accent = accentCheck(project.look.accent);
+  if (accent && !accent.ok) add({ nodeId: null, where: "Look of the book", key: "look-contrast", kind: "look-contrast", words: accent.words, fix: "Choose a darker accent colour in Look of the book, or leave it empty." });
+  if (project.look.logo && project.look.logo.alt.trim() === "") add({ nodeId: null, where: "Look of the book", key: "logo-alt", kind: "logo-alt", words: "The logo has no description, so a screen reader has nothing to say about it on the title page.", fix: "Open Look of the book and say what the logo shows." });
   // PRODUCT, VERSION and COMPANY are printed on the title page (and an empty one is simply left off it), so they are used even when no page mentions them.
   for (const [name, value] of Object.entries(project.variables).sort(([a], [b]) => a.localeCompare(b))) {
     if (value.trim() !== "" && !used.has(name) && !CORE_VARIABLES.includes(name)) {

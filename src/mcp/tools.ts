@@ -10,6 +10,8 @@ import { MOST_STYLE } from "../project/drafts.ts";
 import { addTask, GUIDE_LAYOUTS, guideSummary, newGuide, setGuideLayout, tasksFromChapter, type GuideLayout } from "../project/guides.ts";
 import { COLOR_PRESETS, normalizeColor, SEE_THROUGH_LIMITS, SIZE_LIMITS, type HighlightKind } from "../project/highlight.ts";
 import { readImageInfo } from "../project/image.ts";
+import { cleanLook, FONTS, lookWords, MOST_LOOK_TEXT, PAGE_SIZES } from "../project/look.ts";
+import { normalizeHex } from "../project/contrast.ts";
 import { newId } from "../project/ids.ts";
 import { addNode, cleanVariableName, createProject, findNode, moveNode, numbering, removeNode, setPictureView, STATUSES, TEMPLATES, type Picture, type Project, type Status, type TreeNode } from "../project/model.ts";
 import { ZOOM_LIMITS, viewWords } from "../project/views.ts";
@@ -375,6 +377,30 @@ export function createTools(deps: ToolDeps): ToolDef[] {
       }),
     },
     {
+      name: "set_logo",
+      description:
+        "Sets the book's logo from a PNG or JPEG file in the MCP folder, or removes it. The logo goes on the title page of the PDF and Word file and in the help site's header. Give a plain description (alt_text) of what it shows, for readers who cannot see it. " +
+        "Whether the book has a title page, and the fonts and accent colour, are set with set_book_settings (look).",
+      inputSchema: schema({ file: str("The picture file, inside the MCP folder."), alt_text: str("What the logo shows."), remove: { type: "boolean", description: "True to remove the logo." } }),
+      handler: changes(async (args, project) => {
+        if (args.remove === true) {
+          delete project.look.logo;
+          return "Removed the logo.";
+        }
+        const path = resolveInside(session.settings.folder, string(args, "file"));
+        if (!path) throw new Error("That file is not inside the folder MCP may use.");
+        if (!(await session.files.exists(path))) throw new Error(`There is no file at ${path}.`);
+        const bytes = await session.files.read(path);
+        if (bytes.length > MOST_PICTURE_BYTES) throw new Error(`That file is ${Math.round(bytes.length / 1048576)} MB. A picture can be up to ${MOST_PICTURE_BYTES / 1048576} MB.`);
+        const info = readImageInfo(bytes);
+        if (!info) throw new Error("That file is not a PNG or JPEG picture. Only those two kinds can be used.");
+        const file = `images/${newId()}.${info.extension}`;
+        session.assets.set(file, bytes);
+        project.look.logo = { file, width: info.width, height: info.height, alt: (optionalString(args, "alt_text") ?? "").trim().slice(0, 300) };
+        return `The logo is now ${baseName(path)} (${info.width} by ${info.height}).${project.look.logo.alt ? "" : " It has no description yet: give alt_text, or the book check will say so."}`;
+      }),
+    },
+    {
       name: "set_variables",
       description: "Sets project variables such as PRODUCT, VERSION and COMPANY. {{PRODUCT}} in any text is replaced by its value when the book is made.",
       inputSchema: schema({ values: { type: "object", description: "Variable names and their values.", additionalProperties: { type: "string" } } }, ["values"]),
@@ -526,6 +552,19 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         zoom_guide_percent: { type: "number", description: `The same for a quick guide, ${ZOOM_LIMITS.min} to ${ZOOM_LIMITS.max}.` },
         auto_zoom_for_print: { type: "boolean", description: "Zoom in on the click automatically when a click picture would print too small." },
         click_circle_book: circleSchema("book"), click_circle_guide: circleSchema("quick guide"),
+        look: {
+          type: "object", additionalProperties: false,
+          description: "The look of the PDF, Word file and help site. Give only what you want to change. A logo is set with set_logo.",
+          properties: {
+            body_font: { type: "string", enum: FONTS.map((f) => f.id), description: "The font of the text." },
+            heading_font: { type: "string", enum: FONTS.map((f) => f.id), description: "The font of the headings, contents and labels." },
+            accent: str("The colour of headings and links as six hex digits such as 1F4E8C. Empty text means none. A colour too light for text on white is allowed and shows up in check_book."),
+            cover: { type: "boolean", description: "Whether the book starts with a title page." },
+            header: str(`The words at the top of each page after the first, up to ${MOST_LOOK_TEXT} letters. Empty means the book's title. Variables such as {{PRODUCT}} are filled in.`),
+            footer: str(`The words at the bottom of each page, up to ${MOST_LOOK_TEXT} letters. Empty means none.`),
+            page_size: { type: "string", enum: PAGE_SIZES.map((p) => p.id), description: "The paper size of the PDF and the Word file." },
+          },
+        },
         writing_style: str(`Notes for the AI about how the book should read, up to ${MOST_STYLE} letters. Empty text clears them.`),
         words_to_avoid: { type: "array", items: { type: "string" }, description: `Words or phrases the book should not use, up to ${MOST_AVOID_WORDS}: "file => document", or just "file". An empty list clears it.` },
       }),
@@ -548,6 +587,29 @@ export function createTools(deps: ToolDeps): ToolDef[] {
           if (given.see_through_percent !== undefined) next.seeThrough = numberIn(given.see_through_percent, `${key}.see_through_percent`, SEE_THROUGH_LIMITS.min, SEE_THROUGH_LIMITS.max);
           circles.push([kind, key, next]);
         }
+        let lookNext: ReturnType<typeof cleanLook> | undefined;
+        if (args.look !== undefined) {
+          if (typeof args.look !== "object" || args.look === null || Array.isArray(args.look)) throw new Error("look must be an object such as { \"accent\": \"1F4E8C\", \"cover\": false }.");
+          const given = args.look as Record<string, unknown>;
+          const next: Record<string, unknown> = { ...project.look };
+          const oneOf = (value: unknown, name: string, allowed: string[]) => { if (typeof value !== "string" || !allowed.includes(value)) throw new Error(`look.${name} must be one of: ${allowed.join(", ")}.`); return value; };
+          if (given.body_font !== undefined) next.bodyFont = oneOf(given.body_font, "body_font", FONTS.map((f) => f.id));
+          if (given.heading_font !== undefined) next.headingFont = oneOf(given.heading_font, "heading_font", FONTS.map((f) => f.id));
+          if (given.page_size !== undefined) next.pageSize = oneOf(given.page_size, "page_size", PAGE_SIZES.map((p) => p.id));
+          if (given.accent !== undefined) {
+            if (typeof given.accent !== "string") throw new Error("look.accent must be text: six hex digits such as 1F4E8C, or empty for none.");
+            if (given.accent.trim() === "") next.accent = "";
+            else { const code = normalizeHex(given.accent); if (!code) throw new Error("look.accent must be six hex digits such as 1F4E8C, or empty for none."); next.accent = code; }
+          }
+          if (given.cover !== undefined) { if (typeof given.cover !== "boolean") throw new Error("look.cover must be true or false."); next.cover = given.cover; }
+          for (const [key, name] of [["header", "header"], ["footer", "footer"]] as const) {
+            const value = given[key];
+            if (value === undefined) continue;
+            if (typeof value !== "string" || value.length > MOST_LOOK_TEXT) throw new Error(`look.${name} must be text of up to ${MOST_LOOK_TEXT} letters.`);
+            next[name] = value;
+          }
+          lookNext = cleanLook(next);
+        }
         let style: string | undefined;
         if (args.writing_style !== undefined) {
           if (typeof args.writing_style !== "string") throw new Error("writing_style must be text.");
@@ -563,6 +625,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         if (zoomBook !== undefined) { project.zoom.book.size = zoomBook; done.push("zoom for the book"); }
         if (zoomGuide !== undefined) { project.zoom.guide.size = zoomGuide; done.push("zoom for a quick guide"); }
         if (typeof args.auto_zoom_for_print === "boolean") { project.paper.autoZoom = args.auto_zoom_for_print; done.push("automatic zoom for print"); }
+        if (lookNext) { project.look = lookNext; done.push(`look (${lookWords(lookNext)})`); }
         for (const [kind, key, next] of circles) { Object.assign(project.highlight[kind], next); done.push(key.replace(/_/g, " ")); }
         if (style !== undefined) { project.writingStyle = style.replace(/\r\n?/g, "\n").trim(); done.push("writing style"); }
         if (avoid !== undefined) { project.avoidWords = avoid; done.push("words to avoid"); }
