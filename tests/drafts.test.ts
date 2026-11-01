@@ -200,7 +200,7 @@ test("a project that is saved and opened again has the same parts in the same or
   p.writingStyle = "Notes.";
   addDraft(p, draft("p1", "p1-c0"));
   assert.equal(keys(fromFiles(toFiles(p))), keys(p));
-  assert.equal(keys(createProject("New")), "version,name,template,variables,highlight,zoom,styles,checks,guides,paper,look,writingStyle,avoidWords,drafts,tree");
+  assert.equal(keys(createProject("New")), "version,name,template,variables,highlight,zoom,styles,checks,guides,paper,look,snippets,conditions,targets,writingStyle,avoidWords,drafts,tree");
 });
 
 test("drafts survive being saved as a project file and opened again", async () => {

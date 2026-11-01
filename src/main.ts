@@ -37,6 +37,8 @@ import { draftBoxesFor, draftCalloutText, draftChapterTextFor } from "./drafting
 import type { ChapterTextRole } from "./ai/chapter-text.ts";
 import { styleDialog } from "./style-dialog.ts";
 import { lookDialog } from "./look-dialog.ts";
+import { conditionsDialog, reuseDialog, reuseStateOf } from "./reuse-dialog.ts";
+import { applyReuse, expandOutput, snippetGist, snippetUses } from "./project/snippets.ts";
 import { cleanLook, lookWords } from "./project/look.ts";
 import { acceptDraft, draftCount, draftRows, rejectDraft, type DraftRow } from "./project/drafts.ts";
 import { draftProcedure } from "./project/procedure-draft.ts";
@@ -84,6 +86,7 @@ app.innerHTML = `
       <button type="button" id="b-vars">Project variables</button>
       <button type="button" id="b-style">Writing style</button>
       <button type="button" id="b-look">Look of the book</button>
+      <button type="button" id="b-reuse">Reuse</button>
       <button type="button" id="b-drafts">Drafts</button>
       <button type="button" id="b-guides">Guides</button>
       <button type="button" id="b-index">Index</button>
@@ -151,6 +154,7 @@ app.innerHTML = `
         </section>
         </div>
         <div id="panel-preview" role="tabpanel" aria-labelledby="tab-print" hidden>
+          <p id="target-pick-row" class="gd-pick" hidden><label for="target-pick">Show the book for</label> <select id="target-pick"></select></p>
           <p id="guide-pick-row" class="gd-pick" hidden><label for="guide-pick">Guide to show</label> <select id="guide-pick"></select></p>
           <p id="preview-help" class="help"></p>
           <details id="preview-notes" hidden>
@@ -181,6 +185,11 @@ app.innerHTML = `
           <ul id="seealso-list" aria-labelledby="props-seealso-heading"></ul>
           <p id="seealso-line" class="help" role="status"></p>
           <p><button type="button" id="b-seealso" aria-describedby="props-seealso-help">Choose See also topics</button></p>
+        </div>
+        <div id="props-conditions">
+          <h4 id="props-conditions-heading">Conditions of this topic</h4>
+          <p id="conditions-line" class="help" role="status"></p>
+          <p><button type="button" id="b-topic-conditions">Choose conditions for this topic</button></p>
         </div>
         <div id="props-block" aria-live="off"></div>
       </section>
@@ -228,11 +237,17 @@ const pageEditor = createPageEditor({
   selectionChanged: () => renderProperties(),
   chooseTopic: () => chooseTopicDialog(project, { heading: "Link to a topic", help: "Choose the topic the words should go to. The link keeps the topic itself, so it still goes to the right place if chapters move. In the printed book it also says the topic's number, and in a PDF its page." }),
   topicTitle: (id) => findNode(project.tree, id)?.title ?? "",
+  snippets: () => project.snippets.map((s) => ({ id: s.id, name: s.name, gist: snippetGist(s) })),
+  chooseConditions: (current, what) => conditionsDialog(project.conditions, current, what),
+  conditionNames: (ids) => ids.map((id) => project.conditions.find((c) => c.id === id)?.name).filter((n): n is string => !!n),
+  hasConditions: () => project.conditions.length > 0,
 });
 
 // ---- The print preview and the help site preview ------------------------------------------------
 type ViewMode = "edit" | "print" | "help" | "guide";
 let viewMode: ViewMode = "edit";
+/** Which target the previews are made for (`null` shows everything). */
+let previewTargetId: string | null = null;
 /** Which guide the Guide preview shows (`null` means the first). */
 let previewGuideId: string | null = null;
 let previewUrls: string[] = [];
@@ -274,10 +289,12 @@ $("view-tabs").addEventListener("keydown", (event) => {
 function renderPreview(scroll = false) {
   if (viewMode === "edit") return;
   if (viewMode !== "guide") $("guide-pick-row").hidden = true;
+  drawTargetPicker();
   const content = $("preview-content");
   const urls = new Map<string, string>();
   const ctx = {
-    project,
+    // The book as an output sees it: snippets written out and, for a target, what it hides left out.
+    project: expandOutput(project, previewTargetId && project.targets.some((t) => t.id === previewTargetId) ? previewTargetId : null),
     place: "book" as const,
     // Only the print preview shows pictures as they will print; the help site and guide previews are not for paper.
     paper: viewMode === "print",
@@ -326,6 +343,29 @@ function renderPreview(scroll = false) {
 }
 
 /** Fills the Guide preview's picker, and shows it only for the Guide preview. */
+/** The "Show the book for" choice: every target, or everything. Only there when the book has targets. */
+function drawTargetPicker() {
+  const select = $<HTMLSelectElement>("target-pick");
+  $("target-pick-row").hidden = project.targets.length === 0;
+  select.replaceChildren();
+  const all = document.createElement("option");
+  all.value = "";
+  all.textContent = "Everything (no target)";
+  select.append(all);
+  for (const t of project.targets) {
+    const option = document.createElement("option");
+    option.value = t.id;
+    option.textContent = t.name;
+    select.append(option);
+  }
+  select.value = previewTargetId ?? "";
+}
+$("target-pick").addEventListener("change", () => {
+  previewTargetId = $<HTMLSelectElement>("target-pick").value || null;
+  renderPreview();
+  announce(previewTargetId ? `Showing the book for ${project.targets.find((t) => t.id === previewTargetId)?.name ?? "the target"}.` : "Showing everything.");
+});
+
 function drawGuidePicker(selected: string | null) {
   const select = $<HTMLSelectElement>("guide-pick");
   $("guide-pick-row").hidden = viewMode !== "guide" || project.guides.length === 0;
@@ -375,6 +415,21 @@ indexBox.addEventListener("change", () => {
   $("index-line").textContent = indexLineFor(node);
   announce(`Index terms kept for ${node.title}: ${kept.length}.${skipped > 0 ? ` ${skipped} ${skipped === 1 ? "line was" : "lines were"} left out: a term needs a letter, at least 2 characters, at most 60, and each term is listed once.` : ""}`);
 });
+
+// ---- Snippets, conditions and targets ----------------------------------------------------------------------
+async function editReuse() {
+  const answer = await reuseDialog(reuseStateOf(project), (id) => snippetUses(project.tree, id).reduce((n, u) => n + u.count, 0));
+  if (!answer) { $("b-reuse").focus(); return; }
+  const before = JSON.stringify([project.snippets, project.conditions, project.targets]);
+  const places = applyReuse(project, answer);
+  if (JSON.stringify([project.snippets, project.conditions, project.targets]) !== before || places > 0) markDirty();
+  if (previewTargetId && !project.targets.some((t) => t.id === previewTargetId)) previewTargetId = null;
+  render(false);
+  renderPreview();
+  announce(`Reuse kept: ${project.snippets.length} ${project.snippets.length === 1 ? "snippet" : "snippets"}, ${project.conditions.length} ${project.conditions.length === 1 ? "condition" : "conditions"}, ${project.targets.length} ${project.targets.length === 1 ? "target" : "targets"}.${places ? ` ${places} ${places === 1 ? "place" : "places"} that used a deleted snippet now hold ordinary blocks.` : ""}`);
+  $("b-reuse").focus();
+}
+$("b-reuse").addEventListener("click", () => void editReuse());
 
 // ---- The look of the book ----------------------------------------------------------------------------------
 /** The Look of the book window, shown again after a logo is chosen or removed, until the author saves or cancels. */
@@ -590,9 +645,30 @@ $("b-seealso").addEventListener("click", async () => {
   $("b-seealso").focus();
 });
 
+/** The conditions of the selected topic, in words, and the button that changes them. */
+function renderTopicConditions() {
+  const node = selected();
+  const names = (node?.conditions ?? []).map((id) => project.conditions.find((c) => c.id === id)?.name).filter((n): n is string => !!n);
+  $("conditions-line").textContent = !node ? "" : project.conditions.length === 0 ? "The book has no conditions yet. Choose Reuse in the toolbar to make some." : names.length === 0 ? "This topic is in every output." : `Carries: ${names.join(", ")}. Left out of an output made for a target that hides any of them, with the topics under it.`;
+  $<HTMLButtonElement>("b-topic-conditions").disabled = !node || project.conditions.length === 0;
+}
+
+$("b-topic-conditions").addEventListener("click", async () => {
+  const node = selected();
+  if (!node) return;
+  const chosen = await conditionsDialog(project.conditions, node.conditions ?? [], `"${node.title}"`);
+  if (chosen === null) { $("b-topic-conditions").focus(); return; }
+  if (chosen.length) node.conditions = chosen; else delete node.conditions;
+  markDirty();
+  renderProperties();
+  announce(chosen.length ? `${node.title} now carries: ${chosen.map((id) => project.conditions.find((c) => c.id === id)?.name).join(", ")}.` : `${node.title} carries no conditions now.`);
+  $("b-topic-conditions").focus();
+});
+
 function renderProperties() {
   renderIndexTerms();
   renderSeeAlso();
+  renderTopicConditions();
   const node = selected();
   const numbers = numbering(project.tree);
   const inBook = unresolvedCount(project.tree);
@@ -1281,6 +1357,7 @@ async function exportBook() {
     checkFirst: () => void $("b-check").click(),
     unresolved: unresolvedCount(project.tree),
     guides: project.guides.map((g) => ({ id: g.id, name: g.name })),
+    targets: project.targets.map((t) => ({ id: t.id, name: t.name })),
   });
   if (!choice) return $("b-export").focus();
   const name = EXPORT_KINDS.find((k) => k.id === choice.kind)!.name;
@@ -1294,7 +1371,7 @@ async function exportBook() {
     );
     if (!path) return $("b-export").focus();
     announce(`Making the ${name} export. This can take a moment.`);
-    const made = await makeExport(project, assets, choice.kind, { guideId: choice.guideId, comments: choice.comments, flatten: flattenPicture, now: new Date().toISOString() });
+    const made = await makeExport(project, assets, choice.kind, { guideId: choice.guideId, comments: choice.comments, targetId: choice.targetId, flatten: flattenPicture, now: new Date().toISOString() });
     const bytes = made.bytes;
     const left = made.notes;
     await writeBytes(path, bytes);

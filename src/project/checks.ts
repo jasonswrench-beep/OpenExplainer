@@ -7,6 +7,7 @@ import { failing, kindName, needsAlt, shapeChecks } from "./shapes.ts";
 import { CORE_VARIABLES, numbering, type Picture, type Project, type TreeNode } from "./model.ts";
 import { brokenLinksOf, topicIds } from "./links.ts";
 import { accentCheck } from "./look.ts";
+import { conditionUses } from "./snippets.ts";
 import { calloutLabel, placedPictureIds, type Block, type Step } from "./page.ts";
 import { plainText } from "./text.ts";
 import { forPaper, MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
@@ -14,7 +15,7 @@ import { forPaper, MIN_PRINT_SCALE, printScale, shownPart } from "./views.ts";
 export type CheckKind =
   | "picture-alt" | "mark-alt" | "mark-contrast" | "callout-name" | "callout-description"
   | "empty-topic" | "empty-block" | "missing-file" | "picture-unplaced" | "variable-empty" | "variable-unused" | "print-small" | "ai-draft"
-  | "control-name" | "step-verb" | "avoid-word" | "broken-link" | "look-contrast" | "logo-alt";
+  | "control-name" | "step-verb" | "avoid-word" | "broken-link" | "look-contrast" | "logo-alt" | "snippet-missing" | "snippet-unused" | "snippet-empty" | "condition-unused";
 
 export interface CheckKindInfo {
   id: CheckKind;
@@ -45,6 +46,10 @@ export const CHECK_KINDS: CheckKindInfo[] = [
   { id: "broken-link", group: "book", severity: "problem", title: "Links and See also entries that go to a topic that is not in the book" },
   { id: "look-contrast", group: "accessibility", severity: "problem", title: "An accent colour too light for text on white" },
   { id: "logo-alt", group: "accessibility", severity: "problem", title: "A logo with no description" },
+  { id: "snippet-missing", group: "book", severity: "problem", title: "Snippet blocks whose snippet is gone" },
+  { id: "snippet-unused", group: "book", severity: "note", title: "Snippets that no topic uses" },
+  { id: "snippet-empty", group: "book", severity: "note", title: "Snippets with nothing in them" },
+  { id: "condition-unused", group: "book", severity: "note", title: "Conditions that nothing carries" },
 ];
 
 export const kindInfo = (kind: CheckKind): CheckKindInfo => CHECK_KINDS.find((k) => k.id === kind)!;
@@ -86,6 +91,7 @@ const blockIsEmpty = (block: Block): boolean => {
     case "paragraph": case "callout": return plainText(block.text).trim() === "";
     case "heading": return block.text.trim() === "";
     case "picture": return !block.pictureId;
+    case "snippet": return !block.snippetId;
     case "procedure": return block.steps.length === 0;
   }
 };
@@ -144,6 +150,9 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
         add({ ...base, key: `empty-topic:${node.id}`, kind: "empty-topic", words: `"${where}" has nothing on its page.`, fix: "Write something on the page, or delete the topic." });
       }
       blocks.forEach((block, i) => {
+        if (block.type === "snippet" && block.snippetId && !project.snippets.some((s) => s.id === block.snippetId)) {
+          add({ ...base, key: `snippet-missing:${node.id}:${block.id}`, kind: "snippet-missing", blockId: block.id, words: `Block ${i + 1} of "${where}" uses a snippet that is not in the book, so nothing is written there.`, fix: "Choose another snippet for the block, or delete the block." });
+        }
         if (blockIsEmpty(block) && !(nothingOnPage && node.children.length === 0)) {
           add({ ...base, key: `empty-block:${node.id}:${block.id}`, kind: "empty-block", blockId: block.id, words: `Block ${i + 1} (${block.type === "callout" ? `callout box, ${calloutLabel(block.kind)}` : block.type}) of "${where}" is empty.`, fix: "Fill it in, or delete the block." });
         }
@@ -215,6 +224,18 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
     if (!project.variables[name] || project.variables[name].trim() === "") {
       add({ nodeId: null, where: "Project variables", key: `variable-empty:${name}`, kind: "variable-empty", words: `The variable {{${name}}} is used in the book but has no value, so it would appear as {{${name}}}.`, fix: "Choose Project variables and give it a value." });
     }
+  }
+  // Reuse: a snippet nothing uses or with nothing in it, and a condition nothing carries, are only worth knowing.
+  for (const snippet of project.snippets) {
+    const where = `Snippet "${snippet.name}"`;
+    if (snippet.blocks.length === 0) add({ nodeId: null, where, key: `snippet-empty:${snippet.id}`, kind: "snippet-empty", words: `The snippet "${snippet.name}" has nothing in it.`, fix: "Open Reuse and write what the snippet says, or delete it." });
+    let used = false;
+    const find = (nodes: TreeNode[]) => { for (const n of nodes) { if ((n.page?.blocks ?? []).some((b) => b.type === "snippet" && b.snippetId === snippet.id)) used = true; find(n.children); } };
+    find(project.tree);
+    if (!used) add({ nodeId: null, where, key: `snippet-unused:${snippet.id}`, kind: "snippet-unused", words: `The snippet "${snippet.name}" is not used in any topic.`, fix: "Add a Snippet block to a topic and choose it, or delete the snippet." });
+  }
+  for (const condition of project.conditions) {
+    if (conditionUses(project, condition.id) === 0) add({ nodeId: null, where: `Condition "${condition.name}"`, key: `condition-unused:${condition.id}`, kind: "condition-unused", words: `Nothing carries the condition "${condition.name}", so it hides nothing.`, fix: "Put it on a topic, block or step, or take it out of the list in Reuse." });
   }
   // The look of the outputs: an accent colour too light for text on white, and a logo with no description.
   const accent = accentCheck(project.look.accent);

@@ -16,27 +16,42 @@ export const CALLOUT_KINDS: { id: CalloutKind; label: string }[] = [
   { id: "new-feature", label: "New in this version" },
 ];
 
+/**
+ * Every block can carry conditions (format version 19): ids of the project's conditions. An output made for a target that hides any of them leaves the block out. A block with none is in every output.
+ * See src/project/snippets.ts.
+ */
+export interface Conditional {
+  conditions?: string[];
+}
+
 /** A sub-heading under the topic's own title. The topic's title is not a block. */
-export interface HeadingBlock {
+export interface HeadingBlock extends Conditional {
   id: string;
   type: "heading";
   text: string;
 }
 
-export interface ParagraphBlock {
+export interface ParagraphBlock extends Conditional {
   id: string;
   type: "paragraph";
   text: Run[];
 }
 
 /** One of the topic's pictures, shown here. A picture is only on the page where it is placed. */
-export interface PictureBlock {
+export interface PictureBlock extends Conditional {
   id: string;
   type: "picture";
   pictureId: string;
 }
 
-export interface Step {
+/** A snippet used here (format version 19): the project's snippet of this id, written out in its place in every output. Change the snippet once and every topic that uses it changes. */
+export interface SnippetBlock extends Conditional {
+  id: string;
+  type: "snippet";
+  snippetId: string;
+}
+
+export interface Step extends Conditional {
   id: string;
   /** What to do. It starts with a verb and names the control exactly as it appears on screen. */
   text: Run[];
@@ -47,20 +62,20 @@ export interface Step {
 }
 
 /** Numbered steps. The numbers are never stored: they are worked out from the order. */
-export interface ProcedureBlock {
+export interface ProcedureBlock extends Conditional {
   id: string;
   type: "procedure";
   steps: Step[];
 }
 
-export interface CalloutBlock {
+export interface CalloutBlock extends Conditional {
   id: string;
   type: "callout";
   kind: CalloutKind;
   text: Run[];
 }
 
-export type Block = HeadingBlock | ParagraphBlock | PictureBlock | ProcedureBlock | CalloutBlock;
+export type Block = HeadingBlock | ParagraphBlock | PictureBlock | ProcedureBlock | CalloutBlock | SnippetBlock;
 export type BlockType = Block["type"];
 
 export interface Page {
@@ -75,6 +90,7 @@ export const BLOCK_TYPES: { id: BlockType; label: string }[] = [
   { id: "picture", label: "Picture" },
   { id: "procedure", label: "Numbered procedure" },
   { id: "callout", label: "Callout box" },
+  { id: "snippet", label: "Snippet" },
 ];
 
 export function blockLabel(type: BlockType): string {
@@ -104,6 +120,7 @@ export function makeBlock(type: BlockType, options: { pictureId?: string; kind?:
     case "picture": return { id, type, pictureId: options.pictureId ?? "" };
     case "procedure": return { id, type, steps: [makeStep()] };
     case "callout": return { id, type, kind: options.kind ?? "design-tip", text: [] };
+    case "snippet": return { id, type, snippetId: "" };
   }
 }
 
@@ -175,10 +192,20 @@ const CALLOUT_IDS = new Set<string>(CALLOUT_KINDS.map((k) => k.id));
 const text = (v: unknown) => (typeof v === "string" ? v : "");
 const idOf = (v: unknown) => (typeof v === "string" && v.length > 0 ? v : newId());
 
+/** The condition ids on a block, step or topic as read from a file: ids that look like ids, each once. Whether they are the project's conditions is checked for the whole book (cleanTreeConditions). */
+export function cleanConditionIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const id of raw) if (typeof id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !out.includes(id)) out.push(id);
+  return out.slice(0, 20);
+}
+
 function cleanStep(raw: unknown, pictureIds: Set<string> | null): Step | null {
   if (typeof raw !== "object" || raw === null) return null;
   const input = raw as Record<string, unknown>;
   const step: Step = { id: idOf(input.id), text: cleanRuns(input.text) };
+  const stepConditions = cleanConditionIds(input.conditions);
+  if (stepConditions.length > 0) step.conditions = stepConditions;
   if (typeof input.pictureId === "string" && input.pictureId && (!pictureIds || pictureIds.has(input.pictureId))) step.pictureId = input.pictureId;
   const result = cleanRuns(input.result);
   if (result.length > 0) step.result = result;
@@ -186,10 +213,19 @@ function cleanStep(raw: unknown, pictureIds: Set<string> | null): Step | null {
 }
 
 function cleanBlock(raw: unknown, pictureIds: Set<string> | null): Block | null {
+  const block = cleanBlockBody(raw, pictureIds);
+  if (!block) return null;
+  const conditions = cleanConditionIds((raw as Record<string, unknown>).conditions);
+  if (conditions.length > 0) block.conditions = conditions;
+  return block;
+}
+
+function cleanBlockBody(raw: unknown, pictureIds: Set<string> | null): Block | null {
   if (typeof raw !== "object" || raw === null) return null;
   const input = raw as Record<string, unknown>;
   const id = idOf(input.id);
   switch (input.type) {
+    case "snippet": return { id, type: "snippet", snippetId: text(input.snippetId) };
     case "heading": return { id, type: "heading", text: text(input.text) };
     case "paragraph": return { id, type: "paragraph", text: cleanRuns(input.text) };
     case "picture": {

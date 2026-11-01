@@ -15,10 +15,11 @@ import type { Draft } from "./drafts.ts";
 import type { AvoidWord } from "./avoid-words.ts";
 import { forgetTopics } from "./links.ts";
 import { defaultLook, type Look } from "./look.ts";
+import type { Condition, Snippet, Target } from "./snippets.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 18;
+export const CURRENT_VERSION = 19;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -98,6 +99,8 @@ export interface TreeNode {
   index?: TopicIndex;
   /** Other topics worth reading next, as ids (format version 17). Left out until it has some. See src/project/links.ts. */
   seeAlso?: string[];
+  /** Conditions this topic carries (format version 19): an output made for a target that hides any of them leaves the topic, and what is under it, out. Left out until it has some. */
+  conditions?: string[];
   children: TreeNode[];
 }
 
@@ -120,6 +123,12 @@ export interface Project {
   paper: PaperSettings;
   /** The look of the outputs: fonts, accent colour, logo, cover, header and footer, paper size (format version 18). */
   look: Look;
+  /** Pieces of a page written once and used in many topics (format version 19). */
+  snippets: Snippet[];
+  /** Names for content that is only for some readers or versions (format version 19). */
+  conditions: Condition[];
+  /** Named outputs that hide some of the conditions (format version 19). */
+  targets: Target[];
   /** Notes about voice and wording that the AI reads before every draft (format version 14). Empty to begin with. */
   writingStyle: string;
   /** Words the book should not use and what to use instead, for the consistency check (format version 16). Empty to begin with. */
@@ -158,6 +167,9 @@ export function createProject(name: string, template: Project["template"] = "emp
     guides: [],
     paper: defaultPaper(),
     look: defaultLook(),
+    snippets: [],
+    conditions: [],
+    targets: [],
     writingStyle: "",
     avoidWords: [],
     drafts: [],

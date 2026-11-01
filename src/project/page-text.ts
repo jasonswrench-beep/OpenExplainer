@@ -10,7 +10,7 @@ export function blockText(block: Block): string {
     case "heading": return block.text;
     case "paragraph": case "callout": return plainText(block.text);
     case "procedure": return block.steps.map((s) => `${plainText(s.text)} ${plainText(s.result ?? [])}`.trim()).join(" ");
-    case "picture": return "";
+    case "picture": case "snippet": return "";
   }
 }
 

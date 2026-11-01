@@ -16,6 +16,7 @@ import { cleanDrafts, cleanWritingStyle } from "./drafts.ts";
 import { cleanAvoidWords } from "./avoid-words.ts";
 import { cleanTreeSeeAlso } from "./links.ts";
 import { cleanLook } from "./look.ts";
+import { cleanConditions, cleanSnippets, cleanTargets, cleanTreeConditions } from "./snippets.ts";
 
 export const PROJECT_FILE = "project.json";
 export const STRUCTURE_FILE = "structure.json";
@@ -81,11 +82,11 @@ function attachDrafts(project: Project, files: Record<string, string>, savedVers
 export function toFiles(project: Project): Record<string, string> {
   const { tree: rawTree, drafts: rawDrafts, writingStyle: rawStyle, avoidWords: rawAvoid, ...header } = project;
   // Click notes are checked on the way out too, so a password box can never be written to a file.
-  const tree = cleanTreeSeeAlso(cleanTreeIndex(cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(rawTree)))))));
+  const tree = cleanTreeConditions(cleanTreeSeeAlso(cleanTreeIndex(cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(rawTree))))))), cleanConditions(project.conditions));
   const writingStyle = cleanWritingStyle(rawStyle);
   const avoidWords = cleanAvoidWords(rawAvoid);
   const files: Record<string, string> = {
-    [PROJECT_FILE]: JSON.stringify({ ...header, highlight: cleanHighlight(header.highlight), zoom: cleanZoom(header.zoom), styles: cleanStyles(header.styles), checks: cleanChecks(header.checks), guides: cleanGuides(header.guides, tree), paper: cleanPaper(header.paper), look: cleanLook(header.look), ...(writingStyle ? { writingStyle } : {}), ...(avoidWords.length > 0 ? { avoidWords } : {}) }, null, 2) + "\n",
+    [PROJECT_FILE]: JSON.stringify({ ...header, highlight: cleanHighlight(header.highlight), zoom: cleanZoom(header.zoom), styles: cleanStyles(header.styles), checks: cleanChecks(header.checks), guides: cleanGuides(header.guides, tree), paper: cleanPaper(header.paper), look: cleanLook(header.look), snippets: cleanSnippets(header.snippets), conditions: cleanConditions(header.conditions), targets: cleanTargets(header.targets, cleanConditions(header.conditions)), ...(writingStyle ? { writingStyle } : {}), ...(avoidWords.length > 0 ? { avoidWords } : {}) }, null, 2) + "\n",
     [STRUCTURE_FILE]: JSON.stringify({ version: project.version, tree: withoutPages(tree) }, null, 2) + "\n",
   };
   pageFiles(tree, project.version, files);
@@ -102,6 +103,8 @@ export function fromFiles(files: Record<string, string>): Project {
   const project = migrate({ ...header, tree: structure.tree as TreeNode[] });
   // Every file of one save carries the version it was saved with, so the page and draft files are compared with that, not with the version the project has been upgraded to.
   attachPages(project.tree, files, header.version);
+  // The pages are on now, so a condition that is not the project's is taken off their blocks and steps as well.
+  project.tree = cleanTreeConditions(project.tree, project.conditions);
   attachDrafts(project, files, header.version);
   return project;
 }

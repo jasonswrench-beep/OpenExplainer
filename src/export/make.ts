@@ -11,6 +11,7 @@ import { buildMarkdown } from "./markdown.ts";
 import { makeBookPdf, makeGuidePdf } from "./pdf-make.ts";
 import { flattenGuide, flattenPlaced, type Flattener } from "./pictures.ts";
 import { zip } from "../project/zip.ts";
+import { expandOutput } from "../project/snippets.ts";
 
 /** The key of the logo among the flat pictures of an output. */
 export const LOGO_KEY = "@logo";
@@ -34,6 +35,8 @@ export interface MakeOptions {
   flatten: Flattener;
   /** When it was made, for the JSON export. */
   now?: string;
+  /** For every kind but JSON: the id of the target to make it for (see src/project/snippets.ts). Without one, nothing is left out. JSON always holds the whole project. */
+  targetId?: string;
 }
 
 export interface MadeExport {
@@ -44,7 +47,9 @@ export interface MadeExport {
 }
 
 /** Makes an export. Throws an error whose words say why, such as a guide that is not in the project. Nothing in the project is changed. */
-export async function makeExport(project: Project, assets: Assets, kind: ExportKind, options: MakeOptions): Promise<MadeExport> {
+export async function makeExport(whole: Project, assets: Assets, kind: ExportKind, options: MakeOptions): Promise<MadeExport> {
+  // Every output but JSON sees the book with its snippets written out and, for a target, what the target hides left out. JSON is the whole project, as it is.
+  const project = kind === "json" ? whole : expandOutput(whole, options.targetId);
   const guide = GUIDE_KINDS.includes(kind) ? project.guides.find((g) => g.id === options.guideId) : undefined;
   if (GUIDE_KINDS.includes(kind) && !guide) throw new Error("There is no guide to export. Make one first (the guides are listed by list_guides in MCP, or under Guides in the app).");
   const notes: string[] = [];

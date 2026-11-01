@@ -62,6 +62,7 @@ function pictureMarkdown(project: Project, picture: Picture, flat: Map<string, F
 function blockMarkdown(project: Project, node: TreeNode, block: Block, level: number, flat: Map<string, FlatPicture>, numbers: Map<string, string>): string {
   const v = project.variables;
   switch (block.type) {
+    case "snippet": return ""; // an output sees snippets already written out (expandOutput)
     case "paragraph": return runsMarkdown(block.text, v, true, numbers);
     case "heading": return block.text.trim() ? `${"#".repeat(Math.min(6, level + 1))} ${escapeInline(one(fillVariables(block.text, v)))}` : "";
     case "picture": {

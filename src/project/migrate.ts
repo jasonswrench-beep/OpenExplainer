@@ -14,6 +14,7 @@ import { cleanDrafts, cleanWritingStyle } from "./drafts.ts";
 import { cleanAvoidWords } from "./avoid-words.ts";
 import { cleanTreeSeeAlso } from "./links.ts";
 import { cleanLook, defaultLook } from "./look.ts";
+import { cleanConditions, cleanSnippets, cleanTargets, cleanTreeConditions } from "./snippets.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -64,6 +65,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   16: (raw) => ({ ...raw, version: 17 }),
   // Version 17 to 18: the project keeps the look of the outputs. An older project gets the look it always had: Georgia and Segoe UI, no accent colour or logo, a title page, Letter paper.
   17: (raw) => ({ ...raw, version: 18, look: defaultLook() }),
+  // Version 18 to 19: the project can hold snippets, conditions and targets, and blocks, steps and topics can carry conditions. An older project has none.
+  18: (raw) => ({ ...raw, version: 19, snippets: [], conditions: [], targets: [] }),
 };
 
 export function migrate(input: unknown): Project {
@@ -88,6 +91,10 @@ export function migrate(input: unknown): Project {
   project.guides = cleanGuides(project.guides, project.tree ?? []);
   project.paper = cleanPaper(project.paper);
   project.look = cleanLook(project.look);
+  project.snippets = cleanSnippets(project.snippets);
+  project.conditions = cleanConditions(project.conditions);
+  project.targets = cleanTargets(project.targets, project.conditions);
+  if (Array.isArray(project.tree)) project.tree = cleanTreeConditions(project.tree as TreeNode[], project.conditions);
   const writingStyle = cleanWritingStyle(project.writingStyle);
   // Drafts are read from their own file after this (files.ts); any that arrive here are cleaned against the tree.
   const drafts = cleanDrafts(project.drafts, project.tree ?? []);

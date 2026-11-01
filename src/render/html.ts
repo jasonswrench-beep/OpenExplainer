@@ -190,6 +190,7 @@ export function blocksHtml(ctx: RenderContext, node: TreeNode, level: number, wh
         }
         case "procedure": return procedureHtml(ctx, node, block.steps, where);
         case "callout": return boxHtml(ctx, block.kind, block.text);
+        case "snippet": return ""; // an output sees snippets already written out (expandOutput)
       }
     })
     .join("\n");

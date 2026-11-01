@@ -11,20 +11,37 @@ import { formatMarks, parseMarks } from "../project/text.ts";
 export const BLOCK_HELP =
   "A block is one of: {type:'heading', text}, {type:'paragraph', text}, {type:'picture', picture_id}, {type:'procedure', steps:[{text, picture_id?, result?}]} or {type:'callout', kind, text}. " +
   `Text can use **bold**, *italic*, [[Control name]] (the label of a button or menu, exactly as it appears on screen) and [words](#topic-id) for a link to another topic (get_outline gives the ids). A callout kind is one of: ${CALLOUT_KINDS.map((k) => k.id).join(", ")}. ` +
-  "A picture_id is one of the topic's pictures (see get_topic).";
+  "A picture_id is one of the topic's pictures (see get_topic). {type:'snippet', snippet:'Name'} uses a snippet of the book (list_snippets), written out in its place in every output. " +
+  "Any block, and any step, can carry conditions: [names], such as {type:'paragraph', text:'...', conditions:['Administrators']}; an output made for a target that hides one of them leaves it out.";
 
 const kinds = new Set<string>(CALLOUT_KINDS.map((k) => k.id));
 
 type Json = Record<string, unknown>;
 const isObject = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** The page as an assistant reads it. */
-export function pageToJson(page: Page | undefined): Json[] {
+/** Names for the ids a page holds: the conditions and the snippets of the book. */
+export interface ReuseNames {
+  conditionName(id: string): string | undefined;
+  snippetName(id: string): string | undefined;
+}
+
+/** The page as an assistant reads it. With `names`, conditions and snippets are said by name. */
+export function pageToJson(page: Page | undefined, names?: ReuseNames): Json[] {
+  const named = (ids: string[] | undefined) => (ids ?? []).map((id) => names?.conditionName(id) ?? id);
   return (page?.blocks ?? []).map((block): Json => {
+    const json = blockJson(block, names);
+    if (block.conditions?.length) json.conditions = named(block.conditions);
+    if (block.type === "procedure" && Array.isArray(json.steps)) block.steps.forEach((s, i) => { if (s.conditions?.length) (json.steps as Json[])[i].conditions = named(s.conditions); });
+    return json;
+  });
+}
+
+function blockJson(block: Block, names?: ReuseNames): Json {
     switch (block.type) {
       case "heading": return { id: block.id, type: "heading", text: block.text };
       case "paragraph": return { id: block.id, type: "paragraph", text: formatMarks(block.text) };
       case "picture": return { id: block.id, type: "picture", picture_id: block.pictureId };
+      case "snippet": return { id: block.id, type: "snippet", snippet: names?.snippetName(block.snippetId) ?? block.snippetId, snippet_id: block.snippetId };
       case "callout": return { id: block.id, type: "callout", kind: block.kind, text: formatMarks(block.text) };
       case "procedure":
         return {
@@ -32,7 +49,6 @@ export function pageToJson(page: Page | undefined): Json[] {
           steps: block.steps.map((s) => ({ id: s.id, text: formatMarks(s.text), ...(s.pictureId ? { picture_id: s.pictureId } : {}), ...(s.result?.length ? { result: formatMarks(s.result) } : {}) })),
         };
     }
-  });
 }
 
 /** What was clicked, as far as Windows said (never what was typed; a password box says only that it was one). */
@@ -63,13 +79,14 @@ export function pictureToJson(picture: Picture): Json {
 }
 
 /** What a topic looks like to an assistant: its place, its status, its page and its pictures. */
-export function topicToJson(node: TreeNode, number: string): Json {
+export function topicToJson(node: TreeNode, number: string, names?: ReuseNames): Json {
   return {
     id: node.id,
     number,
     title: node.title,
     status: node.status,
-    page: pageToJson(node.page),
+    ...(node.conditions?.length ? { conditions: node.conditions.map((id) => names?.conditionName(id) ?? id) } : {}),
+    page: pageToJson(node.page, names),
     pictures: node.pictures.map(pictureToJson),
     index_terms: (node.index?.terms ?? []).map((t) => t.text),
     see_also: node.seeAlso ?? [],
@@ -86,17 +103,48 @@ function text(value: unknown, where: string): string {
  * Blocks an assistant wrote, as blocks of a page. `pictureIds` are the topic's pictures, so a picture that is not the topic's is refused with its place named. Throws an error whose words say what is
  * wrong and where; nothing is changed by a call that throws.
  */
-export function blocksFromJson(raw: unknown, pictureIds: Set<string>): Block[] {
+export interface ReuseLookup {
+  /** The id of the snippet with this name (or this id), or `undefined`. */
+  snippetId(nameOrId: string): string | undefined;
+  /** The ids of conditions by name. Throws, saying which name is not a condition. */
+  conditionIds(names: string[]): string[];
+}
+
+/** The names of the conditions a block carries, as the assistant wrote them. */
+function conditionsOf(item: Json, where: string, reuse: ReuseLookup | undefined): string[] | undefined {
+  if (item.conditions === undefined) return undefined;
+  if (!Array.isArray(item.conditions) || item.conditions.some((c) => typeof c !== "string")) throw new Error(`${where} needs its conditions as a list of names.`);
+  if (!reuse) throw new Error(`${where} has conditions, but this book has none yet. set_conditions makes them.`);
+  const ids = reuse.conditionIds(item.conditions as string[]);
+  return ids.length ? ids : undefined;
+}
+
+export function blocksFromJson(raw: unknown, pictureIds: Set<string>, reuse?: ReuseLookup): Block[] {
   if (!Array.isArray(raw)) throw new Error("blocks must be a list of blocks. " + BLOCK_HELP);
   const picture = (value: unknown, where: string): string => {
     if (typeof value !== "string" || !pictureIds.has(value)) throw new Error(`${where} names a picture that is not one of this topic's pictures. The topic's pictures are: ${[...pictureIds].join(", ") || "none yet"}.`);
     return value;
   };
   return raw.map((item, i): Block => {
+    const block = blockFromJson(item, i, picture, reuse);
+    const conditions = isObject(item) ? conditionsOf(item, `Block ${i + 1}`, reuse) : undefined;
+    if (conditions) block.conditions = conditions;
+    return block;
+  });
+}
+
+function blockFromJson(item: unknown, i: number, picture: (value: unknown, where: string) => string, reuse: ReuseLookup | undefined): Block {
+  {
     const where = `Block ${i + 1}`;
     if (!isObject(item)) throw new Error(`${where} must be an object. ${BLOCK_HELP}`);
     const id = newId();
     switch (item.type) {
+      case "snippet": {
+        const name = typeof item.snippet === "string" ? item.snippet : typeof item.snippet_id === "string" ? item.snippet_id : "";
+        const snippetId = name ? reuse?.snippetId(name) : undefined;
+        if (!snippetId) throw new Error(`${where} (snippet) needs the name of one of the book's snippets as snippet. list_snippets shows them.`);
+        return { id, type: "snippet", snippetId };
+      }
       case "heading": return { id, type: "heading", text: text(item.text, `${where} (heading)`) };
       case "paragraph": return { id, type: "paragraph", text: parseMarks(text(item.text, `${where} (paragraph)`)) };
       case "picture": return { id, type: "picture", pictureId: picture(item.picture_id, `${where} (picture)`) };
@@ -110,6 +158,8 @@ export function blocksFromJson(raw: unknown, pictureIds: Set<string>): Block[] {
           const at = `${where} (procedure), step ${n + 1}`;
           if (!isObject(s)) throw new Error(`${at} must be an object with its text.`);
           const step: Step = { id: newId(), text: parseMarks(text(s.text, at)) };
+          const stepConditions = conditionsOf(s, at, reuse);
+          if (stepConditions) step.conditions = stepConditions;
           if (s.picture_id !== undefined && s.picture_id !== null && s.picture_id !== "") step.pictureId = picture(s.picture_id, at);
           if (typeof s.result === "string" && s.result.trim()) step.result = parseMarks(s.result);
           return step;
@@ -117,9 +167,9 @@ export function blocksFromJson(raw: unknown, pictureIds: Set<string>): Block[] {
         return { id, type: "procedure", steps };
       }
       default:
-        throw new Error(`${where} has the type ${JSON.stringify(item.type)}, which is not one of heading, paragraph, picture, procedure or callout. ${BLOCK_HELP}`);
+        throw new Error(`${where} has the type ${JSON.stringify(item.type)}, which is not one of heading, paragraph, picture, procedure, callout or snippet. ${BLOCK_HELP}`);
     }
-  });
+  }
 }
 
 /** The page with these blocks, cleaned the same way a saved page is. */

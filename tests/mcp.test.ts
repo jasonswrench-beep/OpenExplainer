@@ -385,3 +385,57 @@ test("tools: an assistant can set the look of the outputs and a logo, and a wron
   assert.match((await call("set_logo", { remove: true })).text, /^Removed the logo\./);
   assert.equal(session.project!.look.logo, undefined);
 });
+
+test("tools: an assistant can make snippets, conditions and targets, use them in pages, and export for a target", async () => {
+  const { call, data, session, made } = setup();
+  await call("create_project", { name: "Reuse" });
+  const id = async (title: string, parent?: string) => /id is (\w+)/.exec((await call("add_topic", { title, ...(parent ? { parent_id: parent } : {}) })).text)![1];
+  const chapter = await id("Basics");
+  const saving = await id("Saving", chapter);
+  const admin = await id("Admin only", chapter);
+
+  assert.match((await call("set_snippet", { name: "Back up first", text: "> Caution: Back up your files.\n\n1. Open the [[File]] menu.\nResult: It opens." })).text, /The snippet "Back up first" has 2 block\(s\), used in 0 topic\(s\)\./);
+  assert.match((await call("set_snippet", { name: "Odd", text: "> Wobbly: x" })).text, /"Wobbly" is not the name of a box/);
+  assert.match((await call("set_snippet", { name: "Empty", text: "  " })).text, /text is needed, as text/);
+  assert.match((await call("set_snippet", { name: " ", text: "x" })).text, /name is needed, as text/);
+  assert.equal((await data("list_snippets")).length, 2);
+  assert.match((await call("set_conditions", { names: ["Administrators", "Version 2", "administrators"] })).text, /The book has 2 condition\(s\): Administrators, Version 2\. 2 added, 0 taken out\./);
+  assert.match((await call("set_targets", { targets: [{ name: "Guide for students", hide: ["Administrators"] }] })).text, /1 target\(s\): Guide for students \(hides Administrators\)/);
+  assert.match((await call("set_targets", { targets: [{ name: "X", hide: ["Ghost"] }] })).text, /hides "Ghost", which is not one of the conditions \(Administrators, Version 2\)/);
+  assert.match((await call("set_targets", { targets: "x" })).text, /targets must be a list/);
+
+  const page = await call("set_page", { topic_id: saving, blocks: [
+    { type: "paragraph", text: "Intro." },
+    { type: "snippet", snippet: "back up first" },
+    { type: "paragraph", text: "Only for version 2.", conditions: ["Version 2"] },
+    { type: "procedure", steps: [{ text: "Everyone." }, { text: "Admins too.", conditions: ["Administrators"] }] },
+  ] });
+  assert.match(page.text, /now has 4 block\(s\)/);
+  const topic = await data("get_topic", { topic_id: saving });
+  assert.deepEqual(topic.page[1], { id: topic.page[1].id, type: "snippet", snippet: "Back up first", snippet_id: topic.page[1].snippet_id });
+  assert.deepEqual(topic.page[2].conditions, ["Version 2"], "conditions are said by name");
+  assert.deepEqual(topic.page[3].steps[1].conditions, ["Administrators"]);
+  assert.match((await call("set_page", { topic_id: saving, blocks: [{ type: "snippet", snippet: "Nope" }] })).text, /needs the name of one of the book's snippets/);
+  assert.match((await call("set_page", { topic_id: saving, blocks: [{ type: "paragraph", text: "x", conditions: ["Ghost"] }] })).text, /"Ghost" is not one of the conditions/);
+  assert.match((await call("set_page", { topic_id: saving, blocks: [{ type: "paragraph", text: "x", conditions: "Administrators" }] })).text, /needs its conditions as a list of names/);
+  assert.equal((await data("get_topic", { topic_id: saving })).page.length, 4, "a refused page changes nothing");
+  assert.match((await call("set_topic_conditions", { topic_id: admin, conditions: ["Administrators"] })).text, /"Admin only" now carries: Administrators\./);
+  assert.deepEqual((await data("get_topic", { topic_id: admin })).conditions, ["Administrators"]);
+  assert.match((await call("set_topic_conditions", { topic_id: admin, conditions: ["Ghost"] })).text, /"Ghost" is not one of the conditions/);
+  const outline = await data("get_outline");
+  assert.deepEqual(outline.reuse, { snippets: ["Back up first", "Odd"], conditions: ["Administrators", "Version 2"], targets: [{ name: "Guide for students", hides: ["Administrators"] }] });
+  assert.match((await data("list_snippets")).find((s: { name: string }) => s.name === "Back up first").used_in.join(), /1\.1 Saving/);
+
+  await call("export_book", { kind: "word", file: "Out\\Students", target: "guide for students" });
+  assert.equal((made[0].options as { targetId?: string }).targetId, session.project!.targets[0].id, "the export is made for the target");
+  assert.match((await call("export_book", { kind: "word", file: "x", target: "Nope" })).text, /There is no target called "Nope" \(Guide for students\)/);
+  await call("export_book", { kind: "pdf", file: "Out\\All" });
+  assert.equal((made[1].options as { targetId?: string }).targetId, undefined, "without a target nothing is left out");
+
+  assert.match((await call("delete_snippet", { name: "back up first" })).text, /Nothing was deleted/);
+  assert.match((await call("delete_snippet", { name: "back up first", confirm: true })).text, /Deleted the snippet "Back up first"\. 1 place\(s\) that used it now hold ordinary blocks with the same words\./);
+  assert.equal((await data("get_topic", { topic_id: saving })).page.length, 5, "the snippet's two blocks took its place");
+  assert.match((await call("delete_snippet", { name: "Back up first", confirm: true })).text, /There is no snippet called/);
+  assert.match((await call("set_conditions", { names: ["Version 2"] })).text, /1 condition\(s\): Version 2\. 0 added, 1 taken out\./);
+  assert.equal((await data("get_topic", { topic_id: admin })).conditions, undefined, "a condition that went is off the topic");
+});

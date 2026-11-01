@@ -33,6 +33,8 @@ interface ExportNode {
   index?: unknown;
   /** The ids of the topics in its See also list, if it has one. Links in the text hold the id of the topic they go to, in the page's runs. */
   seeAlso?: string[];
+  /** The ids of the conditions the topic carries, if any (they are the ids in the book's `conditions`). */
+  conditions?: string[];
   pictures: unknown[];
   children: ExportNode[];
 }
@@ -40,7 +42,7 @@ interface ExportNode {
 function exportNodes(nodes: TreeNode[], numbers: Map<string, string>, comments: boolean): ExportNode[] {
   return nodes.map((node) => {
     const page = node.page && node.page.blocks.length > 0 ? { blocks: node.page.blocks, ...(comments && node.page.comments ? { comments: node.page.comments } : {}) } : undefined;
-    return { id: node.id, number: numbers.get(node.id) ?? "", title: node.title, status: node.status, ...(page ? { page } : {}), ...(node.index ? { index: node.index } : {}), ...(node.seeAlso ? { seeAlso: node.seeAlso } : {}), pictures: node.pictures, children: exportNodes(node.children, numbers, comments) };
+    return { id: node.id, number: numbers.get(node.id) ?? "", title: node.title, status: node.status, ...(page ? { page } : {}), ...(node.index ? { index: node.index } : {}), ...(node.seeAlso ? { seeAlso: node.seeAlso } : {}), ...(node.conditions ? { conditions: node.conditions } : {}), pictures: node.pictures, children: exportNodes(node.children, numbers, comments) };
   });
 }
 
@@ -61,6 +63,9 @@ export function buildJsonExport(project: Project, assets: Assets, options: JsonE
     guides: project.guides,
     paper: project.paper,
     look: project.look,
+    ...(project.snippets.length > 0 ? { snippets: project.snippets } : {}),
+    ...(project.conditions.length > 0 ? { conditions: project.conditions } : {}),
+    ...(project.targets.length > 0 ? { targets: project.targets } : {}),
     ...(project.writingStyle ? { writingStyle: project.writingStyle } : {}),
     ...(project.avoidWords.length > 0 ? { avoidWords: project.avoidWords } : {}),
     tree: exportNodes(project.tree, numbers, options.comments === true),
@@ -109,7 +114,7 @@ export function readJsonExport(files: Record<string, Uint8Array>): { project: Pr
       return { ...rest, children: strip(children) };
     });
   const tree = strip(book.tree);
-  const header = { version, name: book.name, template: book.template, variables: book.variables, highlight: book.highlight, zoom: book.zoom, styles: book.styles, guides: book.guides, paper: book.paper, look: book.look, writingStyle: book.writingStyle, avoidWords: book.avoidWords };
+  const header = { version, name: book.name, template: book.template, variables: book.variables, highlight: book.highlight, zoom: book.zoom, styles: book.styles, guides: book.guides, paper: book.paper, look: book.look, snippets: book.snippets, conditions: book.conditions, targets: book.targets, writingStyle: book.writingStyle, avoidWords: book.avoidWords };
   const project = fromFiles({
     [PROJECT_FILE]: JSON.stringify(header),
     [STRUCTURE_FILE]: JSON.stringify({ version, tree }),

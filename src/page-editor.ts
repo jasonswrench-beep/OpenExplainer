@@ -35,6 +35,14 @@ export interface PageEditorDeps {
   chooseTopic(): Promise<string | null>;
   /** A topic's title, for the words of a link made with nothing selected. */
   topicTitle(id: string): string;
+  /** The book's snippets, for the Snippet block: each with its name and its first words. */
+  snippets(): { id: string; name: string; gist: string }[];
+  /** Asks which conditions a block carries. `what` says which block. Returns the ids, or `null` if cancelled. */
+  chooseConditions(current: string[], what: string): Promise<string[] | null>;
+  /** The names of conditions by id, for words. */
+  conditionNames(ids: string[]): string[];
+  /** Does the book have any conditions? The Conditions button only shows when it does. */
+  hasConditions(): boolean;
 }
 
 export interface SelectedBlock {
@@ -54,7 +62,7 @@ export interface PageEditor {
   focusBlockControl(blockId: string, role: string): void;
 }
 
-const ADDABLE: BlockType[] = ["paragraph", "heading", "picture", "procedure", "callout"];
+const ADDABLE: BlockType[] = ["paragraph", "heading", "picture", "procedure", "callout", "snippet"];
 
 /** A picture as a person would name it: its description if it has one, else where it came from. */
 export function pictureName(picture: Picture): string {
@@ -377,6 +385,41 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
     return `${what}, block ${index} of ${total}`;
   }
 
+  /** A snippet block: which snippet, and its first words so the author sees what will be written here. */
+  function snippetBody(block: Block & { type: "snippet" }): HTMLElement {
+    const wrap = document.createElement("div");
+    const all = deps.snippets();
+    const lab = document.createElement("label");
+    lab.htmlFor = `box-${block.id}`;
+    lab.textContent = "Which snippet";
+    const select = document.createElement("select");
+    select.id = `box-${block.id}`;
+    select.dataset.role = "first";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = all.length ? "Choose a snippet" : "The book has no snippets yet. Choose Reuse in the toolbar to make one.";
+    select.append(none);
+    for (const s of all) {
+      const option = document.createElement("option");
+      option.value = s.id;
+      option.textContent = s.name;
+      select.append(option);
+    }
+    select.value = block.snippetId;
+    const gist = document.createElement("p");
+    gist.className = "help";
+    const sayGist = () => { gist.textContent = block.snippetId ? `Written here: ${all.find((s) => s.id === block.snippetId)?.gist ?? "This snippet is not in the book."}` : ""; };
+    sayGist();
+    select.addEventListener("change", () => {
+      block.snippetId = select.value;
+      sayGist();
+      deps.changed();
+      deps.announce(select.value ? `Snippet ${all.find((s) => s.id === select.value)?.name ?? ""} chosen.` : "No snippet chosen.");
+    });
+    wrap.append(lab, document.createElement("br"), select, gist);
+    return wrap;
+  }
+
   function drawBlock(block: Block, index: number, total: number, n: TreeNode): HTMLLIElement {
     const li = document.createElement("li");
     li.className = "block" + (block.id === currentId ? " current" : "");
@@ -404,6 +447,14 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
       li.append(procedureBody(block, n, helpId), addMarksHelp());
     } else if (block.type === "callout") {
       li.append(calloutBody(block, helpId), addMarksHelp());
+    } else if (block.type === "snippet") {
+      li.append(snippetBody(block));
+    }
+    if (block.conditions?.length) {
+      const only = document.createElement("p");
+      only.className = "help";
+      only.textContent = `Conditions: ${deps.conditionNames(block.conditions).join(", ")}. Left out of an output made for a target that hides any of them.`;
+      li.append(only);
     }
     const label = `${blockLabel(block.type).toLowerCase()}, block ${index + 1} of ${total}`;
     const totals = commentTotals(n.page, block.id);
@@ -413,6 +464,15 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
       { role: "up", text: "Move up", disabled: index === 0, run: () => move(block, -1) },
       { role: "down", text: "Move down", disabled: index === total - 1, run: () => move(block, 1) },
       { role: "comments", text: commentsText, run: () => deps.comments(block) },
+      ...(deps.hasConditions() ? [{ role: "conditions", text: block.conditions?.length ? `Conditions (${block.conditions.length})` : "Conditions", run: async () => {
+        const chosen = await deps.chooseConditions(block.conditions ?? [], `block ${index + 1}`);
+        if (chosen === null) return focusControl(block.id, "conditions");
+        if (chosen.length) block.conditions = chosen; else delete block.conditions;
+        deps.changed();
+        draw();
+        focusControl(block.id, "conditions");
+        deps.announce(chosen.length ? `Block ${index + 1} now carries: ${deps.conditionNames(chosen).join(", ")}.` : `Block ${index + 1} carries no conditions now.`);
+      } }] : []),
       { role: "delete", text: "Delete", run: () => remove(block) },
     ]));
     li.addEventListener("focusin", () => setCurrent(block.id));
@@ -436,6 +496,7 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
       case "paragraph": return emptyRuns(block.text);
       case "heading": return block.text.trim() === "";
       case "picture": return !block.pictureId;
+      case "snippet": return !block.snippetId;
       case "callout": return emptyRuns(block.text);
       case "procedure": return block.steps.every((s) => emptyRuns(s.text) && emptyRuns(s.result) && !s.pictureId);
     }

@@ -105,6 +105,7 @@ function pictureXml(ctx: Context, original: Picture, indent: boolean): string {
 function blockXml(ctx: Context, node: TreeNode, block: Block, level: number): string {
   const v = ctx.project.variables;
   switch (block.type) {
+    case "snippet": return ""; // an output sees snippets already written out (expandOutput)
     case "paragraph": return para("Normal", runsXml(block.text, v, ctx));
     case "heading": return block.text.trim() ? para(`Heading${Math.min(6, level + 1)}`, run(fillVariables(block.text, v))) : "";
     case "picture": {

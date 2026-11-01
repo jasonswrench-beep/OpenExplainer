@@ -20,6 +20,7 @@ export function blockWords(block: Block): string {
     case "paragraph": return withText("Paragraph", plainText(block.text));
     case "heading": return withText("Heading", block.text);
     case "picture": return blockLabel("picture");
+    case "snippet": return blockLabel("snippet");
     case "callout": return withText(`Callout box (${calloutLabel(block.kind)})`, plainText(block.text));
     case "procedure": return withText(`Numbered procedure of ${block.steps.length} ${block.steps.length === 1 ? "step" : "steps"}`, block.steps.length ? plainText(block.steps[0].text) : "");
   }

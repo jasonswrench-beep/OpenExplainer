@@ -13,6 +13,8 @@ export interface ExportChoice {
   comments: boolean;
   /** For a guide: which one. */
   guideId?: string;
+  /** For every kind but JSON: the target to make it for, or none for everything. */
+  targetId?: string;
 }
 
 export const EXPORT_KINDS: { id: ExportKind; name: string; words: string }[] = [
@@ -26,7 +28,7 @@ export const EXPORT_KINDS: { id: ExportKind; name: string; words: string }[] = [
 ];
 
 /** Asks what to export. `checkFirst` opens the book check; it is offered, never required. Returns the choice, or `null` if cancelled. */
-export async function exportDialog(options: { checkFirst(): void; unresolved: number; guides: { id: string; name: string }[] }): Promise<ExportChoice | null> {
+export async function exportDialog(options: { checkFirst(): void; unresolved: number; guides: { id: string; name: string }[]; targets?: { id: string; name: string }[] }): Promise<ExportChoice | null> {
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-labelledby", "dlg-title");
   dialog.innerHTML = `
@@ -36,6 +38,7 @@ export async function exportDialog(options: { checkFirst(): void; unresolved: nu
       <fieldset id="ex-kinds"><legend>What to export</legend></fieldset>
       <p id="ex-json" hidden><label><input type="checkbox" id="ex-comments"> Include the working comments in the JSON export</label></p>
       <p id="ex-guide" hidden><label for="ex-guide-pick">Guide to export</label> <select id="ex-guide-pick"></select></p>
+      <p id="ex-target" hidden><label for="ex-target-pick">Make it for</label> <select id="ex-target-pick" aria-describedby="ex-target-help"></select><br><span class="help" id="ex-target-help">A target leaves out everything that carries a condition it hides. JSON always holds the whole book.</span></p>
       <p class="help" id="ex-check-note"></p>
       <p><button type="button" id="ex-check">Check the book first (optional)</button></p>
       <p><button value="ok">Export</button> <button value="cancel" formnovalidate>Cancel</button></p>
@@ -67,6 +70,18 @@ export async function exportDialog(options: { checkFirst(): void; unresolved: nu
   const jsonBox = dialog.querySelector<HTMLElement>("#ex-json")!;
   const guideBox = dialog.querySelector<HTMLElement>("#ex-guide")!;
   const guidePick = dialog.querySelector<HTMLSelectElement>("#ex-guide-pick")!;
+  const targetBox = dialog.querySelector<HTMLElement>("#ex-target")!;
+  const targetPick = dialog.querySelector<HTMLSelectElement>("#ex-target-pick")!;
+  const everything = document.createElement("option");
+  everything.value = "";
+  everything.textContent = "Everything (no target)";
+  targetPick.append(everything);
+  for (const t of options.targets ?? []) {
+    const option = document.createElement("option");
+    option.value = t.id;
+    option.textContent = t.name;
+    targetPick.append(option);
+  }
   for (const guide of options.guides) {
     const option = document.createElement("option");
     option.value = guide.id;
@@ -74,14 +89,14 @@ export async function exportDialog(options: { checkFirst(): void; unresolved: nu
     guidePick.append(option);
   }
   const selected = () => (dialog.querySelector<HTMLInputElement>('input[name="ex-kind"]:checked')!.value as ExportKind);
-  const sync = () => { jsonBox.hidden = selected() !== "json"; guideBox.hidden = !GUIDE_KINDS.includes(selected()); };
+  const sync = () => { jsonBox.hidden = selected() !== "json"; guideBox.hidden = !GUIDE_KINDS.includes(selected()); targetBox.hidden = (options.targets ?? []).length === 0 || selected() === "json"; };
   dialog.querySelectorAll('input[name="ex-kind"]').forEach((r) => r.addEventListener("change", sync));
   dialog.querySelector("#ex-check")!.addEventListener("click", () => options.checkFirst());
   let result: ExportChoice | null = null;
   dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", (event) => {
     event.preventDefault();
     if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return dialog.close("cancel");
-    result = { kind: selected(), comments: selected() === "json" && dialog.querySelector<HTMLInputElement>("#ex-comments")!.checked, ...(GUIDE_KINDS.includes(selected()) ? { guideId: guidePick.value } : {}) };
+    result = { kind: selected(), comments: selected() === "json" && dialog.querySelector<HTMLInputElement>("#ex-comments")!.checked, ...(GUIDE_KINDS.includes(selected()) ? { guideId: guidePick.value } : {}), ...(selected() !== "json" && targetPick.value ? { targetId: targetPick.value } : {}) };
     dialog.close("ok");
   });
   sync();

@@ -17,7 +17,8 @@ import { addNode, cleanVariableName, createProject, findNode, moveNode, numberin
 import { ZOOM_LIMITS, viewWords } from "../project/views.ts";
 import { fileNameFor } from "../project/package.ts";
 import { EXPORT_EXTENSION, type ExportKind, type MadeExport } from "../export/make.ts";
-import { BLOCK_HELP, blocksFromJson, pageFromBlocks, pictureToJson, topicToJson } from "./blocks.ts";
+import { BLOCK_HELP, blocksFromJson, pageFromBlocks, pictureToJson, topicToJson, type ReuseLookup, type ReuseNames } from "./blocks.ts";
+import { conditionIds, conditionNames, deleteSnippet, setConditionNames, setSnippet, setTargetList, snippetFromText, snippetToText, snippetUses } from "../project/snippets.ts";
 import { keepPicture } from "./capture-tools.ts";
 import { baseName, folderOf, projectFile, resolveInside, PROJECT_EXTENSION } from "./paths.ts";
 import { failed, text, type ToolDef, type ToolResult } from "./protocol.ts";
@@ -26,7 +27,7 @@ import type { Session } from "./session.ts";
 export interface ToolDeps {
   session: Session;
   /** Makes an export of the open project (src/export/make.ts, with the app's drawing and printing). */
-  exporter(kind: ExportKind, options: { guideId?: string; comments?: boolean }): Promise<MadeExport>;
+  exporter(kind: ExportKind, options: { guideId?: string; comments?: boolean; targetId?: string }): Promise<MadeExport>;
 }
 
 type Args = Record<string, unknown>;
@@ -69,6 +70,16 @@ function topic(project: Project, id: string): TreeNode {
   if (!node) throw new Error(`There is no topic with the id "${id}". get_outline lists the topics and their ids.`);
   return node;
 }
+
+/** What a page can say about the book's snippets and conditions: by name, for an assistant. */
+const reuseOf = (project: Project): ReuseLookup => ({
+  snippetId: (nameOrId) => project.snippets.find((s) => s.id === nameOrId || s.name.toLowerCase() === nameOrId.trim().toLowerCase())?.id,
+  conditionIds: (names) => conditionIds(project, names),
+});
+const namesOf = (project: Project): ReuseNames => ({
+  conditionName: (id) => project.conditions.find((c) => c.id === id)?.name,
+  snippetName: (id) => project.snippets.find((s) => s.id === id)?.name,
+});
 
 /** Refuses blocks with a link to a topic that is not in the book, saying which, so nothing is changed. */
 function refuseUnknownLinks(project: Project, blocks: Parameters<typeof linksInBlocks>[0]): void {
@@ -174,7 +185,10 @@ export function createTools(deps: ToolDeps): ToolDef[] {
       inputSchema: schema({}),
       handler: async () => {
         const project = session.require();
-        return json({ project: project.name, file: session.filePath, variables: project.variables, topics: outline(project.tree, numbering(project.tree)), index: indexSummary(project.tree) });
+        const reuse = project.snippets.length || project.conditions.length || project.targets.length
+          ? { reuse: { snippets: project.snippets.map((s) => s.name), conditions: project.conditions.map((c) => c.name), targets: project.targets.map((t) => ({ name: t.name, hides: conditionNames(project, t.hide) })) } }
+          : {};
+        return json({ project: project.name, file: session.filePath, variables: project.variables, topics: outline(project.tree, numbering(project.tree)), index: indexSummary(project.tree), ...reuse });
       },
     },
     {
@@ -184,7 +198,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
       handler: async (args) => {
         const project = session.require();
         const node = topic(project, string(args, "topic_id"));
-        return json(topicToJson(node, numbering(project.tree).get(node.id) ?? ""));
+        return json(topicToJson(node, numbering(project.tree).get(node.id) ?? "", namesOf(project)));
       },
     },
     {
@@ -253,7 +267,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
       handler: changes((args, project) => {
         const node = topic(project, string(args, "topic_id"));
         const ids = new Set(node.pictures.map((p) => p.id));
-        const written = blocksFromJson(args.blocks, ids);
+        const written = blocksFromJson(args.blocks, ids, reuseOf(project));
         refuseUnknownLinks(project, written);
         node.page = pageFromBlocks(written, ids);
         if (node.page.blocks.length === 0) delete node.page;
@@ -267,7 +281,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
       handler: changes((args, project) => {
         const node = topic(project, string(args, "topic_id"));
         const ids = new Set(node.pictures.map((p) => p.id));
-        const added = blocksFromJson(args.blocks, ids);
+        const added = blocksFromJson(args.blocks, ids, reuseOf(project));
         refuseUnknownLinks(project, added);
         node.page = pageFromBlocks([...(node.page?.blocks ?? []), ...added], ids);
         return `Added ${added.length} block(s); the page of "${node.title}" now has ${node.page.blocks.length}.`;
@@ -352,6 +366,82 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         };
         addCallout(picture, callout);
         return `Added callout ${letterFor((picture.callouts?.length ?? 1) - 1)} (id ${callout.id}) round the part from ${target.x}, ${target.y}, ${target.width} wide and ${target.height} high.`;
+      }),
+    },
+    {
+      name: "list_snippets",
+      description: "The book's snippets: each with its name, the text it is written in (see set_snippet) and the topics that use it.",
+      inputSchema: schema({}),
+      handler: async () => {
+        const project = session.require();
+        const numbers = numbering(project.tree);
+        return json(project.snippets.map((s) => ({ name: s.name, text: snippetToText(s.blocks), used_in: snippetUses(project.tree, s.id).map((u) => `${numbers.get(u.node.id)} ${u.node.title}`) })));
+      },
+    },
+    {
+      name: "set_snippet",
+      description:
+        "Makes a snippet, or changes the one with this name: a piece of a page written once and used in many topics with a {type:'snippet', snippet:'Name'} block, so changing it once changes every topic. " +
+        "The text has blocks separated by a blank line: '# words' is a heading; '> Caution: words' is a boxed note (the box names are Design Tip, Caution, Bright Idea, Power Tip, Time Saver, New in this version); lines '1. words', '2. words' are the steps of a numbered procedure, with a line 'Result: words' after a step for its result; anything else is a paragraph. " +
+        "Words use **bold**, *italic*, [[Control name]] and [words](#topic-id). A snippet holds no pictures.",
+      inputSchema: schema({ name: str("The snippet's name, up to 60 letters."), text: str("What the snippet says, in the form above.") }, ["name", "text"]),
+      handler: changes((args, project) => {
+        const { blocks, problems } = snippetFromText(string(args, "text"));
+        if (blocks.length === 0) throw new Error("The text has nothing in it, so there is no snippet to keep. Delete a snippet with delete_snippet.");
+        const made = setSnippet(project, string(args, "name"), blocks);
+        return `The snippet "${made.name}" has ${made.blocks.length} block(s), used in ${snippetUses(project.tree, made.id).length} topic(s).${problems.length ? ` ${problems.join(" ")}` : ""}`;
+      }),
+    },
+    {
+      name: "delete_snippet",
+      description: "Deletes a snippet. Where a topic used it, the words stay as ordinary blocks (a copy of what it said), so no page loses anything. It cannot be undone, so confirm must be true.",
+      inputSchema: schema({ name: str("The snippet's name."), confirm: { type: "boolean", description: "Must be true." } }, ["name", "confirm"]),
+      handler: changes((args, project) => {
+        if (args.confirm !== true) throw new Error("Nothing was deleted. Send confirm: true to delete the snippet.");
+        const id = reuseOf(project).snippetId(string(args, "name"));
+        if (!id) throw new Error(`There is no snippet called "${string(args, "name")}". list_snippets shows them.`);
+        const name = project.snippets.find((s) => s.id === id)!.name;
+        const places = deleteSnippet(project, id);
+        return `Deleted the snippet "${name}".${places ? ` ${places} place(s) that used it now hold ordinary blocks with the same words.` : ""}`;
+      }),
+    },
+    {
+      name: "set_conditions",
+      description:
+        "Sets the book's conditions: names for content that is only for some readers or versions, such as Administrators or Version 2. It replaces the list: a name that is already there keeps what carries it, and one left out is taken off everything and every target. " +
+        "Put a condition on a block or step with conditions: [names] in set_page, and on a topic with set_topic_conditions.",
+      inputSchema: schema({ names: { type: "array", items: { type: "string" }, description: "The condition names, up to 30, each once." } }, ["names"]),
+      handler: changes((args, project) => {
+        if (!Array.isArray(args.names) || args.names.some((n) => typeof n !== "string")) throw new Error("names must be a list of text.");
+        const result = setConditionNames(project, args.names as string[]);
+        return `The book has ${project.conditions.length} condition(s): ${project.conditions.map((c) => c.name).join(", ") || "none"}. ${result.added} added, ${result.removed} taken out.`;
+      }),
+    },
+    {
+      name: "set_targets",
+      description: "Sets the book's targets: named outputs, such as 'Guide for students', each hiding some conditions. export_book with target: 'Guide for students' leaves out everything that carries any condition that target hides. It replaces the list.",
+      inputSchema: schema({ targets: { type: "array", description: "The targets, up to 20.", items: schema({ name: str("The target's name."), hide: { type: "array", items: { type: "string" }, description: "The names of the conditions it hides." } }, ["name", "hide"]) } }, ["targets"]),
+      handler: changes((args, project) => {
+        if (!Array.isArray(args.targets)) throw new Error("targets must be a list.");
+        const list = args.targets.map((t) => {
+          const o = (t ?? {}) as Args;
+          if (typeof o.name !== "string" || !Array.isArray(o.hide) || o.hide.some((h) => typeof h !== "string")) throw new Error("Each target needs a name and a list of condition names to hide.");
+          return { name: o.name, hide: o.hide as string[] };
+        });
+        const count = setTargetList(project, list);
+        return `The book has ${count} target(s): ${project.targets.map((t) => `${t.name} (hides ${conditionNames(project, t.hide).join(", ") || "nothing"})`).join("; ") || "none"}.`;
+      }),
+    },
+    {
+      name: "set_topic_conditions",
+      description: "Puts conditions on a whole topic (the topic and what is under it are left out of an output made for a target that hides any of them). It replaces the topic's conditions; an empty list clears them.",
+      inputSchema: schema({ topic_id: str("The topic's id."), conditions: { type: "array", items: { type: "string" }, description: "Condition names." } }, ["topic_id", "conditions"]),
+      handler: changes((args, project) => {
+        const node = topic(project, string(args, "topic_id"));
+        if (!Array.isArray(args.conditions) || args.conditions.some((c) => typeof c !== "string")) throw new Error("conditions must be a list of condition names.");
+        const ids = conditionIds(project, args.conditions as string[]);
+        if (ids.length) node.conditions = ids; else delete node.conditions;
+        return ids.length ? `"${node.title}" now carries: ${conditionNames(project, ids).join(", ")}.` : `"${node.title}" carries no conditions now.`;
       }),
     },
     {
@@ -666,6 +756,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         kind: { type: "string", enum: Object.keys(EXPORT_EXTENSION), description: "The kind of export." },
         file: str("The file to make, inside the MCP folder. Its ending (.zip, .docx or .pdf) is added if left off."), guide_id: str("For a guide kind: which guide."),
         include_comments: { type: "boolean", description: "For json: include the working comments." },
+        target: str("For every kind but json: the name of a target (set_targets) to make it for. Content with a condition that target hides is left out. Without it nothing is left out."),
       }, ["kind", "file"]),
       handler: async (args) => {
         session.require();
@@ -675,7 +766,11 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         const full = resolveInside(session.settings.folder, string(args, "file"));
         if (!full) throw new Error("That file is not inside the folder MCP may use.");
         const path = full.toLowerCase().endsWith(`.${extension}`) ? full : `${full}.${extension}`;
-        const made = await deps.exporter(kind, { guideId: optionalString(args, "guide_id"), comments: args.include_comments === true });
+        const targetName = optionalString(args, "target");
+        const project = session.require();
+        const target = targetName ? project.targets.find((t) => t.name.toLowerCase() === targetName.trim().toLowerCase()) : undefined;
+        if (targetName && !target) throw new Error(`There is no target called "${targetName}" (${project.targets.map((t) => t.name).join(", ") || "none have been made; set_targets makes them"}).`);
+        const made = await deps.exporter(kind, { guideId: optionalString(args, "guide_id"), comments: args.include_comments === true, ...(target ? { targetId: target.id } : {}) });
         await session.files.makeFolder(folderOf(path));
         await session.files.write(path, made.bytes);
         return text(`Made the ${kind} export: ${path} (${made.bytes.length} bytes, ${baseName(path)}).${made.notes.length ? `\nNot everything could be included:\n${made.notes.join("\n")}` : ""}`);

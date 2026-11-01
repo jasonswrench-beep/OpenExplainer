@@ -42,8 +42,8 @@ function sample() {
 const ctxFor = (project: ReturnType<typeof sample>, withLogo = true): RenderContext => ({ project, place: "book", notes: false, imageSrc: (p) => (p.id === "@logo" && !withLogo ? null : `blob:${p.id}`) });
 const logoFlat = (): FlatPicture => ({ path: "images/logo.png", bytes: png(300, 100), width: 300, height: 100 });
 
-test("a new project has the look the outputs always had, and it is format 18", () => {
-  assert.equal(CURRENT_VERSION, 18);
+test("a new project has the look the outputs always had (the look arrived in format 18)", () => {
+  assert.ok(CURRENT_VERSION >= 18);
   const p = createProject("Book");
   assert.deepEqual(p.look, defaultLook());
   assert.ok(isDefaultLook(p.look));
@@ -94,7 +94,7 @@ test("the look is saved with the project and opened again, an older project gets
   assert.deepEqual(fromFiles(toFiles(project)).look, project.look);
   assert.deepEqual(JSON.parse(toFiles(project)["project.json"]).look, project.look);
   const old = migrate({ version: 17, name: "Old", template: "empty", variables: {}, highlight: {}, tree: [] });
-  assert.equal(old.version, 18);
+  assert.equal(old.version, CURRENT_VERSION);
   assert.deepEqual(old.look, defaultLook());
   const logoBytes = png(300, 100);
   const packed = packProject(project, new Map([["images/logo1.png", logoBytes], ["images/unused.png", png(5, 5)]]));

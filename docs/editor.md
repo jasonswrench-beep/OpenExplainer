@@ -242,6 +242,17 @@ A **guide** is a few pages for one task, or for several (the quick, step-by-step
 - Not built yet: the third picture of the left layout (a step holds one picture today, so the left layout shows the picture and its close-up), exporting a guide as a help site, and book check rules for
   guides (a task whose topic has lost its steps shows a note for the writer in the preview).
 
+## Reuse: snippets, conditions and targets
+
+Format version 19 (2026-11-01, from the comparison with help-authoring programs: all three have snippets and conditions, and the book had only variables). **Reuse** (a toolbar button) opens one window for all three:
+
+- **Snippets.** A snippet is a piece of a page you write once: a heading, a paragraph, a boxed note or a numbered procedure (no pictures). Choose or make one, give it a name, and write what it says in the box (blocks separated by a blank line; `# words` is a heading, `> Caution: words` a boxed note, `1. words` lines the steps of a procedure, a line `Result: words` after a step its result; the window says this and counts the blocks and the places that use the snippet). In a topic, **Snippet** (beside Paragraph, Heading and the others under Add to the page) adds a block with a list of the snippets; the words that will be written there are shown under it. Change the snippet and every topic that uses it changes, in the preview and in every output. Deleting a snippet keeps its words where it was used, as ordinary blocks.
+- **Conditions.** A condition is a name for content that is only for some readers or versions, such as Administrators or Version 2. A list of boxes, one for each, with Add a condition and Remove.
+- **Targets.** A target is a named output, such as Guide for students, with a tick box for each condition it hides.
+- **Putting a condition on content.** Every block has a **Conditions** button (when the book has conditions) and a line saying which it carries; a topic has **Choose conditions for this topic** in its Properties. A step can carry conditions too, which an assistant sets (the page editor does not show them). An output made for a target that hides any of them leaves that block, step or topic out, with the topics under a topic.
+- **Seeing a target.** When the book has targets, the print, help site and guide previews have **Show the book for**, and Export has **Make it for**. JSON always holds the whole book. Without a target nothing is left out.
+- The window and the Conditions buttons work by keyboard alone; names that are empty or repeated are said in words before anything is kept; nothing changes until **Save** / **Keep these**. The book check notes snippets that nothing uses and conditions nothing carries.
+
 ## Look of the book
 
 Format version 18 (2026-11-01, from the comparison with help-authoring programs: they all have a way to give a book a house style). **Look of the book** (a toolbar button) sets, for the whole project: the **font of the text** and the **font of the headings**, an **accent colour**, a **logo**, whether the book **starts with a title page**, the **words at the top** of every page after the first and the **words at the bottom** beside the page number, and the **paper size** (Letter or A4). They are used by the print preview, the PDF, the Word file and the help site, so the book looks the same everywhere. Until the author chooses, each output keeps the look it always had.
