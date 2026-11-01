@@ -190,7 +190,7 @@ test("the help site has a page for each topic with the contents tree, breadcrumb
   const { project, assets } = book();
   const { flat } = await flattenPlaced(project, assets, "book", fakeFlatten().flatten);
   const files = buildHelpSiteText(project, flat);
-  assert.deepEqual(Object.keys(files).sort(), ["1-1-saving-closing.html", "1-getting-started.html", "2-printing.html", "assets/search-index.js", "assets/site.css", "assets/site.js", "index.html"].sort());
+  assert.deepEqual(Object.keys(files).sort(), ["1-1-saving-closing.html", "1-1-saving-closing.md", "1-getting-started.html", "1-getting-started.md", "2-printing.html", "2-printing.md", "assets/search-index.js", "assets/site.css", "assets/site.js", "index.html", "llms-full.txt", "llms.txt"].sort());
   const saving = files["1-1-saving-closing.html"];
   assert.equal(files["index.html"], files["1-getting-started.html"], "index.html is the first topic");
   assert.match(saving, /^<!DOCTYPE html>\n<html lang="en">/);

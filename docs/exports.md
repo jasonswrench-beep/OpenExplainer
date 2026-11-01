@@ -145,6 +145,16 @@ looked at (numbers right-aligned with leaders), the PDF read for its tags, langu
 one-at-a-time rule were exercised against the real shell. Not tried: a screen reader on the PDF, a desktop PDF program's accessibility checker (PAC or a desktop PDF program), a very long book, a book with unusual fonts. The fonts
 are Georgia (body) and Segoe UI (headings) as installed on the PC, falling back to Times New Roman and Arial, and the PDF embeds what it used.
 
+## Markdown pages and llms.txt in the help site
+
+Added 2026-11-01 (a help-authoring program publishes per-page Markdown and an llms.txt). The help site export (`src/export/help-site.ts`) now also holds, next to each page, a Markdown version of it, and two files for AI assistants. Nothing else about the site changes.
+
+- **A `.md` file beside each `.html` page**, with the same name (`1-1-saving.md` beside `1-1-saving.html`), made by `topicPageMarkdown` in `src/export/markdown.ts`: the topic's number and title, a line saying which book and chapter it is in, its blocks as the Markdown export writes them, its See also list, and for a chapter or topic with topics under it an "In this topic" list. The topics under it are not repeated: each has its own page. A link to another topic is a Markdown link to that topic's `.md` file with its number after it; pictures are linked by their path from the site's root (`images/...`), where the page is. Everything from the book is escaped so it reads as text. Comments are never included.
+- **`<link rel="alternate" type="text/markdown">`** in the head of each page points to its Markdown version, so a program that reads a page can find it. `index.html` points to the first topic's.
+- **`llms.txt`** (the convention at llmstxt.org): the book's name, a one-line quotation about it (the product, version and company from the variables, else "A how-to book of N chapters."), a sentence saying what the `.md` files are, then a heading for each chapter and a list of its pages (the chapter first, then each topic) as links to their `.md` files, each with a line of at most 150 letters taken from the topic's first paragraph (or "N steps, starting with: ..." for a first procedure); a topic with nothing on its page has no line.
+- **`llms-full.txt`**: the whole book as one Markdown file (the same text as the Markdown export's `book.md`), for an assistant that wants all of it at once.
+- Where the site is put on a web server, these files go with it. Nothing is sent anywhere by OpenExplainer. The tests are `tests/llms.test.ts`.
+
 ## EPUB (e-book)
 
 Added 2026-11-01 (help-authoring programs both export EPUB). **Export**, kind `epub` (`src/export/epub.ts`) makes an EPUB 3 e-book that reflows to fit any screen, for e-readers and reading apps. No page numbers: the pages depend on the reader's screen.
