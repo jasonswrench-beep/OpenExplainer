@@ -69,6 +69,14 @@ export function linkLossWords(count: { links: number; seeAlso: number }): string
   return parts.length ? `${parts.join(", and ")}.` : "";
 }
 
+/**
+ * Do the linked words already say the topic's number ("Chapter 4", "topic 6.1", "6.1")? Then the book does not add the number again after the link, as it does after words such as "Saving a copy"
+ * (a link reads "Chapter 4, page 57" in a PDF, not "Chapter 4 (4), page 57"). The number must stand alone: 6.1 is not found in 16.1 or 6.12.
+ */
+export function wordsSayNumber(words: string, number: string): boolean {
+  return new RegExp(`(?<![0-9.])${number.replace(/\./g, "\\.")}(?![0-9]|\\.[0-9])`).test(words);
+}
+
 /** The id of every topic in the tree. */
 export function topicIds(tree: TreeNode[]): Set<string> {
   const ids = new Set<string>();

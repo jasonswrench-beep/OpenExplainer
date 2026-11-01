@@ -7,6 +7,7 @@ import type { Picture, Project, TreeNode } from "../project/model.ts";
 import { calloutLabel, type Block, type CalloutKind, type Step } from "../project/page.ts";
 import { failing, kindName, missingAlt, shapeChecks, shapesDescription } from "../project/shapes.ts";
 import type { Run } from "../project/text.ts";
+import { wordsSayNumber } from "../project/links.ts";
 import { forPaper, isWhole, MIN_PRINT_SCALE, PRINT_TEXT_WIDTH, printScale, shownPart, switchedForPaper } from "../project/views.ts";
 
 export { MIN_PRINT_SCALE, PRINT_TEXT_WIDTH, printScale };
@@ -72,7 +73,10 @@ function linkHtml(ctx: RenderContext, run: Run, words: string): string {
   const number = links && run.topic ? links.number(run.topic) : null;
   if (!links || !run.topic || number === null) return words;
   const page = links.pages?.get(run.topic);
-  const after = links.showNumber ? `<span class="pv-ref"> (${esc(number)})${page !== undefined ? `, page ${esc(page)}` : ""}</span>` : "";
+  // Words that already say the number ("Chapter 4") are not followed by it again.
+  const numberAfter = wordsSayNumber(run.text, number) ? "" : ` (${esc(number)})`;
+  const pageAfter = page !== undefined ? `, page ${esc(page)}` : "";
+  const after = links.showNumber && (numberAfter || pageAfter) ? `<span class="pv-ref">${numberAfter}${pageAfter}</span>` : "";
   return `<a class="topic-link" ${links.attrs(run.topic)}>${words}</a>${after}`;
 }
 

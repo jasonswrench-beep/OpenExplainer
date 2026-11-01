@@ -10,6 +10,7 @@ import type { Run } from "../project/text.ts";
 import { forPaper, PRINT_TEXT_WIDTH, shownPart } from "../project/views.ts";
 import { pageSizeById, wordFont, type Look } from "../project/look.ts";
 import { altTextFor, fillVariables } from "../render/html.ts";
+import { wordsSayNumber } from "../project/links.ts";
 import { calloutInView } from "../render/overlay.ts";
 import type { FlatPicture } from "./pictures.ts";
 import { zip } from "../project/zip.ts";
@@ -35,7 +36,7 @@ function topicLinkXml(ctx: Pick<Context, "bookmarks" | "numbers">, topic: string
   const bookmark = ctx.bookmarks.get(topic);
   const number = ctx.numbers?.get(topic);
   if (bookmark === undefined || number === undefined) return null;
-  return `<w:hyperlink w:anchor="_Toc${bookmark}" w:history="1">${run(words, '<w:rStyle w:val="Hyperlink"/>')}</w:hyperlink>${run(` (${number})`)}`;
+  return `<w:hyperlink w:anchor="_Toc${bookmark}" w:history="1">${run(words, '<w:rStyle w:val="Hyperlink"/>')}</w:hyperlink>${wordsSayNumber(words, number) ? "" : run(` (${number})`)}`;
 }
 
 /** Text with marks as Word runs. With `ctx`, a link to another topic is a link to its heading; without it (a guide), linked words are plain words. */

@@ -5,6 +5,7 @@ import { buildBookIndex } from "../project/book-index.ts";
 import { entries, entryWords } from "../project/callouts.ts";
 import { numbering, type Picture, type Project, type TreeNode } from "../project/model.ts";
 import { calloutLabel, type Block } from "../project/page.ts";
+import { wordsSayNumber } from "../project/links.ts";
 import type { Run } from "../project/text.ts";
 import { shownPart } from "../project/views.ts";
 import { altTextFor, fillVariables } from "../render/html.ts";
@@ -40,7 +41,8 @@ function runsMarkdown(runs: Run[], variables: Record<string, string>, lineStart 
       // A link to another topic is its words and the topic's number; where the other topics are pages of their own (the help site's Markdown pages) it is also a link to that page.
       if (run.mark === "link" && run.topic && numbers?.has(run.topic)) {
         const href = hrefs?.get(run.topic);
-        return href ? `[${words}](${href}) (${numbers.get(run.topic)})` : `${words} (${numbers.get(run.topic)})`;
+        const after = wordsSayNumber(filled, numbers.get(run.topic)!) ? "" : ` (${numbers.get(run.topic)})`;
+        return href ? `[${words}](${href})${after}` : `${words}${after}`;
       }
       return words;
     })
