@@ -218,7 +218,7 @@ only Word knows the pages); on the help site it is a link to the topic's page; i
 `project.json` has `checks: { ignored }`, the keys of the things in the book check that the author chose to ignore. A key is made so that it stays the same while the thing stays the same, such
 as `picture-alt:<picture id>`, `empty-topic:<topic id>`, `callout-description:<picture id>:<callout id>`, `mark-alt:<picture id>:<mark id>` or `variable-empty:PRODUCT`. Ignoring all of a kind
 adds the keys of the things of that kind found at that moment; a new one found later still shows. Cleaned when a project is opened and saved: only keys that are text, once each. The things the
-check finds are worked out from the project every time (`src/project/checks.ts`), never stored.
+check finds are worked out from the project every time (`src/project/checks.ts`, with the rules for a bigger book in `src/project/book-checks.ts`), never stored. Keys added with the bigger book: `blank-title:<topic id>`, `duplicate-title:<ids, comma separated, in book order>`, `duplicate-text:<ids>` and `vague-link:<topic id>:<the words, in lower case>`. No format change.
 
 ## The book index
 
