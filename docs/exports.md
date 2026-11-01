@@ -145,6 +145,20 @@ looked at (numbers right-aligned with leaders), the PDF read for its tags, langu
 one-at-a-time rule were exercised against the real shell. Not tried: a screen reader on the PDF, a desktop PDF program's accessibility checker (PAC or a desktop PDF program), a very long book, a book with unusual fonts. The fonts
 are Georgia (body) and Segoe UI (headings) as installed on the PC, falling back to Times New Roman and Arial, and the PDF embeds what it used.
 
+## Import from Word
+
+Added 2026-11-01 (from the comparison with help-authoring programs, which all read an existing Word manual). **Import from Word** (a toolbar button) and the assistant tool `import_word` read a `.docx` file into chapters and topics added at the end of the open book (`src/import/docx.ts`; the adding is `src/import/apply.ts`). It changes no part of the project format: what comes in is ordinary topics, pages and pictures. A person is told what will come in and what will be left out and must agree before anything is added; the tool says the same in its answer. A file that is not a `.docx` (a zip that is not a Word file, an old `.doc`, a damaged file) is refused in words and the book is not changed.
+
+- **Headings.** The top level of heading used in the file becomes chapters and the next level topics; deeper headings become sub-headings (a heading block) inside their topic. A heading is a "Heading 1" to "Heading 9" style, a style based on one, or a paragraph or style with an outline level. A file with one level of heading makes each heading a topic in one chapter named after the document; a file with no headings makes one topic. Text before the first heading goes in a chapter named after the document's title (or the file). A number the author typed at the start of the headings ("1 Saving", "1.2 Printing", as OpenExplainer's own Word export writes them) is removed when most headings have one, because the book numbers its own topics.
+- **Words.** Bold, italic and a "Control name" character style become the book's marks. Links keep their words (not the address), inserted text is kept, deleted text is not, tabs and line breaks become spaces.
+- **Lists.** Numbered paragraphs (by direct numbering or through a style) become one numbered procedure for each list; a "Step continued" paragraph beginning "Result:" becomes the step's result. Bulleted paragraphs become paragraphs that start with "• ".
+- **Boxes.** The paragraph styles OpenExplainer writes ("Callout box, Caution" and so on) and styles named Note, Tip, Caution, Warning, Important or Danger become a boxed note of the nearest kind (Note and Tip are a Design Tip; Warning and Important a Caution); a word such as "Note." at the start is dropped.
+- **Pictures.** PNG and JPEG pictures come in, with the description Word holds (the alt text), as pictures of the topic and picture blocks on its page; a picture shown twice in one topic is one picture. Other kinds (GIF, EMF, a drawing) are counted in the report.
+- **Tables** become one line for each row, the cells divided by " | ". **Left out, and counted in the report:** a title page, contents list, index and picture notes of a file OpenExplainer made, the running header and footer (the look of the book sets those), comments, footnotes and endnotes.
+- Every topic that comes in is marked **Drafted**, because the words came from a file made for another tool and have not been read by the author in this one.
+
+A round trip (export Word, import it) gives back the same chapters, topics, words, steps, boxes and pictures; the tests check it (`tests/word-import.test.ts`).
+
 ## Still to come
 
 The book index, a guide as a help site, and the printed look matched more closely to the reference how-to book. See `docs/HANDOFF.md`.

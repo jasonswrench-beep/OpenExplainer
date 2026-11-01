@@ -217,7 +217,8 @@ ignore the keyboard stays on the same place in the list (or goes to Close when n
 **Export** (a toolbar button) opens a dialog: Help site, JSON with images, Markdown, Word, PDF, Guide (Word) or Guide (PDF), each described in words, with a box for the working comments when JSON is chosen (off to begin with) and an optional
 **Check the book first** button that opens the book check on top (the dialog says the check is optional and only advises; it also says how many unresolved comments there are). It then asks where to save a zip
 file (a .docx file for Word), makes the export without changing the project, saves it, and says what was saved and anything that could not be included (a picture file that is missing or could not be drawn). **Import an export**
-reads a JSON export back into a project (asking first if there are unsaved changes), as an unsaved project. The formats are in `docs/exports.md`; the code is in `src/export/`, with `src/render/flatten.ts`
+reads a JSON export back into a project (asking first if there are unsaved changes), as an unsaved project. **Import from Word** chooses a `.docx` file, reads it, and shows what will come in (chapters, topics, pictures) and what will be left out;
+**Add them to the book** puts the chapters at the end of the open book, each topic marked Drafted, **Cancel** changes nothing, and a file that is not a Word file is refused in words (the dialogs close by keyboard and the result is announced). What it reads is in `docs/exports.md` ("Import from Word"). The formats are in `docs/exports.md`; the code is in `src/export/`, with `src/render/flatten.ts`
 drawing each picture's marks into a PNG on a canvas.
 
 ## Guides

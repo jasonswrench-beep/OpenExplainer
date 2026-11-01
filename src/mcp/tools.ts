@@ -19,6 +19,8 @@ import { fileNameFor } from "../project/package.ts";
 import { EXPORT_EXTENSION, type ExportKind, type MadeExport } from "../export/make.ts";
 import { BLOCK_HELP, blocksFromJson, pageFromBlocks, pictureToJson, topicToJson, type ReuseLookup, type ReuseNames } from "./blocks.ts";
 import { conditionIds, conditionNames, deleteSnippet, setConditionNames, setSnippet, setTargetList, snippetFromText, snippetToText, snippetUses } from "../project/snippets.ts";
+import { importDocx } from "../import/docx.ts";
+import { addImported } from "../import/apply.ts";
 import { keepPicture } from "./capture-tools.ts";
 import { baseName, folderOf, projectFile, resolveInside, PROJECT_EXTENSION } from "./paths.ts";
 import { failed, text, type ToolDef, type ToolResult } from "./protocol.ts";
@@ -32,6 +34,9 @@ export interface ToolDeps {
 
 type Args = Record<string, unknown>;
 
+/** The biggest Word file import_word takes, so a mistake cannot fill the computer's memory. */
+const MOST_WORD_BYTES = 50 * 1048576;
+
 /** The biggest picture file import_picture takes, so a mistake cannot fill a project. */
 const MOST_PICTURE_BYTES = 30 * 1048576;
 
@@ -42,7 +47,7 @@ export const INSTRUCTIONS =
   "view_picture shows you a picture and get_topic lists them. Capture is one window at a time. " +
   "Name and describe the callouts on a picture with describe_picture, and give every picture a plain description (alt_text) for readers who cannot see it. Never write about a control that is not in the capture. " +
   "[words](#topic-id) in text is a link to another topic and set_see_also lists topics to read next. " +
-  "A window, region or brought-in picture (import_picture) has no click, so add_callout puts a callout round a part of it you name in pixels, and delete_callout takes one off. move_topic moves a chapter or topic, with its pictures, to another place. " +
+  "A window, region or brought-in picture (import_picture) has no click, so add_callout puts a callout round a part of it you name in pixels, and delete_callout takes one off. move_topic moves a chapter or topic, with its pictures, to another place. import_word reads an existing Word manual in as drafted chapters and topics. " +
   "set_picture_view crops a tall or wide picture to the part that matters; set_book_settings sets the zoom, the click circle, the writing style and the words to avoid; update_guide and delete_guide change guides. " +
   "Every change is saved as it is made. When the book is ready, run check_book, update_index, and export_book (help-site, json, markdown, word, pdf, guide-word, guide-pdf). " +
   "You can only use files inside the folder the author chose for MCP.";
@@ -342,6 +347,26 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         if (!info) throw new Error("That file is not a PNG or JPEG picture. Only those two kinds can be brought in.");
         const kept = keepPicture(session, node, { bytes, width: info.width, height: info.height, extension: info.extension }, "import", { name: baseName(path), alt: optionalString(args, "alt_text") });
         return `Brought ${baseName(path)} into "${node.title}" as picture ${kept.id} (${kept.width} by ${kept.height}).`;
+      }),
+    },
+    {
+      name: "import_word",
+      description:
+        "Reads a Word document (.docx) from the MCP folder into chapters and topics added at the end of the book: Heading 1 paragraphs become chapters and Heading 2 topics (a file with one level of heading makes each heading a topic), numbered lists become procedures, bold and italic and control names are kept, " +
+        "boxed notes made with the Note, Tip, Caution or Warning styles become callout boxes, PNG and JPEG pictures come in with their descriptions, and a table becomes one line for each row. Comments, footnotes, headers and footers are not brought in. " +
+        "Every topic is marked Drafted. Returns what came in (with the ids to use next) and what was left out. Move the new chapters with move_topic and check them with check_book.",
+      inputSchema: schema({ file: str("The .docx file, inside the MCP folder.") }, ["file"]),
+      handler: changes(async (args, project) => {
+        const path = resolveInside(session.settings.folder, string(args, "file"));
+        if (!path) throw new Error("That file is not inside the folder MCP may use.");
+        if (!(await session.files.exists(path))) throw new Error(`There is no file at ${path}.`);
+        const bytes = await session.files.read(path);
+        if (bytes.length > MOST_WORD_BYTES) throw new Error(`That file is ${Math.round(bytes.length / 1048576)} MB. A Word file can be up to ${MOST_WORD_BYTES / 1048576} MB.`);
+        const imported = await importDocx(bytes, { name: baseName(path).replace(/\.docx$/i, ""), now: new Date().toISOString() });
+        if (imported.chapters.length === 0) throw new Error(`There was nothing to bring in. ${imported.report.join(" ")}`);
+        const added = addImported(project, session.assets, imported);
+        const outline = (nodes: TreeNode[]): unknown[] => nodes.map((n) => ({ id: n.id, title: n.title, pictures: n.pictures.length, topics: outline(n.children) }));
+        return `Added ${added.chapters.length} ${added.chapters.length === 1 ? "chapter" : "chapters"} and ${added.topics} ${added.topics === 1 ? "topic" : "topics"} at the end of the book. ${JSON.stringify({ added: outline(added.chapters), report: imported.report })}`;
       }),
     },
     {

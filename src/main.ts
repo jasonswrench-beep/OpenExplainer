@@ -4,7 +4,9 @@ import {
   outdent, removeNode, renameNode, setStatus, visibleNodes, findNodes, replaceInTitles,
   addPicture, removePicture, setAltText, setPictureHighlight, setPictureView, newId, type Picture, type Project, type Status, type TreeNode,
 } from "./project/model.ts";
-import { chooseExportPath, chooseImages, chooseImportPath, chooseOpenPath, chooseSavePath, loadProject, readBytes, saveProject, writeBytes } from "./project/disk.ts";
+import { chooseExportPath, chooseImages, chooseImportPath, chooseOpenPath, chooseSavePath, chooseWordPath, loadProject, readBytes, saveProject, writeBytes } from "./project/disk.ts";
+import { importDocx } from "./import/docx.ts";
+import { addImported, importQuestion } from "./import/apply.ts";
 import { fileNameFor as projectFileName } from "./project/package.ts";
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
@@ -83,6 +85,7 @@ app.innerHTML = `
       <button type="button" id="b-saveas">Save as</button>
       <button type="button" id="b-export">Export</button>
       <button type="button" id="b-import-export">Import an export</button>
+      <button type="button" id="b-import-word">Import from Word</button>
       <button type="button" id="b-vars">Project variables</button>
       <button type="button" id="b-style">Writing style</button>
       <button type="button" id="b-look">Look of the book</button>
@@ -1407,7 +1410,30 @@ async function importExport() {
   }
 }
 
+/** Reads a Word document (.docx) into chapters and topics added at the end of this book, after the author has read what will and will not come in. */
+async function importWord() {
+  const picked = await chooseWordPath();
+  if (!picked) return $("b-import-word").focus();
+  try {
+    const name = picked.split(/[\\/]/).pop() ?? picked;
+    announce(`Reading ${name}. This can take a moment.`);
+    const imported = await importDocx(await readBytes(picked), { name: name.replace(/\.docx$/i, ""), now: new Date().toISOString() });
+    if (imported.chapters.length === 0) { await messageDialog("Nothing to import", `${imported.report.join("\n")}\nYour book was not changed.`); return; }
+    if (!(await confirmDialog("Import from Word", importQuestion(name, imported), "Add them to the book"))) { announce("Nothing was imported."); return; }
+    const added = addImported(project, assets, imported);
+    selectedId = added.chapters[0]?.id ?? selectedId;
+    markDirty();
+    render(true);
+    announce(`Added ${added.chapters.length} ${added.chapters.length === 1 ? "chapter" : "chapters"} and ${added.topics} ${added.topics === 1 ? "topic" : "topics"} from ${name}. Each is marked Drafted.`);
+  } catch (error) {
+    await messageDialog("Could not import the Word file", `${error instanceof Error ? error.message : String(error)}\nYour book was not changed.`);
+  } finally {
+    $("b-import-word").focus();
+  }
+}
+
 $("b-export").addEventListener("click", () => void exportBook());
+$("b-import-word").addEventListener("click", () => void importWord());
 $("b-import-export").addEventListener("click", () => void importExport());
 
 async function save(asNew = false) {

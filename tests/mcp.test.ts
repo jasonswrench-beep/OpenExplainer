@@ -7,6 +7,7 @@ import { Session, type McpFiles } from "../src/mcp/session.ts";
 import { createTools, INSTRUCTIONS } from "../src/mcp/tools.ts";
 import { addNode, addPicture, createProject, ensurePage, type Picture } from "../src/project/model.ts";
 import { unpackProject } from "../src/project/package.ts";
+import { zip } from "../src/project/zip.ts";
 
 const FOLDER = "C:\\Docs\\OpenExplainer";
 
@@ -438,4 +439,30 @@ test("tools: an assistant can make snippets, conditions and targets, use them in
   assert.match((await call("delete_snippet", { name: "Back up first", confirm: true })).text, /There is no snippet called/);
   assert.match((await call("set_conditions", { names: ["Version 2"] })).text, /1 condition\(s\): Version 2\. 0 added, 1 taken out\./);
   assert.equal((await data("get_topic", { topic_id: admin })).conditions, undefined, "a condition that went is off the topic");
+});
+
+test("tools: import_word reads a Word file from the folder into chapters and topics at the end of the book, and refuses what is not one", async () => {
+  const { call, data, files, session } = setup();
+  await call("create_project", { name: "From Word" });
+  await call("add_topic", { title: "Already here" });
+  const ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const para = (style: string | null, words: string) => `<w:p><w:pPr>${style ? `<w:pStyle w:val="${style}"/>` : ""}</w:pPr><w:r><w:t>${words}</w:t></w:r></w:p>`;
+  const body = [para("Heading1", "Setting up"), para("Heading2", "Install it"), para(null, "Run the installer."), para("Heading2", "Start it"), para(null, "Open the program.")].join("");
+  const styles = `<w:styles ${ns}><w:style w:styleId="Heading1"><w:name w:val="heading 1"/></w:style><w:style w:styleId="Heading2"><w:name w:val="heading 2"/></w:style></w:styles>`;
+  const enc = new TextEncoder();
+  const docx = zip({ "word/document.xml": enc.encode(`<w:document ${ns}><w:body>${body}</w:body></w:document>`), "word/styles.xml": enc.encode(styles) });
+  files.map.set(`${FOLDER}\\old\\manual.docx`.toLowerCase(), docx);
+  files.map.set(`${FOLDER}\\notes.txt`.toLowerCase(), enc.encode("not a Word file"));
+
+  const done = await call("import_word", { file: "old\\manual.docx" });
+  assert.match(done.text, /^Added 1 chapter and 2 topics at the end of the book\. /);
+  assert.deepEqual(session.project!.tree.map((n) => n.title), ["Already here", "Setting up"], "the new chapter goes last");
+  assert.deepEqual(session.project!.tree[1].children.map((n) => n.title), ["Install it", "Start it"]);
+  assert.ok(session.project!.tree[1].children.every((n) => n.status === "drafted"));
+  const install = session.project!.tree[1].children[0];
+  assert.equal((await data("get_topic", { topic_id: install.id })).page[0].text, "Run the installer.");
+  assert.match((await call("import_word", { file: "notes.txt" })).text, /This is not a Word file/);
+  assert.match((await call("import_word", { file: "missing.docx" })).text, /There is no file at/);
+  assert.match((await call("import_word", { file: "..\\x.docx" })).text, /not inside the folder/);
+  assert.equal(session.project!.tree.length, 2, "a refused import keeps nothing");
 });

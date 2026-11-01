@@ -58,6 +58,12 @@ export async function chooseImportPath(): Promise<string | null> {
   return typeof picked === "string" ? picked : null;
 }
 
+/** Asks which Word document (.docx) to bring into the book. `null` if cancelled. */
+export async function chooseWordPath(): Promise<string | null> {
+  const picked = await open({ title: "Import from Word", multiple: false, directory: false, filters: docxFilters });
+  return typeof picked === "string" ? picked : null;
+}
+
 export async function writeBytes(path: string, bytes: Uint8Array): Promise<void> {
   await writeFile(path, bytes);
 }
