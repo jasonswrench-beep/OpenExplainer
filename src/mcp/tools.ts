@@ -54,7 +54,7 @@ export const INSTRUCTIONS =
   "[words](#topic-id) in text is a link to another topic and set_see_also lists topics to read next. " +
   "A window, region or brought-in picture (import_picture) has no click, so add_callout puts a callout round a part of it you name in pixels, and delete_callout takes one off. move_topic moves a chapter or topic, with its pictures, to another place. import_word reads an existing Word manual in as drafted chapters and topics. " +
   "set_picture_view crops a tall or wide picture to the part that matters; set_book_settings sets the zoom, the click circle, the writing style and the words to avoid; update_guide and delete_guide change guides. " +
-  "Every change is saved as it is made. When the book is ready, run check_book, update_index, and export_book (help-site, json, markdown, word, word-review, pdf, guide-word, guide-pdf). take_snapshot before a big change: restore_snapshot undoes a bad edit. " +
+  "Every change is saved as it is made. When the book is ready, run check_book, update_index, and export_book (help-site, json, markdown, word, word-review, epub, pdf, guide-word, guide-pdf). take_snapshot before a big change: restore_snapshot undoes a bad edit. " +
   "You can only use files inside the folder the author chose for MCP.";
 
 // ---- Reading what the assistant sent ------------------------------------------------------------------------
@@ -886,10 +886,10 @@ export function createTools(deps: ToolDeps): ToolDef[] {
     {
       name: "export_book",
       description:
-        "Makes an export and saves it in the MCP folder. kind: help-site, json and markdown make a zip file; word, word-review (a Word file for reviewers, with the open comments as Word comments) and guide-word make a .docx; pdf and guide-pdf make a PDF. The guide kinds need guide_id from list_guides. The project is not changed.",
+        "Makes an export and saves it in the MCP folder. kind: help-site, json and markdown make a zip file; word, word-review (a Word file for reviewers, with the open comments as Word comments) and guide-word make a .docx; epub makes an e-book; pdf and guide-pdf make a PDF. The guide kinds need guide_id from list_guides. The project is not changed.",
       inputSchema: schema({
         kind: { type: "string", enum: Object.keys(EXPORT_EXTENSION), description: "The kind of export." },
-        file: str("The file to make, inside the MCP folder. Its ending (.zip, .docx or .pdf) is added if left off."), guide_id: str("For a guide kind: which guide."),
+        file: str("The file to make, inside the MCP folder. Its ending (.zip, .docx, .epub or .pdf) is added if left off."), guide_id: str("For a guide kind: which guide."),
         include_comments: { type: "boolean", description: "For json: include the working comments." },
         target: str("For every kind but json: the name of a target (set_targets) to make it for. Content with a condition that target hides is left out. Without it nothing is left out."),
       }, ["kind", "file"]),

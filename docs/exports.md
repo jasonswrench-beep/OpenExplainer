@@ -145,6 +145,18 @@ looked at (numbers right-aligned with leaders), the PDF read for its tags, langu
 one-at-a-time rule were exercised against the real shell. Not tried: a screen reader on the PDF, a desktop PDF program's accessibility checker (PAC or a desktop PDF program), a very long book, a book with unusual fonts. The fonts
 are Georgia (body) and Segoe UI (headings) as installed on the PC, falling back to Times New Roman and Arial, and the PDF embeds what it used.
 
+## EPUB (e-book)
+
+Added 2026-11-01 (help-authoring programs both export EPUB). **Export**, kind `epub` (`src/export/epub.ts`) makes an EPUB 3 e-book that reflows to fit any screen, for e-readers and reading apps. No page numbers: the pages depend on the reader's screen.
+
+- **Layout of the file.** A zip whose first entry is `mimetype` ("application/epub+zip", stored, no extra field, no newline, as the format requires), then `META-INF/container.xml`, and `OEBPS/`: `content.opf` (the package), `nav.xhtml` (the contents), `title.xhtml` (when the look has a title page, with the logo and its description), `ch1.xhtml`, `ch2.xhtml`... (one file for each chapter with all its topics), `book-index.xhtml` (when the book has index terms), `styles.css` and `images/`.
+- **Pages.** Made from the same pieces as the help site and the print preview (`src/render/html.ts`, `see-also.ts`, `index-html.ts`): numbered headings (a chapter is h1, a topic h2, and so on), "In This Chapter" openers ("In This Appendix" for a chapter named Appendix, which is also marked `epub:type="appendix"`), procedures, callout boxes with their label in words, pictures with their callout lists, See also lists, and links to other topics as links between files with the topic's number after them. Written as XHTML (the one thing the shared renderer does differently, `<img>`, is closed). Comments are never included.
+- **Pictures** are the flat PNGs the other outputs use (cut to the part shown, marks and callouts drawn in), with the picture's description as the alternative text.
+- **The look.** `styles.css` uses the font choices and the accent colour; e-readers may use their own fonts, as they do for any e-book. Running headers and footers and the paper size do not apply to a reflowing book.
+- **Contents.** `nav.xhtml` is the book's tree, nested, every entry a link, with `epub:type="toc"`, plus a landmarks list; the package's reading order is the title page, the chapters in order, then the index.
+- **What the package says about accessibility.** `schema:accessMode` (textual, and visual when there are pictures), `schema:accessModeSufficient`, `schema:accessibilityFeature` (tableOfContents, structuralNavigation, readingOrder, index when there is one, and alternativeText only when every picture has a description), `schema:accessibilityHazard` none, and a plain summary that says how many pictures have no description yet. It claims no conformance (no `dcterms:conformsTo`), because the book has not been checked against an accessibility standard; the summary says so.
+- **Tested** by `tests/epub.test.ts`: the first bytes of the zip, every XML file well-formed (with the program's own small XML reader), every file the package lists present, every link pointing at an id that exists, the contents, the metadata and the look. It has **not** been run through EPUBCheck or opened in a reading app, which are outside this program; do that before publishing a book.
+
 ## Word review copy
 
 Added 2026-11-01. **Export**, kind `word-review` (`export_book` with `kind: "word-review"`) makes the Word export of the book (everything above under "Word") plus the parts of a review round (`buildDocxParts` with `review: true` in `src/export/docx.ts`):

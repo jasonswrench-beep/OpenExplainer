@@ -4,6 +4,7 @@
 import type { Assets } from "../project/package.ts";
 import type { Project } from "../project/model.ts";
 import { packDocx } from "./docx.ts";
+import { packEpub } from "./epub.ts";
 import { packGuideDocx } from "./guide-docx.ts";
 import { buildHelpSite } from "./help-site.ts";
 import { packJsonExport } from "./json.ts";
@@ -16,14 +17,14 @@ import { expandOutput } from "../project/snippets.ts";
 /** The key of the logo among the flat pictures of an output. */
 export const LOGO_KEY = "@logo";
 
-export type ExportKind = "help-site" | "json" | "markdown" | "word" | "word-review" | "pdf" | "guide-word" | "guide-pdf";
+export type ExportKind = "help-site" | "json" | "markdown" | "word" | "word-review" | "epub" | "pdf" | "guide-word" | "guide-pdf";
 
 /** The kinds that export one guide. */
 export const GUIDE_KINDS: ExportKind[] = ["guide-word", "guide-pdf"];
 
-/** What file a kind makes: a zip to unzip, a Word file or a PDF. */
-export const EXPORT_EXTENSION: Record<ExportKind, "zip" | "docx" | "pdf"> = {
-  "help-site": "zip", json: "zip", markdown: "zip", word: "docx", "word-review": "docx", pdf: "pdf", "guide-word": "docx", "guide-pdf": "pdf",
+/** What file a kind makes: a zip to unzip, a Word file, an e-book or a PDF. */
+export const EXPORT_EXTENSION: Record<ExportKind, "zip" | "docx" | "epub" | "pdf"> = {
+  "help-site": "zip", json: "zip", markdown: "zip", word: "docx", "word-review": "docx", epub: "epub", pdf: "pdf", "guide-word": "docx", "guide-pdf": "pdf",
 };
 
 export interface MakeOptions {
@@ -41,7 +42,7 @@ export interface MakeOptions {
 
 export interface MadeExport {
   bytes: Uint8Array;
-  extension: "zip" | "docx" | "pdf";
+  extension: "zip" | "docx" | "epub" | "pdf";
   /** What could not be included, in plain words, for the person to read after. */
   notes: string[];
 }
@@ -77,6 +78,8 @@ export async function makeExport(whole: Project, assets: Assets, kind: ExportKin
     bytes = (await makeGuidePdf(project, guide!, flat.flat)).bytes;
   } else if (guide) {
     bytes = packGuideDocx(project, guide, flat.flat);
+  } else if (kind === "epub") {
+    bytes = packEpub(project, flat.flat, { now: options.now });
   } else if (kind === "word" || kind === "word-review") {
     bytes = packDocx(project, flat.flat, { now: options.now, review: kind === "word-review" });
     if (kind === "word-review") {
