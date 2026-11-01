@@ -16,14 +16,14 @@ import { expandOutput } from "../project/snippets.ts";
 /** The key of the logo among the flat pictures of an output. */
 export const LOGO_KEY = "@logo";
 
-export type ExportKind = "help-site" | "json" | "markdown" | "word" | "pdf" | "guide-word" | "guide-pdf";
+export type ExportKind = "help-site" | "json" | "markdown" | "word" | "word-review" | "pdf" | "guide-word" | "guide-pdf";
 
 /** The kinds that export one guide. */
 export const GUIDE_KINDS: ExportKind[] = ["guide-word", "guide-pdf"];
 
 /** What file a kind makes: a zip to unzip, a Word file or a PDF. */
 export const EXPORT_EXTENSION: Record<ExportKind, "zip" | "docx" | "pdf"> = {
-  "help-site": "zip", json: "zip", markdown: "zip", word: "docx", pdf: "pdf", "guide-word": "docx", "guide-pdf": "pdf",
+  "help-site": "zip", json: "zip", markdown: "zip", word: "docx", "word-review": "docx", pdf: "pdf", "guide-word": "docx", "guide-pdf": "pdf",
 };
 
 export interface MakeOptions {
@@ -60,7 +60,7 @@ export async function makeExport(whole: Project, assets: Assets, kind: ExportKin
     return { bytes: made.bytes, extension, notes };
   }
   // The printed outputs (Word and the PDF) may zoom in on a picture that would print too small; the help site and Markdown are not for paper.
-  const flat = guide ? await flattenGuide(project, guide, assets, options.flatten) : await flattenPlaced(project, assets, "book", options.flatten, { paper: kind === "word" || kind === "pdf" });
+  const flat = guide ? await flattenGuide(project, guide, assets, options.flatten) : await flattenPlaced(project, assets, "book", options.flatten, { paper: kind === "word" || kind === "word-review" || kind === "pdf" });
   // The logo is not drawn on: it goes into the output as the file it is, for the title page and the help site's header.
   const logo = project.look.logo ? assets.get(project.look.logo.file) : undefined;
   if (project.look.logo && !guide) {
@@ -77,8 +77,12 @@ export async function makeExport(whole: Project, assets: Assets, kind: ExportKin
     bytes = (await makeGuidePdf(project, guide!, flat.flat)).bytes;
   } else if (guide) {
     bytes = packGuideDocx(project, guide, flat.flat);
-  } else if (kind === "word") {
-    bytes = packDocx(project, flat.flat);
+  } else if (kind === "word" || kind === "word-review") {
+    bytes = packDocx(project, flat.flat, { now: options.now, review: kind === "word-review" });
+    if (kind === "word-review") {
+      const open = (function count(nodes: Project["tree"]): number { return nodes.reduce((sum, n) => sum + (n.page?.comments ?? []).filter((c) => !c.resolved).length + count(n.children), 0); })(project.tree);
+      if (open === 0) notes.push("The book has no open comments, so the review copy has none to show. Reviewers can still add theirs in Word and you can bring them back.");
+    }
   } else {
     bytes = zip(kind === "help-site" ? buildHelpSite(project, flat.flat) : buildMarkdown(project, flat.flat));
   }

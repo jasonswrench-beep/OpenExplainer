@@ -17,6 +17,7 @@ import { cleanAvoidWords } from "./avoid-words.ts";
 import { cleanTreeSeeAlso } from "./links.ts";
 import { cleanLook } from "./look.ts";
 import { cleanConditions, cleanSnippets, cleanTargets, cleanTreeConditions } from "./snippets.ts";
+import { historyFromFiles, historyToFiles } from "./history.ts";
 
 export const PROJECT_FILE = "project.json";
 export const STRUCTURE_FILE = "structure.json";
@@ -80,7 +81,7 @@ function attachDrafts(project: Project, files: Record<string, string>, savedVers
 }
 
 export function toFiles(project: Project): Record<string, string> {
-  const { tree: rawTree, drafts: rawDrafts, writingStyle: rawStyle, avoidWords: rawAvoid, ...header } = project;
+  const { tree: rawTree, drafts: rawDrafts, history: rawHistory, writingStyle: rawStyle, avoidWords: rawAvoid, ...header } = project;
   // Click notes are checked on the way out too, so a password box can never be written to a file.
   const tree = cleanTreeConditions(cleanTreeSeeAlso(cleanTreeIndex(cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(rawTree))))))), cleanConditions(project.conditions));
   const writingStyle = cleanWritingStyle(rawStyle);
@@ -92,6 +93,8 @@ export function toFiles(project: Project): Record<string, string> {
   pageFiles(tree, project.version, files);
   const drafts = cleanDrafts(rawDrafts, tree);
   if (drafts.length > 0) files[DRAFTS_FILE] = JSON.stringify({ version: project.version, drafts }, null, 2) + "\n";
+  // The snapshots (format version 20) go under history/, each with the files it was taken with.
+  Object.assign(files, historyToFiles(rawHistory ?? [], project.version));
   return files;
 }
 
@@ -106,6 +109,7 @@ export function fromFiles(files: Record<string, string>): Project {
   // The pages are on now, so a condition that is not the project's is taken off their blocks and steps as well.
   project.tree = cleanTreeConditions(project.tree, project.conditions);
   attachDrafts(project, files, header.version);
+  project.history = historyFromFiles(files, header.version);
   return project;
 }
 

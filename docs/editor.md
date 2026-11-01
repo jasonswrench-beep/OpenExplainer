@@ -254,6 +254,21 @@ Format version 19 (2026-11-01, from the comparison with help-authoring programs:
 - **Seeing a target.** When the book has targets, the print, help site and guide previews have **Show the book for**, and Export has **Make it for**. JSON always holds the whole book. Without a target nothing is left out.
 - The window and the Conditions buttons work by keyboard alone; names that are empty or repeated are said in words before anything is kept; nothing changes until **Save** / **Keep these**. The book check notes snippets that nothing uses and conditions nothing carries.
 
+## History: snapshots of the book
+
+Format version 20 (2026-11-01, from the comparison with help-authoring programs: a help-authoring program keeps a full history; before this the program had no way back from a bad edit). **History** (a toolbar button) opens a window with a list box of the book's snapshots, oldest first, each with its name, whether you or the program took it, and when. A snapshot is a dated copy of the whole book kept inside the project file. The window has:
+
+- **Take a snapshot now.** Asks for a name (empty: named from the date). The book keeps up to 20; at the limit the button is off and the window says to delete one.
+- **Compare with the book now.** Lists, in words, what is different: topics added, removed and changed (title, status, place, words, pictures, links), and settings of the book. It is a second list box.
+- **Restore the whole book** and **Restore the chosen topic** (from the comparison list; a topic that was added since cannot be restored). Each first asks a question that says what will be replaced and that the book as it is now is kept first as a snapshot called Before restoring "...", so a restore can be undone by restoring that one. A deleted topic is put back where it was.
+- **Rename** and **Delete** (a question first; the book itself is not changed).
+- Everything is done by keyboard; the lists are list boxes with labels, every result is said in a status line that is announced, and Esc or Close closes the window. The pictures a snapshot names are kept in the file, so the file grows with them.
+- A snapshot is not an autosave: take one before a big change (a restructure, an import from Word, a review round). Nothing takes one by itself except a restore.
+
+## Review round: a Word review copy
+
+**Export**, kind **Word review copy**, makes the book as a Word document for reviewers: the author's open comments are real Word comments, a line at the top says it is a review copy, and every block and topic heading is tied to the book by a hidden bookmark. Reviewers add comments in Word and send the file back. **Bring in review comments** (a toolbar button) reads that file, says how many comments can be brought in and how many cannot be placed, and after a question adds each to the block it was made on as an open comment that starts with the reviewer's name (for example "Pat Reviewer: Which Save?"). A comment on a heading goes to the topic's first block. The words of the book never change; a comment already in the book is not added twice; the author's own comments coming back are left as they are. The comments are then worked through in the Comments list as before. The details are in `docs/exports.md`.
+
 ## Look of the book
 
 Format version 18 (2026-11-01, from the comparison with help-authoring programs: they all have a way to give a book a house style). **Look of the book** (a toolbar button) sets, for the whole project: the **font of the text** and the **font of the headings**, an **accent colour**, a **logo**, whether the book **starts with a title page**, the **words at the top** of every page after the first and the **words at the bottom** beside the page number, and the **paper size** (Letter or A4). They are used by the print preview, the PDF, the Word file and the help site, so the book looks the same everywhere. Until the author chooses, each output keeps the look it always had.

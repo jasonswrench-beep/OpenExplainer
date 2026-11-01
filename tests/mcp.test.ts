@@ -8,6 +8,7 @@ import { createTools, INSTRUCTIONS } from "../src/mcp/tools.ts";
 import { addNode, addPicture, createProject, ensurePage, type Picture } from "../src/project/model.ts";
 import { unpackProject } from "../src/project/package.ts";
 import { zip } from "../src/project/zip.ts";
+import { addComment } from "../src/project/comments.ts";
 
 const FOLDER = "C:\\Docs\\OpenExplainer";
 
@@ -465,4 +466,71 @@ test("tools: import_word reads a Word file from the folder into chapters and top
   assert.match((await call("import_word", { file: "missing.docx" })).text, /There is no file at/);
   assert.match((await call("import_word", { file: "..\\x.docx" })).text, /not inside the folder/);
   assert.equal(session.project!.tree.length, 2, "a refused import keeps nothing");
+});
+
+test("tools: snapshots are taken, compared, restored (the whole book or one topic, after a confirm, with a safety snapshot), renamed and deleted", async () => {
+  const { call, data, session } = setup();
+  await call("create_project", { name: "History" });
+  const topicId = /id is (\w+)/.exec((await call("add_topic", { title: "Saving" })).text)![1];
+  await call("set_page", { topic_id: topicId, blocks: [{ type: "paragraph", text: "Press **Save**." }] });
+  const took = await call("take_snapshot", { name: "Before the review" });
+  assert.match(took.text, /Took the snapshot "Before the review" \(id \w+\)\. The book has 1 snapshot\(s\)\.\nSaved to /);
+  assert.deepEqual((await data("list_snapshots")).map((s: { name: string; by: string }) => [s.name, s.by]), [["Before the review", "hand"]]);
+  assert.match((await call("compare_snapshot", { snapshot: "Before the review" })).text, /The book is the same as "Before the review"\./);
+
+  await call("update_topic", { topic_id: topicId, title: "Ruined" });
+  await call("set_page", { topic_id: topicId, blocks: [{ type: "paragraph", text: "Spoiled." }] });
+  const compared = (await call("compare_snapshot", { snapshot: "before the review" })).text;
+  assert.match(compared, /Changed: 1 Ruined: renamed \(it was "Saving"\); 1 block added; 1 block removed./);
+  assert.match((await call("restore_snapshot", { snapshot: "Before the review", confirm: false })).text, /Nothing was restored\. Restoring replaces the whole book/);
+  assert.equal(session.project!.tree[0].title, "Ruined", "an unconfirmed restore changes nothing");
+  assert.match((await call("restore_snapshot", { snapshot: "nope", confirm: true })).text, /There is no snapshot "nope"/);
+
+  const topicRestore = await call("restore_snapshot", { snapshot: "Before the review", topic_id: topicId, confirm: true });
+  assert.match(topicRestore.text, /Restored the topic "Saving" from "Before the review"\. The book as it was just before is kept as the snapshot "Before restoring "Saving"" \(id \w+\)\./);
+  assert.equal(session.project!.tree[0].title, "Saving");
+  assert.equal((await data("get_topic", { topic_id: topicId })).page[0].text, "Press **Save**.");
+  assert.match((await call("restore_snapshot", { snapshot: "Before the review", topic_id: "nope", confirm: true })).text, /does not have that topic/);
+
+  // The whole book, and then back again with the safety snapshot.
+  await call("update_topic", { topic_id: topicId, title: "Changed again" });
+  const whole = await call("restore_snapshot", { snapshot: "Before the review", confirm: true });
+  assert.match(whole.text, /Restored the whole book from "Before the review"/);
+  assert.equal(session.project!.tree[0].title, "Saving");
+  const safetyId = /\(id (\w+)\)/.exec(whole.text)![1];
+  assert.match((await call("restore_snapshot", { snapshot: safetyId, confirm: true })).text, /Restored the whole book/);
+  assert.equal(session.project!.tree[0].title, "Changed again", "the safety snapshot undoes the restore");
+
+  assert.match((await call("rename_snapshot", { snapshot: "Before the review", name: "  Good copy " })).text, /now called "Good copy"/);
+  assert.match((await call("rename_snapshot", { snapshot: "Good copy", name: "  " })).text, /name is needed/);
+  const before = session.project!.history.length;
+  assert.match((await call("delete_snapshot", { snapshot: "Good copy", confirm: false })).text, /Nothing was deleted\. Send confirm: true to delete the snapshot "Good copy"/);
+  assert.equal(session.project!.history.length, before);
+  assert.match((await call("delete_snapshot", { snapshot: "Good copy", confirm: true })).text, /Deleted the snapshot "Good copy"/);
+  assert.equal(session.project!.history.length, before - 1);
+});
+
+test("tools: list_comments and resolve_comment work on the open comments of the pages, and import_review_comments refuses what is not a Word file", async () => {
+  const { call, data, files, session } = setup();
+  await call("create_project", { name: "Review" });
+  const topicId = /id is (\w+)/.exec((await call("add_topic", { title: "Saving" })).text)![1];
+  await call("set_page", { topic_id: topicId, blocks: [{ type: "paragraph", text: "Press **Save**." }] });
+  const node = session.project!.tree[0];
+  const block = node.page!.blocks[0];
+  assert.deepEqual(await data("list_comments"), []);
+  addComment(node.page!, block.id, "Pat: say where the button is.", "2026-11-02T08:30:00.000Z");
+  const open = await data("list_comments");
+  assert.deepEqual(open.map((c: { topic: string; block: string; text: string }) => [c.topic, c.block, c.text]), [["1 Saving", "Paragraph: Press Save.", "Pat: say where the button is."]]);
+  assert.deepEqual(await data("list_comments", { topic_id: topicId }), open);
+  assert.match((await call("list_comments", { topic_id: "nope" })).text, /There is no topic with the id "nope"/);
+  assert.match((await call("resolve_comment", { topic_id: topicId, comment_id: "nope" })).text, /has no comment with that id/);
+  assert.match((await call("resolve_comment", { topic_id: topicId, comment_id: open[0].comment_id })).text, /The comment is resolved\./);
+  assert.deepEqual(await data("list_comments"), []);
+  assert.match((await call("resolve_comment", { topic_id: topicId, comment_id: open[0].comment_id, resolved: false })).text, /open again/);
+  assert.equal((await data("list_comments")).length, 1);
+
+  files.map.set(`${FOLDER}\\notes.txt`.toLowerCase(), new TextEncoder().encode("not a Word file"));
+  assert.match((await call("import_review_comments", { file: "notes.txt" })).text, /This is not a Word file/);
+  assert.match((await call("import_review_comments", { file: "missing.docx" })).text, /There is no file at/);
+  assert.match((await call("import_review_comments", { file: "..\\x.docx" })).text, /not inside the folder/);
 });

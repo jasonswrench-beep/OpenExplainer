@@ -271,6 +271,8 @@ export async function importDocx(bytes: Uint8Array, options: { name?: string; no
     const words = plain(runs).trim();
 
     if (info.name === "title") { counts.skippedFurniture++; continue; }
+    // The line at the top of a review copy (src/export/docx.ts) is not part of the book.
+    if (info.level === undefined && /^Review copy made on \d{4}-\d{2}-\d{2}\./.test(words)) { counts.skippedFurniture++; continue; }
     if (info.level !== undefined) {
       endProcedure();
       skipBullets = false;

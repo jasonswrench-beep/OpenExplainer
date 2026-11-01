@@ -1,7 +1,7 @@
 // Word: the whole book as a .docx file (a zip of XML parts) with real Word styles, so the author or a publisher can edit and restyle it: Title, Heading 1 to 6 (so the navigation pane and a table of
 // contents work), Step (a numbered list that starts again at 1 for each procedure), Callout box styles (one for each kind, said in words), Caption (the callout entries under a picture), a
 // character style for control names, and Contents entries that link to their headings. Pictures are the flat PNGs (cut to the part shown, with their marks drawn in) with their description as the picture's
-// alternative text. There is a running header with the book's name and a page number in the footer. Comments are never included. Nothing here needs a screen.
+// alternative text. There is a running header with the book's name and a page number in the footer. Comments are never included, except in a review copy (see packDocx). Nothing here needs a screen.
 import { buildBookIndex, type BookIndex } from "../project/book-index.ts";
 import { entries, entryWords } from "../project/callouts.ts";
 import { numbering, type Picture, type Project, type TreeNode } from "../project/model.ts";
@@ -63,6 +63,55 @@ export interface Context {
   drawingId: number;
   /** The number of each topic, such as 4.2, for the links between topics. A guide has none, so linked words there are plain words. */
   numbers?: Map<string, string>;
+  /** For a review copy: the comments sent out as real Word comments, and the counter for the bookmarks that tie a paragraph to its block. */
+  review?: { notes: ReviewNote[]; bookmarks: number; now: string };
+}
+
+/** A comment of the author's, as it is written into a review copy. */
+export interface ReviewNote { id: number; author: string; date: string; text: string }
+
+/** The name the author's comments carry in Word, so their own comments coming back are not added a second time. */
+export const REVIEW_AUTHOR = "The author";
+/** The start of the bookmark names that tie a paragraph of a review copy to its block (`oe_b_`) or topic (`oe_t_`). */
+export const BLOCK_MARK = "oe_b_";
+export const TOPIC_MARK = "oe_t_";
+/** A bookmark name for an id: letters, digits and underscores only, and at most 40 letters, as Word allows. */
+export const bookmarkName = (prefix: string, id: string) => `${prefix}${id.replace(/[^A-Za-z0-9_]/g, "_")}`.slice(0, 40);
+
+/** Word's date for a comment: the date and time to the second, in UTC. */
+const wordDate = (iso: string, fallback: string) => {
+  const t = Date.parse(iso);
+  return new Date(Number.isNaN(t) ? Date.parse(fallback) || Date.now() : t).toISOString().replace(/\.\d+Z$/, "Z");
+};
+
+/** Ties a block's first paragraph to the block with a bookmark and puts the author's open comments on it as Word comments. Nothing is added to a block that wrote nothing. */
+function reviewBlock(ctx: Context, node: TreeNode, block: Block, xmlText: string, now: string): string {
+  const review = ctx.review!;
+  const open = xmlText.indexOf("</w:pPr>");
+  const close = xmlText.indexOf("</w:p>");
+  if (xmlText === "" || open < 0 || close < 0 || open > close) return xmlText;
+  const comments = (node.page?.comments ?? []).filter((c) => c.blockId === block.id && !c.resolved);
+  const bookmark = ++review.bookmarks;
+  let start = `<w:bookmarkStart w:id="${bookmark}" w:name="${bookmarkName(BLOCK_MARK, block.id)}"/>`;
+  let end = "";
+  for (const c of comments) {
+    const note: ReviewNote = { id: review.notes.length, author: REVIEW_AUTHOR, date: wordDate(c.createdAt, now), text: c.text };
+    review.notes.push(note);
+    start += `<w:commentRangeStart w:id="${note.id}"/>`;
+    end += `<w:commentRangeEnd w:id="${note.id}"/><w:r><w:rPr><w:rStyle w:val="CommentReference"/></w:rPr><w:commentReference w:id="${note.id}"/></w:r>`;
+  }
+  end += `<w:bookmarkEnd w:id="${bookmark}"/>`;
+  return xmlText.slice(0, open + 8) + start + xmlText.slice(open + 8, close) + end + xmlText.slice(close);
+}
+
+/** The comments part of a review copy. A comment of several lines is several paragraphs. */
+function commentsXml(notes: ReviewNote[]): string {
+  const items = notes.map((n) => {
+    const lines = n.text.split("\n");
+    const paragraphs = lines.map((line, i) => `<w:p><w:pPr><w:pStyle w:val="CommentText"/></w:pPr>${i === 0 ? '<w:r><w:rPr><w:rStyle w:val="CommentReference"/></w:rPr><w:annotationRef/></w:r>' : ""}${run(line)}</w:p>`).join("");
+    return `<w:comment w:id="${n.id}" w:author="${xml(n.author)}" w:date="${n.date}" w:initials="OE">${paragraphs}</w:comment>`;
+  }).join("");
+  return `${XML_HEAD}<w:comments xmlns:w="${NS_W}">${items}</w:comments>`;
 }
 
 /** A step's picture is indented half an inch (48 pixels at 96 to the inch), so it is narrower to stay inside the margins. */
@@ -135,7 +184,9 @@ function heading(ctx: Context, level: number, number: string, title: string, id:
   const n = ctx.bookmarks.get(id) ?? ctx.bookmarks.size + 1;
   ctx.bookmarks.set(id, n);
   const pageBreak = level === 1 ? "<w:pageBreakBefore/>" : "";
-  return para(`Heading${Math.min(6, level)}`, `<w:bookmarkStart w:id="${n}" w:name="_Toc${n}"/>${run(`${number ? `${number} ` : ""}${fillVariables(title, ctx.project.variables)}`)}<w:bookmarkEnd w:id="${n}"/>`, pageBreak);
+  // A review copy ties each topic's heading to the topic, so a comment made on the heading can be brought back to it.
+  const tie = ctx.review && !id.startsWith("@") ? `<w:bookmarkStart w:id="${++ctx.review.bookmarks}" w:name="${bookmarkName(TOPIC_MARK, id)}"/><w:bookmarkEnd w:id="${ctx.review.bookmarks}"/>` : "";
+  return para(`Heading${Math.min(6, level)}`, `<w:bookmarkStart w:id="${n}" w:name="_Toc${n}"/>${run(`${number ? `${number} ` : ""}${fillVariables(title, ctx.project.variables)}`)}<w:bookmarkEnd w:id="${n}"/>${tie}`, pageBreak);
 }
 
 /** The See also list of a topic: a bold line, then each topic as a bullet with a link to its heading. */
@@ -156,7 +207,10 @@ function topicXml(ctx: Context, node: TreeNode, depth: number, numbers: Map<stri
     out += para("ChapterOpener", run("In This Chapter", "<w:b/>"));
     out += node.children.map((c) => para("ListBullet", run(fillVariables(c.title, ctx.project.variables)), '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>')).join("");
   }
-  for (const block of node.page?.blocks ?? []) out += blockXml(ctx, node, block, level);
+  for (const block of node.page?.blocks ?? []) {
+    const made = blockXml(ctx, node, block, level);
+    out += ctx.review ? reviewBlock(ctx, node, block, made, ctx.review.now) : made;
+  }
   out += seeAlsoXml(ctx, node, numbers);
   for (const child of node.children) out += topicXml(ctx, child, depth + 1, numbers);
   return out;
@@ -219,7 +273,7 @@ export const BOX_COLOURS: Record<string, string> = { "design-tip": "1F4E8C", cau
 /** Word's font settings for a role: the font's name on every script slot. */
 const fontXml = (name: string) => `<w:rFonts w:ascii="${xml(name)}" w:hAnsi="${xml(name)}" w:eastAsia="${xml(name)}" w:cs="${xml(name)}"/>`;
 
-function stylesXml(guide: boolean, look: Look): string {
+function stylesXml(guide: boolean, look: Look, comments = false): string {
   const headingFont = fontXml(wordFont(look, "heading"));
   const accent = look.accent ? `<w:color w:val="${look.accent.slice(1)}"/>` : "";
   const heading = (n: number, size: number, before: number) =>
@@ -248,6 +302,7 @@ ${box}
 <w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="99"/><w:rPr><w:color w:val="${look.accent ? look.accent.slice(1) : "0B57D0"}"/><w:u w:val="single"/></w:rPr></w:style>
 <w:style w:type="paragraph" w:styleId="Header"><w:name w:val="header"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="99"/><w:pPr><w:spacing w:after="0"/></w:pPr><w:rPr><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>
 <w:style w:type="paragraph" w:styleId="Footer"><w:name w:val="footer"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="99"/><w:pPr><w:spacing w:after="0"/><w:jc w:val="center"/></w:pPr><w:rPr><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>
+${comments ? '<w:style w:type="character" w:styleId="CommentReference"><w:name w:val="annotation reference"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="99"/><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="CommentText"><w:name w:val="annotation text"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="99"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>' : ""}
 </w:styles>`;
 }
 
@@ -273,6 +328,7 @@ export function assembleDocx(ctx: Context, title: string, body: string, options:
     `<Relationship Id="rIdNumbering" Type="${NS_R}/numbering" Target="numbering.xml"/>`,
     `<Relationship Id="rIdHeader" Type="${NS_R}/header" Target="header1.xml"/>`,
     `<Relationship Id="rIdFooter" Type="${NS_R}/footer" Target="footer1.xml"/>`,
+    ...(ctx.review ? [`<Relationship Id="rIdComments" Type="${NS_R}/comments" Target="comments.xml"/>`] : []),
     ...ctx.images.map((i) => `<Relationship Id="${i.id}" Type="${NS_R}/image" Target="media/${xml(i.path.replace("images/", ""))}"/>`),
   ].join("");
   const now = options.now ?? new Date().toISOString();
@@ -281,16 +337,17 @@ export function assembleDocx(ctx: Context, title: string, body: string, options:
     "[Content_Types].xml": `${XML_HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/>`
       + `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>`
       + `<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>`
-      + `<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`,
+      + `<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>${ctx.review ? '<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' : ""}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`,
     "_rels/.rels": `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${NS_R}/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`,
     "word/document.xml": document,
     "word/_rels/document.xml.rels": `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels}</Relationships>`,
-    "word/styles.xml": stylesXml(options.guide === true, ctx.project.look),
+    "word/styles.xml": stylesXml(options.guide === true, ctx.project.look, !!ctx.review),
     "word/numbering.xml": numberingXml(ctx.lists),
     "word/header1.xml": `${XML_HEAD}<w:hdr xmlns:w="${NS_W}" xmlns:r="${NS_R}">${para("Header", run(!options.guide && look.header ? fillVariables(look.header, ctx.project.variables) : title))}</w:hdr>`,
     "word/footer1.xml": `${XML_HEAD}<w:ftr xmlns:w="${NS_W}" xmlns:r="${NS_R}">${look.footer ? para("Footer", run(fillVariables(look.footer, ctx.project.variables))) : ""}<w:p><w:pPr><w:pStyle w:val="Footer"/></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`,
     "docProps/core.xml": `${XML_HEAD}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xml(title)}</dc:title><dc:language>en-US</dc:language><dcterms:created xsi:type="dcterms:W3CDTF">${xml(now)}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${xml(now)}</dcterms:modified></cp:coreProperties>`,
   };
+  if (ctx.review) files["word/comments.xml"] = commentsXml(ctx.review.notes);
   const out: Record<string, Uint8Array> = {};
   for (const [path, text] of Object.entries(files)) out[path] = encoder.encode(text);
   for (const image of ctx.images) {
@@ -301,9 +358,10 @@ export function assembleDocx(ctx: Context, title: string, body: string, options:
 }
 
 /** The files of a Word export, by their path inside the .docx. */
-export function buildDocxParts(project: Project, flat: Map<string, FlatPicture>, options: { now?: string } = {}): Record<string, Uint8Array> {
+export function buildDocxParts(project: Project, flat: Map<string, FlatPicture>, options: { now?: string; review?: boolean } = {}): Record<string, Uint8Array> {
   const numbers = numbering(project.tree);
-  const ctx: Context = { project, flat, images: [], lists: 0, bookmarks: new Map(), drawingId: 0, numbers };
+  const now = options.now ?? new Date().toISOString();
+  const ctx: Context = { project, flat, images: [], lists: 0, bookmarks: new Map(), drawingId: 0, numbers, ...(options.review ? { review: { notes: [], bookmarks: 100000, now } } : {}) };
   // Number every topic's bookmark first, in reading order, so a link in the text can point to a topic that comes later.
   const assign = (nodes: TreeNode[]) => nodes.forEach((n) => { ctx.bookmarks.set(n.id, ctx.bookmarks.size + 1); assign(n.children); });
   assign(project.tree);
@@ -318,10 +376,12 @@ export function buildDocxParts(project: Project, flat: Map<string, FlatPicture>,
   const logoParagraph = logo && project.look.logo ? para("Subtitle", drawing(ctx, logo, project.look.logo.alt, 288)) : "";
   const front = project.look.cover ? logoParagraph + para("Title", run(title)) + details.map((d) => para("Subtitle", run(d))).join("") : "";
   const contents = project.tree.length > 0 ? para("ContentsHeading", run("Contents"), '<w:pageBreakBefore/>') + contentsXml(ctx, project.tree, numbers, indexPart !== "") : "";
-  return assembleDocx(ctx, title, `${front}${contents}${body}${indexPart}`, options);
+  // A review copy says what it is for before anything else. Only comments come back from it, so the words must not be changed in it.
+  const notice = options.review ? para("Normal", run(`Review copy made on ${now.slice(0, 10)}. Add your comments in Word (Review, New Comment) next to what you are commenting on, then send the file back. Comments are brought back to the book; changes to the words are not, so please comment rather than edit.`, "<w:b/>")) : "";
+  return assembleDocx(ctx, title, `${notice}${front}${contents}${body}${indexPart}`, options);
 }
 
-/** The book as the bytes of a .docx file. */
-export function packDocx(project: Project, flat: Map<string, FlatPicture>, options: { now?: string } = {}): Uint8Array {
+/** The book as the bytes of a .docx file. With `review`, a review copy: the author's open comments as real Word comments, and each block tied to its place by a bookmark so comments made in Word can be brought back. */
+export function packDocx(project: Project, flat: Map<string, FlatPicture>, options: { now?: string; review?: boolean } = {}): Uint8Array {
   return zip(buildDocxParts(project, flat, options));
 }

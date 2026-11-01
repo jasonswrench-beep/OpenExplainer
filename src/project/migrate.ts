@@ -15,6 +15,7 @@ import { cleanAvoidWords } from "./avoid-words.ts";
 import { cleanTreeSeeAlso } from "./links.ts";
 import { cleanLook, defaultLook } from "./look.ts";
 import { cleanConditions, cleanSnippets, cleanTargets, cleanTreeConditions } from "./snippets.ts";
+import { cleanHistory } from "./history.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -67,6 +68,8 @@ const steps: Record<number, (raw: Raw) => Raw> = {
   17: (raw) => ({ ...raw, version: 18, look: defaultLook() }),
   // Version 18 to 19: the project can hold snippets, conditions and targets, and blocks, steps and topics can carry conditions. An older project has none.
   18: (raw) => ({ ...raw, version: 19, snippets: [], conditions: [], targets: [] }),
+  // Version 19 to 20: the project can hold snapshots of the whole book (history/ in the package). An older project has none.
+  19: (raw) => ({ ...raw, version: 20, history: [] }),
 };
 
 export function migrate(input: unknown): Project {
@@ -100,6 +103,8 @@ export function migrate(input: unknown): Project {
   const drafts = cleanDrafts(project.drafts, project.tree ?? []);
   // The parts in the order a new project has them, so a project that is saved and opened again is the same in every way.
   const avoidWords = cleanAvoidWords(project.avoidWords);
-  const { tree, writingStyle: _style, avoidWords: _avoid, drafts: _drafts, ...rest } = project;
-  return { ...rest, writingStyle, avoidWords, drafts, tree } as Project;
+  // The snapshots are read from their own files after this (files.ts); any that arrive here are checked.
+  const history = cleanHistory(project.history);
+  const { tree, writingStyle: _style, avoidWords: _avoid, drafts: _drafts, history: _history, ...rest } = project;
+  return { ...rest, writingStyle, avoidWords, drafts, history, tree } as Project;
 }

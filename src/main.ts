@@ -6,6 +6,8 @@ import {
 } from "./project/model.ts";
 import { chooseExportPath, chooseImages, chooseImportPath, chooseOpenPath, chooseSavePath, chooseWordPath, loadProject, readBytes, saveProject, writeBytes } from "./project/disk.ts";
 import { importDocx } from "./import/docx.ts";
+import { historyDialog } from "./history-dialog.ts";
+import { addReviewComments, readReviewComments } from "./import/review.ts";
 import { addImported, importQuestion } from "./import/apply.ts";
 import { fileNameFor as projectFileName } from "./project/package.ts";
 import { readImageInfo } from "./project/image.ts";
@@ -86,10 +88,12 @@ app.innerHTML = `
       <button type="button" id="b-export">Export</button>
       <button type="button" id="b-import-export">Import an export</button>
       <button type="button" id="b-import-word">Import from Word</button>
+      <button type="button" id="b-review-in">Bring in review comments</button>
       <button type="button" id="b-vars">Project variables</button>
       <button type="button" id="b-style">Writing style</button>
       <button type="button" id="b-look">Look of the book</button>
       <button type="button" id="b-reuse">Reuse</button>
+      <button type="button" id="b-history">History</button>
       <button type="button" id="b-drafts">Drafts</button>
       <button type="button" id="b-guides">Guides</button>
       <button type="button" id="b-index">Index</button>
@@ -1379,7 +1383,7 @@ async function exportBook() {
     const left = made.notes;
     await writeBytes(path, bytes);
     announce(`${name} export saved to ${path}.`);
-    await messageDialog("Export saved", `The ${name} export was saved to ${path}.${left.length ? `\n\nNot everything could be included:\n${left.join("\n")}` : ""}`);
+    await messageDialog("Export saved", `The ${name} export was saved to ${path}.${left.length ? `\n\nPlease note:\n${left.join("\n")}` : ""}`);
   } catch (error) {
     await messageDialog("Could not make the export", `${error instanceof Error ? error.message : String(error)} Your project was not changed.`);
   } finally {
@@ -1432,7 +1436,46 @@ async function importWord() {
   }
 }
 
+/** Reads the comments reviewers made in a review copy (Export, Word review copy) and adds each to the block it was made on, after the author has read how many will come in. */
+async function importReview() {
+  const picked = await chooseWordPath("Bring in review comments");
+  if (!picked) return $("b-review-in").focus();
+  try {
+    const name = picked.split(/[\\/]/).pop() ?? picked;
+    announce(`Reading the comments in ${name}. This can take a moment.`);
+    const read = await readReviewComments(await readBytes(picked), project);
+    if (read.comments.length === 0) { await messageDialog("No comments to bring in", `${read.report.join("\n")}\nYour book was not changed.`); return; }
+    if (!(await confirmDialog("Bring in review comments", `${name}\n\n${read.report.join("\n")}\n\nThey are added as open comments, each starting with the reviewer's name, and no words of the book change. A comment already in the book is not added again.`, "Add the comments"))) { announce("No comments were added."); return; }
+    const done = addReviewComments(project, read.comments, new Date().toISOString());
+    if (done.added) markDirty();
+    render(false);
+    renderPreview();
+    announce(`Added ${done.added} ${done.added === 1 ? "comment" : "comments"}${done.already ? ` (${done.already} already in the book)` : ""}. See them under Comments.`);
+  } catch (error) {
+    await messageDialog("Could not bring in the comments", `${error instanceof Error ? error.message : String(error)}\nYour book was not changed.`);
+  } finally {
+    $("b-review-in").focus();
+  }
+}
+
+// ---- History: snapshots of the book --------------------------------------------------------------------------
+async function editHistory() {
+  const { bookChanged } = await historyDialog(project, () => markDirty());
+  if (bookChanged) {
+    // The book was put back (in place), so everything that shows it is drawn again; a topic that was selected may be gone.
+    if (previewTargetId && !project.targets.some((t) => t.id === previewTargetId)) previewTargetId = null;
+    drawTargetPicker();
+    render(true);
+    renderHeading();
+    renderPreview();
+    announce("The book was put back from a snapshot.");
+  }
+  $("b-history").focus();
+}
+$("b-history").addEventListener("click", () => void editHistory());
+
 $("b-export").addEventListener("click", () => void exportBook());
+$("b-review-in").addEventListener("click", () => void importReview());
 $("b-import-word").addEventListener("click", () => void importWord());
 $("b-import-export").addEventListener("click", () => void importExport());
 

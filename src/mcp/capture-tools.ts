@@ -10,6 +10,7 @@ import type { WindowInfo } from "../capture/outcome.ts";
 import { findNode, type ClickInfo, type Picture, type Project, type TreeNode } from "../project/model.ts";
 import { newId } from "../project/ids.ts";
 import { forgetPicture } from "../project/page.ts";
+import { assetFiles } from "../project/package.ts";
 import { pictureToJson } from "./blocks.ts";
 import { text, type ToolContent, type ToolDef, type ToolResult } from "./protocol.ts";
 import type { Session } from "./session.ts";
@@ -301,7 +302,8 @@ export function createCaptureTools(session: Session, deps: CaptureDeps): ToolDef
         const at = node.pictures.findIndex((p) => p.id === id);
         if (at < 0) throw new Error(`The topic "${node.title}" has no picture with the id "${String(args.picture_id)}".`);
         const [gone] = node.pictures.splice(at, 1);
-        session.assets.delete(gone.file);
+        // A snapshot may still name the file, so it is kept for as long as one does.
+        if (!assetFiles(session.require()).has(gone.file)) session.assets.delete(gone.file);
         if (node.page) forgetPicture(node.page, gone.id);
         return text(`Removed the picture.${await keep()}`);
       },

@@ -145,6 +145,17 @@ looked at (numbers right-aligned with leaders), the PDF read for its tags, langu
 one-at-a-time rule were exercised against the real shell. Not tried: a screen reader on the PDF, a desktop PDF program's accessibility checker (PAC or a desktop PDF program), a very long book, a book with unusual fonts. The fonts
 are Georgia (body) and Segoe UI (headings) as installed on the PC, falling back to Times New Roman and Arial, and the PDF embeds what it used.
 
+## Word review copy
+
+Added 2026-11-01. **Export**, kind `word-review` (`export_book` with `kind: "word-review"`) makes the Word export of the book (everything above under "Word") plus the parts of a review round (`buildDocxParts` with `review: true` in `src/export/docx.ts`):
+
+- **The author's open comments** (the working comments of the pages, see `docs/editor.md`, "Comments") become real Word comments (`word/comments.xml`, with the content type and relationship), each from the author "The author" (initials OE) with its date, anchored on the first paragraph of the block it is on (`commentRangeStart`, `commentRangeEnd`, `commentReference`). A comment of several lines is several paragraphs. A resolved comment is not sent. The styles "annotation reference" and "annotation text" are added.
+- **Bookmarks** tie the document to the book: `oe_b_<block id>` on the first paragraph of each block that wrote something, and `oe_t_<topic id>` on each topic heading (letters, digits and underscores only, cut to the 40 letters Word allows). Comments made in Word are brought back by finding the nearest of these (`src/import/review.ts`).
+- **A line at the top**: "Review copy made on <date>. Add your comments in Word... please comment rather than edit." It is left out when the file is read by Import from Word.
+- A snippet block is written out for the output, so its blocks have new ids and a comment on one is not sent. Ordinary Import from Word reads a review copy as any other Word file and says how many comments it did not bring in.
+
+**Bring in review comments** (the toolbar button) and `import_review_comments` read the comments of a returned file. A comment is placed on the block of its own paragraph, or on the nearest block or heading before it. The author's own comments (author "The author") are left as they are; a comment with no words is left out; one that cannot be placed (the file is a copy of another book, or the text it was made on has been taken out of the book) is counted, not added. A reviewer's comment is added as an open comment whose words are "<reviewer>: <words>" (cut to the 1000 letters a comment can hold), dated as Word has it; one already on the block with the same words is not added again, so bringing the same file in twice adds nothing. Nothing in the pages' words changes. The tests are `tests/review.test.ts`.
+
 ## Import from Word
 
 Added 2026-11-01 (from the comparison with help-authoring programs, which all read an existing Word manual). **Import from Word** (a toolbar button) and the assistant tool `import_word` read a `.docx` file into chapters and topics added at the end of the open book (`src/import/docx.ts`; the adding is `src/import/apply.ts`). It changes no part of the project format: what comes in is ordinary topics, pages and pictures. A person is told what will come in and what will be left out and must agree before anything is added; the tool says the same in its answer. A file that is not a `.docx` (a zip that is not a Word file, an old `.doc`, a damaged file) is refused in words and the book is not changed.

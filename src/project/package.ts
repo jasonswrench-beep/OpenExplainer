@@ -3,6 +3,7 @@
 import { fromFiles, toFiles } from "./files.ts";
 import { pictureFiles, type Project } from "./model.ts";
 import { lookFiles } from "./look.ts";
+import { snapshotPictureFiles } from "./history.ts";
 import { unzip, zip } from "./zip.ts";
 
 export const EXTENSION = "openexplainer";
@@ -32,13 +33,20 @@ export async function unpackProject(bytes: Uint8Array): Promise<{ project: Proje
     else files[name] = decoder.decode(data);
   }
   const project = fromFiles(files);
-  const missing = [...assetFiles(project)].filter((file) => !assets.has(file));
+  const missing = [...liveAssetFiles(project)].filter((file) => !assets.has(file));
   return { project, assets, missing };
 }
 
-/** Every picture file the project uses: the pictures of its topics and its logo. */
-export function assetFiles(project: Project): Set<string> {
+/** Every picture file the book uses now: the pictures of its topics and its logo. */
+export function liveAssetFiles(project: Project): Set<string> {
   return new Set([...pictureFiles(project.tree), ...lookFiles(project.look)]);
+}
+
+/** Every picture file the project keeps: those the book uses now, and those a snapshot names, so a snapshot can be restored with its pictures. */
+export function assetFiles(project: Project): Set<string> {
+  const files = liveAssetFiles(project);
+  for (const snapshot of project.history ?? []) for (const file of snapshotPictureFiles(snapshot)) files.add(file);
+  return files;
 }
 
 /** A safe file name from a project name: no characters Windows refuses. */

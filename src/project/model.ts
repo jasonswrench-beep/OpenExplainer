@@ -12,6 +12,7 @@ import { emptyCheckSettings, type CheckSettings } from "./checks.ts";
 import type { Guide } from "./guides.ts";
 import type { TopicIndex } from "./book-index.ts";
 import type { Draft } from "./drafts.ts";
+import type { Snapshot } from "./history.ts";
 import type { AvoidWord } from "./avoid-words.ts";
 import { forgetTopics } from "./links.ts";
 import { defaultLook, type Look } from "./look.ts";
@@ -19,7 +20,7 @@ import type { Condition, Snippet, Target } from "./snippets.ts";
 
 export { newId };
 
-export const CURRENT_VERSION = 19;
+export const CURRENT_VERSION = 20;
 
 export type Status = "not-started" | "captured" | "drafted" | "reviewed" | "needs-recheck";
 
@@ -135,6 +136,8 @@ export interface Project {
   avoidWords: AvoidWord[];
   /** Proposals that wait for the author to accept or reject them: sentences the AI wrote for callouts (format version 14), procedures made from clicks (format version 15), and chapter openers, summaries and suggested boxes (format version 16). Kept apart from the real text; saved in drafts.json. */
   drafts: Draft[];
+  /** Dated copies of the whole book, oldest first, kept in the project file so there is a way back from a bad edit (format version 20). See src/project/history.ts. */
+  history: Snapshot[];
   tree: TreeNode[];
 }
 
@@ -173,6 +176,7 @@ export function createProject(name: string, template: Project["template"] = "emp
     writingStyle: "",
     avoidWords: [],
     drafts: [],
+    history: [],
     tree: [],
   };
   if (template === "openstage-how-to-book") {

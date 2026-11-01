@@ -21,6 +21,11 @@ import { BLOCK_HELP, blocksFromJson, pageFromBlocks, pictureToJson, topicToJson,
 import { conditionIds, conditionNames, deleteSnippet, setConditionNames, setSnippet, setTargetList, snippetFromText, snippetToText, snippetUses } from "../project/snippets.ts";
 import { importDocx } from "../import/docx.ts";
 import { addImported } from "../import/apply.ts";
+import { addReviewComments, readReviewComments } from "../import/review.ts";
+import { unresolvedIn } from "../project/comment-list.ts";
+import { setResolved } from "../project/comments.ts";
+import { whenWords } from "../project/history.ts";
+import { addSnapshot, compareWithSnapshot, comparisonLines, deleteSnapshot, findSnapshot, renameSnapshot, restoreTopic, restoreWhole, snapshotWords, takeSnapshot } from "../project/snapshots.ts";
 import { keepPicture } from "./capture-tools.ts";
 import { baseName, folderOf, projectFile, resolveInside, PROJECT_EXTENSION } from "./paths.ts";
 import { failed, text, type ToolDef, type ToolResult } from "./protocol.ts";
@@ -49,7 +54,7 @@ export const INSTRUCTIONS =
   "[words](#topic-id) in text is a link to another topic and set_see_also lists topics to read next. " +
   "A window, region or brought-in picture (import_picture) has no click, so add_callout puts a callout round a part of it you name in pixels, and delete_callout takes one off. move_topic moves a chapter or topic, with its pictures, to another place. import_word reads an existing Word manual in as drafted chapters and topics. " +
   "set_picture_view crops a tall or wide picture to the part that matters; set_book_settings sets the zoom, the click circle, the writing style and the words to avoid; update_guide and delete_guide change guides. " +
-  "Every change is saved as it is made. When the book is ready, run check_book, update_index, and export_book (help-site, json, markdown, word, pdf, guide-word, guide-pdf). " +
+  "Every change is saved as it is made. When the book is ready, run check_book, update_index, and export_book (help-site, json, markdown, word, word-review, pdf, guide-word, guide-pdf). take_snapshot before a big change: restore_snapshot undoes a bad edit. " +
   "You can only use files inside the folder the author chose for MCP.";
 
 // ---- Reading what the assistant sent ------------------------------------------------------------------------
@@ -774,9 +779,114 @@ export function createTools(deps: ToolDeps): ToolDef[] {
       },
     },
     {
+      name: "list_comments",
+      description: "The open comments on the book's pages, in reading order: where each is (topic id, number and title; the block it is on), who wrote it (a reviewer's name starts the words of one brought back with import_review_comments), and its id. A resolved comment is left out.",
+      inputSchema: schema({ topic_id: str("Only this topic's comments.") }),
+      handler: async (args) => {
+        const project = session.require();
+        const only = optionalString(args, "topic_id");
+        if (only) topic(project, only);
+        return json(unresolvedIn(project.tree).filter((i) => !only || i.nodeId === only).map((i) => ({ topic_id: i.nodeId, topic: `${i.number} ${i.nodeTitle}`, block_id: i.blockId, block: i.blockWords, comment_id: i.comment.id, text: i.comment.text, written: i.comment.createdAt })));
+      },
+    },
+    {
+      name: "resolve_comment",
+      description: "Marks a comment resolved (or open again with resolved: false), once what it asked for is dealt with. Comments are working notes: they are never in an export except a review copy.",
+      inputSchema: schema({ topic_id: str("The topic's id."), comment_id: str("The comment's id, from list_comments."), resolved: { type: "boolean", description: "True to resolve it (the default), false to open it again." } }, ["topic_id", "comment_id"]),
+      handler: changes((args, project) => {
+        const node = topic(project, string(args, "topic_id"));
+        const resolved = args.resolved !== false;
+        if (!node.page || !setResolved(node.page, string(args, "comment_id"), resolved, new Date().toISOString())) throw new Error(`The topic "${node.title}" has no comment with that id. list_comments shows them.`);
+        return resolved ? "The comment is resolved." : "The comment is open again.";
+      }),
+    },
+    {
+      name: "list_snapshots",
+      description: "The book's snapshots, oldest first: dated copies of the whole book kept in the project file, each with its id, its name, when it was taken and whether you or the program took it.",
+      inputSchema: schema({}),
+      handler: async () => json(session.require().history.map((s) => ({ id: s.id, name: s.name, taken: whenWords(s.savedAt), by: s.automatic ? "the program" : "hand" }))),
+    },
+    {
+      name: "take_snapshot",
+      description: "Keeps a dated copy of the whole book in the project file, so there is a way back from a bad edit. Take one before a big change. The book keeps up to 20; at the limit, delete one first.",
+      inputSchema: schema({ name: str("What to call it, such as Before the review. Left out, it is named from the date.") }),
+      handler: changes((args, project) => {
+        const snapshot = takeSnapshot(project, optionalString(args, "name") ?? "", new Date().toISOString());
+        addSnapshot(project, snapshot);
+        return `Took the snapshot "${snapshot.name}" (id ${snapshot.id}). The book has ${project.history.length} snapshot(s).`;
+      }),
+    },
+    {
+      name: "compare_snapshot",
+      description: "Says in words what is different between the book now and a snapshot: topics added, removed and changed (words, pictures, title, status, place), and changes to the book's settings. Changes nothing.",
+      inputSchema: schema({ snapshot: str("The snapshot's id or name.") }, ["snapshot"]),
+      handler: async (args) => {
+        const project = session.require();
+        const snapshot = findSnapshot(project, string(args, "snapshot"));
+        return text(comparisonLines(compareWithSnapshot(project, snapshot), snapshot).join("\n"));
+      },
+    },
+    {
+      name: "restore_snapshot",
+      description:
+        "Puts the whole book back as a snapshot had it, or with topic_id only that topic (its title, status, page, pictures and links; a topic deleted since is put back where it was). The book as it is now is kept as a new snapshot first, so a restore can be undone by restoring that one. " +
+        "It replaces work, so confirm must be true. Use compare_snapshot first to see what would change.",
+      inputSchema: schema({ snapshot: str("The snapshot's id or name."), topic_id: str("Restore only this topic."), confirm: { type: "boolean", description: "Must be true." } }, ["snapshot", "confirm"]),
+      handler: changes((args, project) => {
+        const snapshot = findSnapshot(project, string(args, "snapshot"));
+        const topicId = optionalString(args, "topic_id");
+        if (args.confirm !== true) throw new Error(`Nothing was restored. Restoring replaces ${topicId ? "the topic" : "the whole book"} with the snapshot's. Send confirm: true to go on; the book as it is now is kept as a snapshot first.`);
+        const now = new Date().toISOString();
+        if (topicId) {
+          const result = restoreTopic(project, snapshot, topicId, now);
+          return `Restored the topic "${result.title}"${result.putBack ? " (put back where it was)" : ""} from "${snapshot.name}". The book as it was just before is kept as the snapshot "${result.safety.name}" (id ${result.safety.id}).${result.removed ? ` The older snapshot "${result.removed.name}" was removed to make room.` : ""}`;
+        }
+        const result = restoreWhole(project, snapshot, now);
+        return `Restored the whole book from "${snapshot.name}". The book as it was just before is kept as the snapshot "${result.safety.name}" (id ${result.safety.id}).${result.removed ? ` The older snapshot "${result.removed.name}" was removed to make room.` : ""}`;
+      }),
+    },
+    {
+      name: "rename_snapshot",
+      description: "Gives a snapshot another name.",
+      inputSchema: schema({ snapshot: str("The snapshot's id or name."), name: str("The new name.") }, ["snapshot", "name"]),
+      handler: changes((args, project) => {
+        const snapshot = findSnapshot(project, string(args, "snapshot"));
+        if (!renameSnapshot(project, snapshot.id, string(args, "name"))) throw new Error("The name is empty.");
+        return `The snapshot is now called "${snapshot.name}".`;
+      }),
+    },
+    {
+      name: "delete_snapshot",
+      description: "Deletes a snapshot from the project file. It cannot be undone, so confirm must be true.",
+      inputSchema: schema({ snapshot: str("The snapshot's id or name."), confirm: { type: "boolean", description: "Must be true." } }, ["snapshot", "confirm"]),
+      handler: changes((args, project) => {
+        const snapshot = findSnapshot(project, string(args, "snapshot"));
+        if (args.confirm !== true) throw new Error(`Nothing was deleted. Send confirm: true to delete the snapshot "${snapshot.name}" (${snapshotWords(snapshot)}).`);
+        deleteSnapshot(project, snapshot.id);
+        return `Deleted the snapshot "${snapshot.name}". The book has ${project.history.length} snapshot(s) left.`;
+      }),
+    },
+    {
+      name: "import_review_comments",
+      description:
+        "Brings back the comments of a review round. Make a review copy with export_book kind word-review, send it out, and when reviewers return the Word file (in the MCP folder), this reads their comments and adds each to the block it was made on, as an open comment that starts with the reviewer's name. " +
+        "It changes no words. A comment it cannot place is counted in the answer, not added. A comment already there with the same words is not added twice. list_comments shows the comments.",
+      inputSchema: schema({ file: str("The returned .docx file, inside the MCP folder.") }, ["file"]),
+      handler: changes(async (args, project) => {
+        const path = resolveInside(session.settings.folder, string(args, "file"));
+        if (!path) throw new Error("That file is not inside the folder MCP may use.");
+        if (!(await session.files.exists(path))) throw new Error(`There is no file at ${path}.`);
+        const bytes = await session.files.read(path);
+        if (bytes.length > MOST_WORD_BYTES) throw new Error(`That file is ${Math.round(bytes.length / 1048576)} MB. A Word file can be up to ${MOST_WORD_BYTES / 1048576} MB.`);
+        const read = await readReviewComments(bytes, project);
+        const done = addReviewComments(project, read.comments, new Date().toISOString());
+        return `Added ${done.added} comment(s)${done.already ? ` (${done.already} already there)` : ""}. ${read.report.join(" ")}`;
+      }),
+    },
+    {
       name: "export_book",
       description:
-        "Makes an export and saves it in the MCP folder. kind: help-site, json and markdown make a zip file; word and guide-word make a .docx; pdf and guide-pdf make a PDF. The guide kinds need guide_id from list_guides. The project is not changed.",
+        "Makes an export and saves it in the MCP folder. kind: help-site, json and markdown make a zip file; word, word-review (a Word file for reviewers, with the open comments as Word comments) and guide-word make a .docx; pdf and guide-pdf make a PDF. The guide kinds need guide_id from list_guides. The project is not changed.",
       inputSchema: schema({
         kind: { type: "string", enum: Object.keys(EXPORT_EXTENSION), description: "The kind of export." },
         file: str("The file to make, inside the MCP folder. Its ending (.zip, .docx or .pdf) is added if left off."), guide_id: str("For a guide kind: which guide."),

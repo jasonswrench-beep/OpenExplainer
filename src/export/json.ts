@@ -3,7 +3,7 @@
 // out unless the author asks for them. An export can be read back into a project (readJsonExport). Nothing here needs a screen.
 import { fromFiles } from "../project/files.ts";
 import { numbering, type Project, type TreeNode } from "../project/model.ts";
-import { assetFiles, type Assets } from "../project/package.ts";
+import { liveAssetFiles, type Assets } from "../project/package.ts";
 import { PROJECT_FILE, STRUCTURE_FILE, topicFile } from "../project/files.ts";
 import { unzip, zip } from "../project/zip.ts";
 
@@ -72,7 +72,7 @@ export function buildJsonExport(project: Project, assets: Assets, options: JsonE
   };
   const files: Record<string, Uint8Array> = { [BOOK_FILE]: encoder.encode(JSON.stringify(book, null, 2) + "\n") };
   const missing: string[] = [];
-  for (const file of assetFiles(project)) {
+  for (const file of liveAssetFiles(project)) {
     const bytes = assets.get(file);
     if (bytes) files[file] = bytes;
     else missing.push(file);
@@ -122,7 +122,7 @@ export function readJsonExport(files: Record<string, Uint8Array>): { project: Pr
   });
   const assets: Assets = new Map();
   for (const [name, data] of Object.entries(files)) if (name.startsWith("images/")) assets.set(name, data);
-  const missing = [...assetFiles(project)].filter((file) => !assets.has(file));
+  const missing = [...liveAssetFiles(project)].filter((file) => !assets.has(file));
   return { project, assets, missing };
 }
 
