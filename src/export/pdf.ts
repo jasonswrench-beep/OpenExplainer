@@ -33,7 +33,7 @@ function document(project: Project, title: string, header: string, bareFirstPage
 <style>${pdfCss({ header, bareFirstPage, look: project.look })}</style>
 </head>
 <body>
-${body}
+${body.replace(/<figure /g, '<figure role="group" ')}
 </body>
 </html>
 `;

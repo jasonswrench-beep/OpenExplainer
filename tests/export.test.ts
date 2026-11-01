@@ -196,7 +196,7 @@ test("the help site has a page for each topic with the contents tree, breadcrumb
   assert.match(saving, /^<!DOCTYPE html>\n<html lang="en">/);
   assert.match(saving, /<title>1\.1 Saving &amp; closing - My &lt;Book&gt; &amp; more<\/title>/);
   assert.match(saving, /<a class="skip-link" href="#topic-main">Skip to the topic<\/a>/);
-  assert.match(saving, /<main class="hs-page" id="topic-main">/);
+  assert.match(saving, /<main class="hs-page" id="topic-main" tabindex="-1">/);
   assert.match(saving, /<form id="site-search" role="search" class="site-search"><label for="site-search-input">Search this help<\/label>/);
   assert.match(saving, /<nav class="hs-tree" aria-label="Contents of My &lt;Book&gt; &amp; more">/);
   assert.match(saving, /<a href="1-1-saving-closing\.html" aria-current="page">1\.1 Saving &amp; closing<\/a>/, "the current topic is marked in the tree");

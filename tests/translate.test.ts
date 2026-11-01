@@ -60,7 +60,7 @@ test("language tags are tidied, an older book is English, and the name of a lang
   for (const bad of ["", "e", "english", "fr--CA", "fr-", 42, null, "fr-CANADIAN1"]) assert.equal(tidyLanguage(bad), null, String(bad));
   assert.equal(cleanLanguage("nonsense"), "en");
   assert.equal(languageWords("fr"), "French");
-  assert.equal(languageWords("pt-BR"), "Brazilian Portuguese");
+  assert.match(languageWords("pt-BR"), /^(Brazilian Portuguese|Portuguese \(Brazil\))$/, "the name comes from the system's language data, which words it a little differently in places");
   assert.equal(createProject("x").language, "en");
   const old = migrate({ ...JSON.parse(JSON.stringify(createProject("Old"))), version: 20, language: undefined, tree: [] });
   assert.deepEqual([old.version, old.language, CURRENT_VERSION >= 21], [CURRENT_VERSION, "en", true]);

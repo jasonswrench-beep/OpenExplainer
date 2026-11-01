@@ -44,6 +44,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 .hs-tree a[aria-current="page"] { font-weight: 700; text-decoration: underline; color: var(--text); }
 .hs-crumbs ol { list-style: none; display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0; margin: 0 0 0.6rem; font-size: 0.92rem; }
 .hs-crumbs li + li::before { content: "\\203A"; margin-right: 0.3rem; }
+.hs-page:focus { outline: none; }
 .hs-page h1 { font-size: 1.7rem; margin: 0.3rem 0 0.8rem; }
 .hs-page h2 { font-size: 1.3rem; margin: 1.4rem 0 0.5rem; }
 .hs-pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; border-top: 1px solid var(--line); padding-top: 0.6rem; flex-wrap: wrap; }

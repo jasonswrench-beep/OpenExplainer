@@ -422,6 +422,33 @@ The OpenStage Author User Guide and its Quick Start were first made on 2026-10-2
 - **Short guides**: four tasks (a Quick Start for a first lesson, add narration, make a quiz, bring in slides and a recording), each in both layouts, as PDFs in `Short guides` beside the book.
 - **Not done**: the click capture still sometimes names a button "text", "group" or "window" in Chromium and Tauri windows (about half the time in some programs). It needs runs with the real mouse on an idle PC to find out why; nothing was changed. A person still has to read the whole guide. The tour-of-the-window picture still prints at about half size, which the book check notes; it is a whole-window overview on purpose.
 
+## The improve-build list (2026-11-01): items 2 to 10, then 1
+
+From the comparison with help-authoring programs (a Docs file of Jason's, "OpenExplainer compared with help-authoring programs"). Jason asked for items 2 to 10 and then 1, with every design choice left to Claude and listed, and said to push to main when done (no tags, no releases; the v0.1.0 and v0.1.1 drafts stay unpublished). Each item has tests, docs and its own commit; the full suite is 541 tests and the only two that fail on this PC are the two that need Python (`the packed file is a valid zip...` and `compressed zips from other programs can be read`). The project format went from 16 to 21.
+
+| Item | Commit | Format | Where |
+| --- | --- | --- | --- |
+| 2. Links between topics, See also, broken-link check | 0211d9e | 17 | `src/project/links.ts`, `src/links-dialog.ts`, `src/render/see-also.ts` |
+| 3. Look of the outputs: fonts, accent, logo, title page, header and footer, paper | 2acc91a | 18 | `src/project/look.ts`, `src/look-dialog.ts` |
+| 4. Snippets, conditions and targets | 5a38ad6 | 19 | `src/project/snippets.ts`, `src/reuse-dialog.ts` |
+| 5. Import from Word | d222c8d | none | `src/import/` (`xml.ts`, `docx.ts`, `apply.ts`) |
+| 6. Snapshots, and a Word review copy with comments that come back | 02ca982 | 20 | `src/project/history.ts`, `snapshots.ts`, `src/history-dialog.ts`, `src/import/review.ts`, `src/export/docx.ts` (review) |
+| 7. EPUB 3 | 0f2fe6e | none | `src/export/epub.ts` |
+| 8. Markdown pages and llms.txt in the help site | 9968875 | none | `src/export/help-site.ts`, `markdown.ts` (`topicPageMarkdown`) |
+| 9. A bigger book check | e4a21e6 | none | `src/project/book-checks.ts` |
+| 10. Translation round trip (XLIFF), and the language of the book | e61aaba | 21 | `src/translate/`, `src/project/language.ts`, `replace-picture.ts` |
+| 1. Screen reader pass: machine checks and a script for a person | (see git log) | none | `tools/a11y/`, `docs/screen-reader-*.md` |
+
+Choices made without asking (all written in the docs named): links show their words plus the topic's number, and in a PDF its page (Word: words and number; help site: plain link). A snapshot holds the same files a saved project is made of, so an old one is upgraded when read; the author's own snapshots are never dropped for room (20 at most). The review copy bookmarks every block and topic heading so a reviewer's Word comments find their place; the copy sends only comments and brings back only comments. A translated book is a **copy** (a new project file), never an edit of the open book, because translating in place would lose the original; the language field (format 21) was added because a French book that says it is English is read badly by a screen reader. Word import marks everything Drafted and removes typed heading numbers. XLIFF is version 1.2 only.
+
+**Tried in the real program** (a built `openexplainer.exe` driven through the page's debugging port, on a copy of the OpenStage Author guide): Export's new kinds and language box, Look's language box, History (take, compare, restore with a safety snapshot, delete), the Replace the picture file button (34 checks); every window the toolbar opens and eight a topic's page opens (216 accessibility checks); the guide exported as help site, e-book, PDF, Word, review copy and XLIFF through the assistant tools and read back (Word round trip: 16 chapters, 92 nodes, 45 pictures; a pretend French translation of all 1164 pieces in 28 ms; the e-book's 298 links all resolve).
+
+**Not tried** (say so; do not claim it): the operating system's file choosers behind Import from Word, Bring in review comments, Import a translation and Replace the picture file (the page cannot drive them; their work is tested without a screen and their buttons are checked); a real reviewer's comments made in real Word (the tests inject them); a real translation program (OmegaT) reading and writing the XLIFF; the e-book in EPUBCheck or a reading app; the Word file opened in Word; the PDF in a desktop PDF program's checker or PAC; **a person with NVDA** (item 1: the script is `docs/screen-reader-pass.md`, a ready-to-use copy is in Jason's Documents folder "Screen reader pass", and the machine results are `docs/screen-reader-machine-checks.md`; the results of a person's pass go in `docs/screen-reader-results.md`, which says "not yet done").
+
+**Faults the machine checks found and fixed:** every picture in the PDF had a second, outer figure tag with no alternative text (now a group); the help site's skip link did not always move the keyboard into the topic (now the topic area can take focus).
+
+**The installed program is still 0.1.1 (before all of this).** None of the above is in a release. A new version number, tag and installer are Jason's call.
+
 ## Still open (ask Jason, do not guess)
 
 - **Shipping (first installer built and tried 2026-10-23, see `docs/release.md`):** a per-user NSIS installer builds (`Build Installer.bat`) and the installed program passes a smoke test (`Test Installed App.bat`) and the MCP check; an install, an upgrade over it and an uninstall were tried silently. The installer had been missing the capture helper (fixed). Still open for Jason: code signing (SmartScreen warns on an unsigned installer),

@@ -541,7 +541,7 @@ test("tools: a translation file comes back as a copy saved beside the open book,
   await call("create_project", { name: "Translate" });
   const topicId = /id is (\w+)/.exec((await call("add_topic", { title: "Saving" })).text)![1];
   await call("set_page", { topic_id: topicId, blocks: [{ type: "paragraph", text: "Press **Save**." }] });
-  assert.match((await call("set_book_settings", { language: "fr-ca" })).text, /language \(Canadian French\)/);
+  assert.match((await call("set_book_settings", { language: "fr-ca" })).text, /language \((Canadian French|French \(Canada\))\)/);
   assert.equal(session.project!.language, "fr-CA");
   assert.match((await call("set_book_settings", { language: "klingon!" })).text, /language must be a language code/);
   await call("set_book_settings", { language: "en" });

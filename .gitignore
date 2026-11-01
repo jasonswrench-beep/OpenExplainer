@@ -10,3 +10,6 @@ Thumbs.db
 # The AI program carried with the app is fetched by Get AI Runtime.bat, not kept in git.
 src-tauri/runtime/llama/*
 !src-tauri/runtime/llama/README.txt
+
+# Results and scratch copies of the accessibility check scripts (tools/a11y).
+tools/a11y/out/
