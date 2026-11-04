@@ -19,7 +19,7 @@ With SignPath Foundation the publisher name shown is **SignPath Foundation**, no
 | Each release approved by hand | Jason approves each signing request on SignPath's site. |
 | Actively maintained, not malware, uninstaller included | Yes (the installer has an uninstaller). |
 | The exact file to be signed has already been released | A first release of the unsigned installer has to be published on GitHub before applying (step 4). |
-| Product name matches the project, and the version is the same in every file of a build | Product name is OpenExplainer; the version comes from `tauri.conf.json` (0.1.1, also in `package.json`, both `Cargo.toml` files and `src/mcp/main.ts`). |
+| Product name matches the project, and the version is the same in every file of a build | Product name is OpenExplainer; the version comes from `tauri.conf.json` (0.2.0, also in `package.json`, both `Cargo.toml` files and `src/mcp/main.ts`). |
 | A "Code signing policy" section on the project's home page, with the exact sentence below | Drafted below; it goes into the README when Jason applies (step 5). |
 | Named team roles (authors, reviewers, approvers) | One person for now: Jason. |
 | Two-step sign-in (MFA) for everyone with GitHub or SignPath access | **Jason has to check this is on** for his GitHub account (and turn it on for SignPath when the account exists). |

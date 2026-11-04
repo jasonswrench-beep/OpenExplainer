@@ -7,7 +7,8 @@
 # repository variables below are set, the same run also asks SignPath to sign the installer; Jason approves that on SignPath's site,
 # and a second download called "OpenExplainer-installer-signed" appears.
 # When a version tag is pushed, a second job (below) also makes a DRAFT pre-release on the Releases page with the unsigned installer and
-# the guide PDFs attached. A draft is seen only by people who can write to the repository; Jason publishes it by hand, or deletes it.
+# its .sha256.txt attached (nothing else). A draft is seen only by people who can write to the repository. It is published only after the
+# installer has been downloaded and checked, and only when Jason says yes (the repository is public, so a release is seen by everyone).
 name: Build installer
 
 on:
@@ -115,6 +116,13 @@ jobs:
           name: OpenExplainer-installer-unsigned
           path: installer
 
+      # Jason's release rule: attach only the setup file and its .sha256.txt (the SHA-256 of the setup file, so anyone can check a download).
+      - name: Write the SHA-256 file
+        run: |
+          cd installer
+          for f in *-setup.exe; do sha256sum "$f" > "$f.sha256.txt"; done
+          cat ./*.sha256.txt
+
       - name: Make the draft release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -123,10 +131,11 @@ jobs:
           version="${TAG#v}"
           notes="docs/release-notes-${version}.md"
           if [ -f "$notes" ]; then note_args=(--notes-file "$notes"); else note_args=(--generate-notes); fi
+          # A tag such as v0.2.0-alpha.1 is titled "OpenExplainer 0.2.0 alpha 1".
+          title="OpenExplainer ${version/-alpha./ alpha }"
           gh release create "$TAG" \
             installer/*-setup.exe \
-            "docs/user-guide/OpenExplainer User Guide.pdf" \
-            "docs/user-guide/OpenExplainer Quick Start.pdf" \
+            installer/*-setup.exe.sha256.txt \
             --draft --prerelease --verify-tag \
-            --title "OpenExplainer ${version} (release candidate)" \
+            --title "$title" \
             "${note_args[@]}"
