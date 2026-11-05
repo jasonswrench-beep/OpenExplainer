@@ -386,8 +386,8 @@ Parts, in order:
 14. **PDF (DONE 2026-10-21; Jason said yes to Rust in the shell)**: `src-tauri/src/pdf.rs` (three commands; WebView2 `Page.printToPDF` in a hidden window; one at a time; refusals; 180 s limit), `src/export/pdf.ts`
     (the page, `anchorPages`, page numbers), `pdf-css.ts`, `pdf-make.ts` (prints twice to settle the contents), `pdf-job.ts` (the shell and the work folder), "PDF" and "Guide (PDF)" in the Export dialog and
     `exportBook` in `src/main.ts`, a capability scope for `$TEMP/openexplainer-pdf` in `src-tauri/capabilities/default.json`; `renderPrintPreview` takes the contents' page numbers; 6 tests in `tests/pdf.test.ts`,
-    1 Rust test; tried in the real window (scenario `pdf`). `CLAUDE.md` and `NOTICE` were updated. Jason should try Export, PDF and Guide (PDF) by hand through the Save dialog, and open a PDF in a desktop PDF program or another
-    reader. Not done: a screen reader or a desktop PDF program accessibility check of the PDF, a guide as a help site.
+    1 Rust test; tried in the real window (scenario `pdf`). `CLAUDE.md` and `NOTICE` were updated. Jason should try Export, PDF and Guide (PDF) by hand through the Save dialog, and open a PDF in a desktop PDF reader or another
+    reader. Not done: a screen reader or desktop accessibility check of the PDF, a guide as a help site.
 15. **Automatic zoom for print (DONE 2026-10-21; Jason: a setting that starts off)**: format v12 `project.paper.autoZoom` (off), `switchedForPaper` / `forPaper` in `src/project/views.ts`, `RenderContext.paper`,
     `flattenPlaced(..., { paper })`, Word captions and the book check follow it, a box in Zoom settings, a note for the writer in the print preview; tests in `tests/paper.test.ts`; scenario `paper`. Applies to the print
     preview, PDF and Word only.
@@ -421,7 +421,7 @@ The OpenStage Author User Guide and its Quick Start were first made on 2026-10-2
 
 ## The improve-build list (2026-11-01): items 2 to 10, then 1
 
-From the comparison with help-authoring programs (a Docs file of Jason's, "OpenExplainer compared with help-authoring programs"). Jason asked for items 2 to 10 and then 1, with every design choice left to Claude and listed, and said to push to main when done (no tags, no releases; the v0.1.0 and v0.1.1 drafts stay unpublished). Each item has tests, docs and its own commit; the full suite is 541 tests and the only two that fail on this PC are the two that need Python (`the packed file is a valid zip...` and `compressed zips from other programs can be read`). The project format went from 16 to 21.
+From a feature review of help-authoring programs (a Docs file of Jason's). Jason asked for items 2 to 10 and then 1, with every design choice left to Claude and listed, and said to push to main when done (no tags, no releases; the v0.1.0 and v0.1.1 drafts stay unpublished). Each item has tests, docs and its own commit; the full suite is 541 tests and the only two that fail on this PC are the two that need Python (`the packed file is a valid zip...` and `compressed zips from other programs can be read`). The project format went from 16 to 21.
 
 | Item | Commit | Format | Where |
 | --- | --- | --- | --- |

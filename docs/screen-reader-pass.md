@@ -96,11 +96,11 @@ Make the help site with **Export, Help site**, unzip it, and open `index.html` i
 
 ## Part C: the PDF (about 20 minutes)
 
-Make the PDF with **Export, PDF** and open it in a desktop PDF reader (free) with NVDA running.
+Make the PDF with **Export, PDF** and open it in a free desktop PDF reader with NVDA running.
 
 **C1.** Is the title read when it opens, and not the file name?
 **C2.** Press H. *You should hear* headings, in the order of the book. Press it many times: does the order make sense?
-**C3.** Open the bookmarks (a desktop PDF program: View, Show/Hide, Navigation Panes, Bookmarks). Do they match the chapters?
+**C3.** Open the bookmarks (the reader's Bookmarks pane). Do they match the chapters?
 **C4.** Find a picture. Is its description read?
 **C5.** Find a numbered list. Is it read as a list of numbered items?
 **C6.** Find a link in the text. Is its name sensible, and does it go to the right place?

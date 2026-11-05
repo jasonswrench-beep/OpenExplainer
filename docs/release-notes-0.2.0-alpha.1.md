@@ -45,7 +45,7 @@ The installer is **not signed yet**, so Windows may say "unknown publisher" or s
 - A person running this installer by hand.
 - A person using the editor with a screen reader. Only machine checks have been done.
 - The Windows file choosers behind Import from Word, Bring in review comments, Import a translation and Replace the picture file.
-- Real comments coming back from a reviewer in Word, Word opening the Word files, a translation tool reading the XLIFF, the e-book in a checker such as EPUBCheck, and the PDFs in an accessibility checker such as a desktop PDF program or PAC.
+- Real comments coming back from a reviewer in Word, Word opening the Word files, a translation tool reading the XLIFF, the e-book in a checker such as EPUBCheck, and the PDFs in a PDF accessibility checker.
 - The installer's own wizard window.
 - Windows on ARM (there is no ARM installer), display scaling above 100 percent, and other monitor layouts.
 - Capturing many real programs. Names of clicked items depend on what each program tells Windows.

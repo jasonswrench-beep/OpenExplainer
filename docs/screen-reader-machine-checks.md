@@ -38,7 +38,7 @@ Everything else the checks looked at was already in order. A few things the firs
 ## What these checks did not cover
 
 - **Anything spoken.** No screen reader was run. NVDA, JAWS, Narrator and VoiceOver can differ from one another and from the browser's tree.
-- **Word and a desktop PDF program.** The Word file's structure was read back by the program's own reader, not opened in Word with a screen reader or run through Word's accessibility checker. The PDF was read for its tags, not run through a desktop PDF program's checker or a PDF/UA validator (PAC), and its reading order was not examined.
+- **Word and PDF checkers.** The Word file's structure was read back by the program's own reader, not opened in Word with a screen reader or run through Word's accessibility checker. The PDF was read for its tags, not run through a desktop PDF accessibility checker or a PDF/UA validator, and its reading order was not examined.
 - **The e-book in a reading app**, and EPUBCheck.
 - **The click-capture windows** (the always-visible Cancel window and the selection overlay) and the operating system's own file choosers; the program cannot drive these through the page.
 - **The Drawing window as a person would use it.** It opens, is named, and Tab and Escape work, but whether a person can place an arrow with the keyboard alone and understand what they are doing has not been tried.
