@@ -206,4 +206,4 @@ A round trip (export Word, import it) gives back the same chapters, topics, word
 
 ## Still to come
 
-The book index, a guide as a help site, and the printed look matched more closely to the reference how-to book. See `docs/HANDOFF.md`.
+The book index, a guide as a help site, and the printed look refined to suit the planned book design. See `docs/HANDOFF.md`.

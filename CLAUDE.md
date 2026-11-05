@@ -17,7 +17,7 @@ by hand with no AI.
 ## Separate from OpenStage
 
 OpenExplainer is a standalone product with its own repository, build and run. It ships nothing from OpenStage.
-OpenStage or OpenScreen code is copied only when Claude judges it useful, and each piece is credited in `NOTICE`.
+OpenStage code is copied only when Claude judges it useful, and each piece is credited in `NOTICE`.
 It may join the same product suite later, but not now.
 
 ## Non-negotiable rules
@@ -46,7 +46,7 @@ It may join the same product suite later, but not now.
 This project is Apache 2.0. Permissive licences (MIT, BSD, Apache 2.0, ISC) are fine. LGPL is dynamic linking only.
 GPL and AGPL are refused. Open model weights are audited one by one before bundling or downloading.
 Run `Check Licences.bat` before adding or updating any dependency. Record anything adopted in `NOTICE`.
-No code, assets or proprietary specifics are copied from a step-by-step screen capturing program, a step-guide program, a screen capture program or an eLearning authoring suite.
+Use original code, assets and design.
 
 ### AI
 

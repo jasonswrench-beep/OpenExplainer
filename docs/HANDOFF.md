@@ -13,10 +13,7 @@ No em dashes in prose. When a choice could go either way, ask.
 ## What OpenExplainer is
 
 A free, open-source (Apache 2.0) desktop tool for making still-image tutorials and how-to books from screen captures.
-Think a step-by-step screen capturing program, but his own design: nothing is copied from a step-by-step screen capturing program, a step-guide program, a screen capture program or an eLearning authoring suite. First job: document
-OpenStage Author (his separate eLearning authoring tool, folder `C:\Users\Jason\OpenStage`) in a book modeled on
-"a published how-to book for an eLearning authoring platform" (about 15 chapters, appendix, index, numbered procedures, callout boxes,
-lettered screenshot callouts). It is a completely separate product from OpenStage: separate repository, build and run.
+The first planned book documents OpenStage Author and uses numbered procedures, lettered screenshot callouts, an appendix and an index. OpenExplainer has its own repository and build.
 
 The full design and the ten-step build list live in two Docs files (they may not be readable from here; this note is the summary):
 - Design spec: https://claude.ai/code/artifact/82e1a1c1-bbeb-4c44-8b5a-106fac062540
@@ -36,7 +33,7 @@ The full design and the ten-step build list live in two Docs files (they may not
 - Contrast checker always on, as a WARNING ONLY (bad contrast may be deliberate). Accessibility check before export is optional, never required.
 - AI help is optional. Default: local Qwen 3.5, downloaded during first install (progress, resume, cancel). Or the author's own ChatGPT,
   Claude or Gemini key. Everything must work by hand with no AI. An MCP server lets assistants read a project, add and draft topics, and run exports.
-- OpenStage or OpenScreen code: starts with none. Copy only what is clearly useful, small and marked, and credit it in `NOTICE`.
+- OpenStage code: starts with none. Copy only what is clearly useful, small and marked, and credit it in `NOTICE`.
 - Callout letters belong to pictures; numbers belong to procedure steps.
 - Status is never color alone (word plus symbol).
 - The app icon (given by Jason, 2026-10-22, "going forward this is the icon for the software"): a yellow open viewfinder with a capture circle and an extended upper-right corner on a navy rounded tile. The source is `src-tauri/icons/app-icon.svg` (kept exactly as Jason supplied it; its title and description say "OpenCapture", which is not this product's name, so ask before renaming anything).
@@ -62,7 +59,7 @@ not yet used by the app.
   permissions stay and saving fails with "not allowed".
 - `vite.config.ts` must ignore `**/src-tauri/**` in the watcher, or Vite crashes on locked Rust build files.
 - Use `npm.cmd`, not `npm` (PowerShell blocks the .ps1 shim). The run script already does.
-- a step-by-step screen capturing program hung for minutes when told to capture its own window. OpenExplainer must never capture itself.
+- OpenExplainer must never capture its own window.
 
 ## Step 3b, the Windows capture helper: parts 1 to 6 are done, 7 is next
 
@@ -164,7 +161,7 @@ Reference (read only, for ideas, not for copying wholesale): OpenStage's Rust ca
 PC (the first version of this note said `C:\Users\Jason\OpenStage`, which does not exist here) (`openstage-capture-windows`, `-protocol`, `-project`,
 `-render`, `-cli`) and its `docs/decisions/0001-screen-capture.md`. Nothing was copied from it for parts 1 to 3: its window listing says it was
 only type-checked, never run, so the helper's was written fresh and tried for real.
-Do not adopt outside recorders' code (copyleft). Any Rust crate must be permissive; `tools/check-licences.mjs` now covers
+Do not adopt copyleft recorder code. Any Rust crate must be permissive; `tools/check-licences.mjs` now covers
 `capture-helper/Cargo.toml` as well as `src-tauri/Cargo.toml`.
 Known limit: apps like Notepad expose little accessibility data, so labels come back generic. The later AI drafting step gives them real names.
 
@@ -390,7 +387,7 @@ Parts, in order:
     (the page, `anchorPages`, page numbers), `pdf-css.ts`, `pdf-make.ts` (prints twice to settle the contents), `pdf-job.ts` (the shell and the work folder), "PDF" and "Guide (PDF)" in the Export dialog and
     `exportBook` in `src/main.ts`, a capability scope for `$TEMP/openexplainer-pdf` in `src-tauri/capabilities/default.json`; `renderPrintPreview` takes the contents' page numbers; 6 tests in `tests/pdf.test.ts`,
     1 Rust test; tried in the real window (scenario `pdf`). `CLAUDE.md` and `NOTICE` were updated. Jason should try Export, PDF and Guide (PDF) by hand through the Save dialog, and open a PDF in a desktop PDF program or another
-    reader. Not done: a screen reader or a desktop PDF program accessibility check of the PDF, matching the the reference authoring platform look more closely, a guide as a help site.
+    reader. Not done: a screen reader or a desktop PDF program accessibility check of the PDF, a guide as a help site.
 15. **Automatic zoom for print (DONE 2026-10-21; Jason: a setting that starts off)**: format v12 `project.paper.autoZoom` (off), `switchedForPaper` / `forPaper` in `src/project/views.ts`, `RenderContext.paper`,
     `flattenPlaced(..., { paper })`, Word captions and the book check follow it, a box in Zoom settings, a note for the writer in the print preview; tests in `tests/paper.test.ts`; scenario `paper`. Applies to the print
     preview, PDF and Word only.
@@ -472,7 +469,7 @@ Choices made without asking (all written in the docs named): links show their wo
 - **Shipping (first installer built and tried 2026-10-23, see `docs/release.md`):** a per-user NSIS installer builds (`Build Installer.bat`) and the installed program passes a smoke test (`Test Installed App.bat`) and the MCP check; an install, an upgrade over it and an uninstall were tried silently. The installer had been missing the capture helper (fixed). Still open for Jason: code signing (SmartScreen warns on an unsigned installer),
   Windows on ARM (a download and an ARM build of the helper and the AI program), the publisher name shown in Add or Remove Programs, a clean-PC or second-account install (this PC is Windows 11 Home, no Sandbox), the interactive wizard, a screen reader on the installed program, whether a project file should open by double-click (no file association yet), and the identifier `org.openexplainer.app` (ends in `.app`; changing it moves the data and the 2.7 GB model).
   Known and not fixable from OpenExplainer: the real AI server keeps running about 25 seconds after the app is closed or killed.
-- PDF export: answered 2026-10-21 (Rust in the shell, see item 14). Open: how closely the printed look should follow the reference how-to book (fonts, running headers, chapter openers).
+- PDF export: answered 2026-10-21 (Rust in the shell, see item 14). Open: how closely the printed look should follow the planned book design (fonts, running headers, chapter openers).
 
 - Short guides (built 2026-10-21): please confirm the choices I made without asking (HANDOFF item 12): a guide takes only the numbered steps and boxed notes of its topics; each step is headed "Step N"; close-ups
   are on by default; the left layout shows the picture and a close-up because a step holds one picture (the design says up to three: should a step be able to hold more, such as a result picture?); the step
@@ -480,7 +477,7 @@ Choices made without asking (all written in the docs named): links show their wo
 - Qwen 3.5 (Jason, 2026-10-21: Apache 2.0 is fine; default Qwen 3.5 at 4B): the licence of the exact files is read and written up in `docs/local-ai-plan.md` section 5 (all permissive). The four points in plan section 7 were confirmed by Jason on 2026-10-21 (item 18).
 - MCP server: built (item 17). Open: try it with a real assistant; whether an assistant should also be able to click and type in the program itself (now it does that with its own tools); the log's place and a way to see it in the app.
 - The book index: built (item 16). Open: whether it needs sub-entries and "see also", and a rule in the book check for topics with no terms.
-- Which the reference authoring platform page styles to copy exactly versus only resemble; how much detail per feature in the OpenStage book.
+- Which page styles to include; how much detail per feature in the OpenStage book.
 - The name "OpenExplainer" has not been checked for conflicts on GitHub and elsewhere.
 - Capture helper: should the window list also show a program's dialogs (marked as belonging to it) so a native dialog can be captured by itself?
   Region capture can also take one.
@@ -493,5 +490,3 @@ Choices made without asking (all written in the docs named): links show their wo
 - Steps 1 and 2 leftovers: more double-click scripts (build, tests), keyboard and screen reader pass, ARM check.
 
 ## Housekeeping on Jason's PC
-
-Nothing to note. a step-by-step screen capturing program was never installed on this PC (Jason confirmed 2026-10-21), and a stray untitled a step-guide program guide does not matter.
