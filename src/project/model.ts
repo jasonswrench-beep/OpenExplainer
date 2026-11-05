@@ -149,7 +149,7 @@ export function makeNode(title: string): TreeNode {
 }
 
 /**
- * The chapters of the OpenStage how-to book template: 15 chapters and an appendix, in the pattern of the reference how-to book (design spec, Templates), one for each feature area of the
+ * The chapters of the OpenStage how-to book template: 15 chapters and an appendix, one for each feature area of the
  * program. They are empty to begin with; the author adds the topics. The OpenStage Author guide made with OpenExplainer follows this list.
  */
 export const HOW_TO_BOOK_CHAPTERS = [

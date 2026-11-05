@@ -110,7 +110,7 @@ test("damaged files are refused, and file names are made safe", async () => {
   assert.equal(fileNameFor("   "), "Untitled project.openexplainer");
 });
 
-test("the OpenStage how-to book template has 15 chapters and an appendix, in the reference how-to book pattern", () => {
+test("the OpenStage how-to book template has 15 chapters and an appendix", () => {
   const p = createProject("Book", "openstage-how-to-book");
   assert.equal(p.tree.length, 16);
   assert.equal(HOW_TO_BOOK_CHAPTERS.length, 16);
