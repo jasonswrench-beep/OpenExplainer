@@ -1,5 +1,7 @@
 # OpenExplainer
 
+[Roadmap & Feature Requests](https://app.productbridge.io/widget/784db895-cb64-45f4-9bde-4645df4aa083?tab=roadmap)
+
 A free, open-source tool for making still-image tutorials and how-to books from screen captures.
 Licensed under Apache 2.0.
 
