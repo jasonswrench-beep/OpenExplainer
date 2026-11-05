@@ -224,7 +224,7 @@ click with no name:
   whose details may be kept, that one is described (its name and its outline). A piece of text inside a list item, a link, a text
   box or a document still names nothing. The rule is the pure function `climb_to` in `clicks.rs`, with its own tests; no new kind of
   name can be kept this way.
-- *Another program's see-through window over the one being used.* A writing helper such as a writing helper shows a full-screen window
+- *Another program's see-through window over the one being used.* A writing helper shows a full-screen window
   over whatever program has the keyboard in a text box. The click goes through it, but UI Automation answers with the overlay, so the
   click was recorded as "the window" and the first callout covered the whole window. Now the helper finds which top-level window the
   answer belongs to (the first item at or above it that is a window of its own; `owning_window`) and which top-level window the

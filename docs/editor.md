@@ -246,7 +246,7 @@ A **guide** is a few pages for one task, or for several (the quick, step-by-step
 
 ## Reuse: snippets, conditions and targets
 
-Format version 19 (2026-11-01, from a feature review of help-authoring programs: snippets and conditions are common, and the book had only variables). **Reuse** (a toolbar button) opens one window for all three:
+Format version 19 (2026-11-01, from Jason's feature list: the book had only variables). **Reuse** (a toolbar button) opens one window for all three:
 
 - **Snippets.** A snippet is a piece of a page you write once: a heading, a paragraph, a boxed note or a numbered procedure (no pictures). Choose or make one, give it a name, and write what it says in the box (blocks separated by a blank line; `# words` is a heading, `> Caution: words` a boxed note, `1. words` lines the steps of a procedure, a line `Result: words` after a step its result; the window says this and counts the blocks and the places that use the snippet). In a topic, **Snippet** (beside Paragraph, Heading and the others under Add to the page) adds a block with a list of the snippets; the words that will be written there are shown under it. Change the snippet and every topic that uses it changes, in the preview and in every output. Deleting a snippet keeps its words where it was used, as ordinary blocks.
 - **Conditions.** A condition is a name for content that is only for some readers or versions, such as Administrators or Version 2. A list of boxes, one for each, with Add a condition and Remove.
@@ -266,7 +266,7 @@ Format version 21 added the **language of the book**, a field in **Look of the b
 
 ## History: snapshots of the book
 
-Format version 20 (2026-11-01, from a feature review of help-authoring programs: a full edit history is common; before this the program had no way back from a bad edit). **History** (a toolbar button) opens a window with a list box of the book's snapshots, oldest first, each with its name, whether you or the program took it, and when. A snapshot is a dated copy of the whole book kept inside the project file. The window has:
+Format version 20 (2026-11-01, from Jason's feature list: before this the program had no way back from a bad edit). **History** (a toolbar button) opens a window with a list box of the book's snapshots, oldest first, each with its name, whether you or the program took it, and when. A snapshot is a dated copy of the whole book kept inside the project file. The window has:
 
 - **Take a snapshot now.** Asks for a name (empty: named from the date). The book keeps up to 20; at the limit the button is off and the window says to delete one.
 - **Compare with the book now.** Lists, in words, what is different: topics added, removed and changed (title, status, place, words, pictures, links), and settings of the book. It is a second list box.
@@ -281,7 +281,7 @@ Format version 20 (2026-11-01, from a feature review of help-authoring programs:
 
 ## Look of the book
 
-Format version 18 (2026-11-01, from a feature review of help-authoring programs: a way to give a book a house style is common). **Look of the book** (a toolbar button) sets, for the whole project: the **font of the text** and the **font of the headings**, an **accent colour**, a **logo**, whether the book **starts with a title page**, the **words at the top** of every page after the first and the **words at the bottom** beside the page number, and the **paper size** (Letter or A4). They are used by the print preview, the PDF, the Word file and the help site, so the book looks the same everywhere. Until the author chooses, each output keeps the look it always had.
+Format version 18 (2026-11-01, from Jason's feature list). **Look of the book** (a toolbar button) sets, for the whole project: the **font of the text** and the **font of the headings**, an **accent colour**, a **logo**, whether the book **starts with a title page**, the **words at the top** of every page after the first and the **words at the bottom** beside the page number, and the **paper size** (Letter or A4). They are used by the print preview, the PDF, the Word file and the help site, so the book looks the same everywhere. Until the author chooses, each output keeps the look it always had.
 
 - The accent colour is a list of dark ready-made colours or any six hex digits. A line under it says, in words and with a tick or a warning sign (never by colour alone), how readable the colour is as text on white. A colour that is too light is still used; the book check lists it as a problem to look at. The check only warns.
 - **Choose a logo picture** opens the usual file window for a PNG or JPEG, asks what it shows (a screen reader reads that on the title page) and brings the window back. **Remove the logo** takes it off. The logo is on the title page and, as decoration beside the book's name, in the help site's header. A logo with no description is listed by the book check.
@@ -290,7 +290,7 @@ Format version 18 (2026-11-01, from a feature review of help-authoring programs:
 
 ## Links between topics and See also
 
-Format version 17 (2026-11-01, from a feature review of help-authoring programs: a chapter move had broken typed references such as "topic 6.1"). Words in a paragraph, a boxed note or a step can **go to another topic**, and a topic can have a **See also** list.
+Format version 17 (2026-11-01, from Jason's feature list: a chapter move had broken typed references such as "topic 6.1"). Words in a paragraph, a boxed note or a step can **go to another topic**, and a topic can have a **See also** list.
 
 - **Link to a topic** is a button beside Bold, Italic and Control name in every text box. It opens a window with every chapter and topic of the book, numbered, and a box that narrows the list by what is typed. Choose one and press **Link to this topic**: the selected words become the link (with nothing selected, the topic's title is used). The text box then holds `[words](#topic-id)`, which can also be typed. The link holds the topic itself, not its number, so it stays right when chapters move.
 - **See also for this topic** is a box in a topic's Properties, with a list of the topics in it and a button **Choose See also topics**. The window has a tick box for each topic, the same narrowing box, and holds up to 12. Nothing changes until **Keep these topics**.
