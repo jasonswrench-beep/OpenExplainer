@@ -13,3 +13,12 @@ src-tauri/runtime/llama/*
 
 # Results and scratch copies of the accessibility check scripts (tools/a11y).
 tools/a11y/out/
+
+# Local AI-assistant files and credentials: never commit these
+.claude/
+CLAUDE.local.md
+.env
+.env.*
+*.pem
+*.key
+!.env.example
