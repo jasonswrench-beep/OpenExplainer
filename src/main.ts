@@ -1,4 +1,13 @@
+import "./openstage-ui.css";
 import "./style.css";
+import brandMark from "../src-tauri/icons/app-icon.svg";
+import { BAR_BUTTONS, COMMANDS, MENUS, PANE_MENUS, type CommandId, type CommandWords, type MenuItemId } from "./ui/commands.ts";
+import { ariaKeys, el, MenuBar, uiIcon, type MenuCommand, type MenuEntry } from "./ui/menubar.ts";
+import { menuButton, PopupMenu } from "./ui/popupmenu.ts";
+import { openCommandSearch, searchEntries } from "./ui/commandsearch.ts";
+import { openKeysDialog } from "./ui/keysdialog.ts";
+import { makeSection } from "./ui/sections.ts";
+import type { UiIconName } from "./ui/uiicons.gen.ts";
 import {
   STATUSES, addNode, createProject, findNode, indent, locate, moveDown, moveUp, numbering,
   outdent, removeNode, renameNode, setStatus, visibleNodes, findNodes, replaceInTitles,
@@ -60,7 +69,7 @@ import { checkProject, type Issue } from "./project/checks.ts";
 import { marksSummary, setShapes } from "./project/shapes.ts";
 import { renderHelpPage } from "./render/help.ts";
 import { addCalloutFromClick, setCallouts } from "./project/callouts.ts";
-import { blockLabel, calloutLabel, type Block } from "./project/page.ts";
+import { blockLabel, calloutLabel, type Block, type BlockType } from "./project/page.ts";
 import { plainText } from "./project/text.ts";
 import { chooseSeeAlsoDialog, chooseTopicDialog } from "./links-dialog.ts";
 import { countLinksTo, linkLossWords, MOST_SEE_ALSO, setSeeAlso, subtreeIds } from "./project/links.ts";
@@ -79,47 +88,21 @@ let assets: Assets = new Map();
 
 // ---- Page skeleton -----------------------------------------------------------------------
 app.innerHTML = `
-  <header class="top"><h1>OpenExplainer</h1></header>
-  <main id="main" tabindex="-1">
-    <h2 id="project-heading"></h2>
-    <p id="folder-line" class="help"></p>
-    <div class="toolbar" role="toolbar" aria-label="Project">
-      <button type="button" id="b-new">New project</button>
-      <button type="button" id="b-open">Open project</button>
-      <button type="button" id="b-save">Save (Ctrl+S)</button>
-      <button type="button" id="b-saveas">Save as</button>
-      <button type="button" id="b-export">Export</button>
-      <button type="button" id="b-import-export">Import an export</button>
-      <button type="button" id="b-import-word">Import from Word</button>
-      <button type="button" id="b-review-in">Bring in review comments</button>
-      <button type="button" id="b-import-translation">Import a translation</button>
-      <button type="button" id="b-vars">Project variables</button>
-      <button type="button" id="b-style">Writing style</button>
-      <button type="button" id="b-look">Look of the book</button>
-      <button type="button" id="b-reuse">Reuse</button>
-      <button type="button" id="b-history">History</button>
-      <button type="button" id="b-drafts">Drafts</button>
-      <button type="button" id="b-guides">Guides</button>
-      <button type="button" id="b-index">Index</button>
-      <button type="button" id="b-ai">AI help</button>
-      <button type="button" id="b-mcp">MCP access</button>
-      <button type="button" id="b-check">Check the book</button>
+  <header class="topbar">
+    <div class="shell">
+      <div class="brand"><img class="brand-mark" src="${brandMark}" width="28" height="28" alt=""><h1 class="brand-title">OpenExplainer</h1></div>
+      <div class="doc"><h2 id="project-heading" class="doc-title"><span id="doc-name"></span> <span id="save-state" class="save-state"></span></h2></div>
+      <span id="bar-search-slot"></span>
+      <div id="bar-buttons" class="quick-actions" role="group" aria-label="Main actions"></div>
     </div>
-    <p id="panes-help" class="help">Three panes: the chapters and topics, the page, and the properties. F6 moves to the next pane and Shift+F6 to the one before.</p>
+    <div id="menu-row" class="menu-row"></div>
+  </header>
+  <main id="main" tabindex="-1">
+    <p id="panes-help" class="sr-only">Three panes: the chapters and topics, the page, and the properties. F6 moves to the next pane and Shift+F6 to the one before. Every command is in the menus under the top bar (F10), and Ctrl+K finds one by its name.</p>
     <div class="panes">
       <section id="pane-tree" class="pane" aria-labelledby="tree-heading" tabindex="-1">
-        <h3 id="tree-heading">Chapters and topics</h3>
-        <div class="toolbar" role="toolbar" aria-label="Chapters and topics">
-          <button type="button" id="b-chapter">Add chapter</button>
-          <button type="button" id="b-topic">Add topic under selected</button>
-          <button type="button" id="b-rename">Rename (F2)</button>
-          <button type="button" id="b-up">Move up</button>
-          <button type="button" id="b-down">Move down</button>
-          <button type="button" id="b-indent">Indent</button>
-          <button type="button" id="b-outdent">Outdent</button>
-          <button type="button" id="b-delete">Delete</button>
-        </div>
-        <details id="find-panel">
+        <div class="pane-head"><h3 id="tree-heading">Chapters and topics</h3><span class="pane-tools" id="tree-tools"></span></div>
+        <details id="find-panel" hidden>
           <summary>Find and replace in chapter and topic titles</summary>
           <div class="toolbar">
             <label>Find <input id="find-input" type="text"></label>
@@ -127,17 +110,18 @@ app.innerHTML = `
             <label><input id="find-case" type="checkbox"> Match case</label>
             <button type="button" id="b-find-next">Find next</button>
             <button type="button" id="b-replace-all">Replace all</button>
+            <button type="button" id="b-find-close">Close</button>
           </div>
         </details>
-        <p id="tree-help" class="help">
+        <p id="tree-help" class="sr-only">
           In the list: Up and Down arrows move, Right opens, Left closes, F2 renames, Delete removes.
           Alt with Up or Down reorders. Alt with Right or Left indents or outdents.
         </p>
         <ul id="tree" role="tree" aria-label="Chapters and topics" aria-describedby="tree-help"></ul>
-        <p id="empty" class="help" hidden>This project has no chapters yet. Choose Add chapter to start.</p>
+        <p id="empty" class="help" hidden>This project has no chapters yet. Choose Add, then Add chapter, to start.</p>
       </section>
       <section id="pane-page" class="pane" aria-labelledby="page-heading" tabindex="-1">
-        <h3 id="page-heading">Page</h3>
+        <div class="pane-head"><h3 id="page-heading">Page</h3><span class="pane-tools" id="page-tools"></span></div>
         <div role="tablist" aria-label="How to see the page" id="view-tabs" class="tabs">
           <button type="button" role="tab" id="tab-edit" aria-selected="true" aria-controls="panel-edit">Edit</button>
           <button type="button" role="tab" id="tab-print" aria-selected="false" aria-controls="panel-preview" tabindex="-1">Print preview</button>
@@ -145,21 +129,12 @@ app.innerHTML = `
           <button type="button" role="tab" id="tab-guide" aria-selected="false" aria-controls="panel-preview" tabindex="-1">Guide preview</button>
         </div>
         <div id="panel-edit" role="tabpanel" aria-labelledby="tab-edit">
-        <div class="toolbar"><button type="button" id="b-unresolved">Unresolved comments</button> <button type="button" id="b-opener">Draft an opener for this chapter</button> <button type="button" id="b-summary">Draft a chapter summary here</button> <button type="button" id="b-boxes">Suggest boxed notes for this topic</button></div>
         <div id="page-editor"></div>
         <section id="pictures-section" aria-labelledby="pictures-heading">
-          <h3 id="pictures-heading">Pictures</h3>
-          <div class="toolbar">
-            <button type="button" id="b-import">Import pictures into the selected item</button>
-            <button type="button" id="b-capture">Capture into the selected item</button>
-            <button type="button" id="b-draft-topic">Draft callout text for this topic</button>
-            <button type="button" id="b-procedure">Draft a procedure from the clicks</button>
-            <button type="button" id="b-highlight">Click circle settings</button>
-            <button type="button" id="b-zoom">Zoom settings</button>
-            <label>Show the pictures as in the
+          <div class="pane-head sub"><h3 id="pictures-heading">Pictures</h3><span class="pane-tools" id="pictures-tools"></span></div>
+          <p class="pictures-view"><label>Show the pictures as in the
               <select id="preview-kind"></select>
-            </label>
-          </div>
+            </label></p>
           <p id="pictures-empty" class="help"></p>
           <ul id="pictures" class="pictures" aria-label="Pictures in the selected item"></ul>
         </section>
@@ -202,14 +177,61 @@ app.innerHTML = `
           <p id="conditions-line" class="help" role="status"></p>
           <p><button type="button" id="b-topic-conditions">Choose conditions for this topic</button></p>
         </div>
-        <div id="props-block" aria-live="off"></div>
+        <div id="props-blockgroup"><h4 id="props-block-heading">Selected block</h4><div id="props-block" aria-live="off"></div></div>
       </section>
     </div>
     <div id="announce" class="visually-hidden" role="status" aria-live="polite"></div>
   </main>
+  <footer class="statusbar"><span id="folder-line"></span><span class="status-keys">F6 moves between the panes. Ctrl+K finds a command.</span></footer>
 `;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+// ---- Commands ----------------------------------------------------------------------------
+// What each command of ui/commands.ts does, whether it can be used now, and what it says now. The menus under the navy bar, the
+// buttons in the bar, the panes' Add and "..." buttons and the command search (Ctrl+K) all run them by id: the ids are the ones the
+// buttons had before the menus, so a command that used to put focus back on its button calls focusBack with the same id.
+const commandRuns = new Map<CommandId, () => void>();
+const commandOff = new Set<CommandId>();
+const commandLabels = new Map<CommandId, string>();
+/** Where focus was when the last command started: where it goes back to when the command is done, if its own button is not on the screen. */
+let commandFrom: HTMLElement | null = null;
+
+function onCommand(id: CommandId, run: () => unknown) {
+  commandRuns.set(id, () => void run());
+}
+
+function runCommand(id: CommandId) {
+  if (commandOff.has(id)) return;
+  const at = document.activeElement;
+  commandFrom = at instanceof HTMLElement && at !== document.body ? at : null;
+  commandRuns.get(id)?.();
+}
+
+/** A command that cannot be used now stays in its menu, dimmed; a button for it in the navy bar is disabled. */
+function setEnabled(id: CommandId, on: boolean) {
+  if (on) commandOff.delete(id);
+  else commandOff.add(id);
+  const button = document.getElementById(id);
+  if (button instanceof HTMLButtonElement) button.disabled = !on;
+}
+
+/** What a command says now, such as "Drafts (3 waiting)". */
+function setLabel(id: CommandId, text: string) {
+  commandLabels.set(id, COMMANDS[id].label.endsWith("...") && !text.endsWith("...") ? `${text}...` : text);
+}
+
+/** The menu of each picture's "..." button: one menu, opened beside whichever picture's button was pressed. */
+const pictureMenu = new PopupMenu(document, "picture-more-menu", "More for this picture");
+
+/** After a command: focus goes to its own button if that is on the screen, else to where the author was when it started, else to the menus. */
+function focusBack(id: string) {
+  const shown = (e: HTMLElement | null): e is HTMLElement => !!e && e.isConnected && e.getClientRects().length > 0 && !e.closest("[hidden]") && !(e instanceof HTMLButtonElement && e.disabled);
+  const own = document.getElementById(id);
+  if (shown(own)) own.focus();
+  else if (shown(commandFrom)) commandFrom.focus();
+  else menuBar.focusBack();
+}
 const treeEl = $<HTMLUListElement>("tree");
 const statusSelect = $<HTMLSelectElement>("status-select");
 
@@ -233,8 +255,11 @@ function markDirty() {
 }
 
 // ---- The page, in the middle pane, and the properties on the right -----------------------------
+/** The page's Add button (made with the panes' buttons, further down), which the page editor puts above the blocks. */
+let pageAddButton: HTMLButtonElement | null = null;
 const pageEditor = createPageEditor({
   host: $("page-editor"),
+  addButton: () => pageAddButton,
   node: () => selected(),
   bytes: (file) => assets.get(file),
   show: (picture, url, alt) => pictureBox({
@@ -399,15 +424,15 @@ $("guide-pick").addEventListener("change", () => {
 /** The Guides dialog: make, change and delete guides. Nothing changes unless the author presses Save. */
 async function manageGuides() {
   const choice = await guidesDialog({ guides: project.guides, tree: project.tree, start: previewGuideId ?? undefined });
-  if (!choice) return $("b-guides").focus();
+  if (!choice) return focusBack("b-guides");
   project.guides = cleanGuides(choice, project.tree);
   markDirty();
   if (!project.guides.some((g) => g.id === previewGuideId)) previewGuideId = null;
   if (viewMode === "guide") renderPreview();
   announce(`Guides saved: ${project.guides.length === 0 ? "there are none" : `${project.guides.length} ${project.guides.length === 1 ? "guide" : "guides"}`}.`);
-  $("b-guides").focus();
+  focusBack("b-guides");
 }
-$("b-guides").addEventListener("click", () => void manageGuides());
+onCommand("b-guides", () => void manageGuides());
 
 // ---- The index ---------------------------------------------------------------------------------------------
 const indexBox = $<HTMLTextAreaElement>("index-terms");
@@ -430,7 +455,7 @@ indexBox.addEventListener("change", () => {
 // ---- Snippets, conditions and targets ----------------------------------------------------------------------
 async function editReuse() {
   const answer = await reuseDialog(reuseStateOf(project), (id) => snippetUses(project.tree, id).reduce((n, u) => n + u.count, 0));
-  if (!answer) { $("b-reuse").focus(); return; }
+  if (!answer) { focusBack("b-reuse"); return; }
   const before = JSON.stringify([project.snippets, project.conditions, project.targets]);
   const places = applyReuse(project, answer);
   if (JSON.stringify([project.snippets, project.conditions, project.targets]) !== before || places > 0) markDirty();
@@ -438,9 +463,9 @@ async function editReuse() {
   render(false);
   renderPreview();
   announce(`Reuse kept: ${project.snippets.length} ${project.snippets.length === 1 ? "snippet" : "snippets"}, ${project.conditions.length} ${project.conditions.length === 1 ? "condition" : "conditions"}, ${project.targets.length} ${project.targets.length === 1 ? "target" : "targets"}.${places ? ` ${places} ${places === 1 ? "place" : "places"} that used a deleted snippet now hold ordinary blocks.` : ""}`);
-  $("b-reuse").focus();
+  focusBack("b-reuse");
 }
-$("b-reuse").addEventListener("click", () => void editReuse());
+onCommand("b-reuse", () => void editReuse());
 
 // ---- The look of the book ----------------------------------------------------------------------------------
 /** The Look of the book window, shown again after a logo is chosen or removed, until the author saves or cancels. */
@@ -449,7 +474,7 @@ async function editLook() {
   let language = project.language;
   for (;;) {
     const answer = await lookDialog(look, language);
-    if (!answer) { $("b-look").focus(); return; }
+    if (!answer) { focusBack("b-look"); return; }
     look = answer.look;
     language = answer.language;
     if (answer.action === "save") break;
@@ -472,9 +497,9 @@ async function editLook() {
   if (language !== project.language) { project.language = language; markDirty(); }
   renderPreview();
   announce(`Look kept: ${lookWords(project.look)}. Language: ${languageWords(project.language)}.`);
-  $("b-look").focus();
+  focusBack("b-look");
 }
-$("b-look").addEventListener("click", () => void editLook());
+onCommand("b-look", () => void editLook());
 
 $("b-index-suggest").addEventListener("click", () => {
   const node = selected();
@@ -510,9 +535,9 @@ async function manageIndex() {
     if (viewMode !== "edit") setViewMode("edit", { announce: false });
     select(goTo);
     announce(`Showing ${findNode(project.tree, goTo)?.title ?? "the topic"}.`);
-  } else $("b-index").focus();
+  } else focusBack("b-index");
 }
-$("b-index").addEventListener("click", () => void manageIndex());
+onCommand("b-index", () => void manageIndex());
 
 // ---- AI help: who drafts text for the author ---------------------------------------------------------------------
 // The model's download belongs to the app, so it can finish while the AI help dialog is closed: the author is told when it ends, by words in the announce area.
@@ -524,25 +549,25 @@ $("b-index").addEventListener("click", () => void manageIndex());
     if (state.status === "ready" || state.status === "failed" || state.status === "damaged") announce(state.status === "ready" ? "The built-in AI model has been downloaded and checked." : state.message);
   });
 }
-$("b-ai").addEventListener("click", async () => {
+onCommand("b-ai", async () => {
   try {
     const saved = await aiDialog();
     if (saved) announce(aiStatusWords(saved, await modelState()));
   } catch (error) {
     await messageDialog("AI help", `The AI help choices could not be shown. ${error instanceof Error ? error.message : String(error)}`);
   }
-  $("b-ai").focus();
+  focusBack("b-ai");
 });
 
 // ---- MCP access: whether an AI assistant may use the app --------------------------------------------------------
-$("b-mcp").addEventListener("click", async () => {
+onCommand("b-mcp", async () => {
   try {
     const saved = await mcpDialog();
     if (saved) announce(saved.enabled ? `MCP access is on. An assistant can use the folder ${saved.folder}${saved.allowFullScreen ? " and capture a whole screen" : ", one window at a time"}.` : "MCP access is off.");
   } catch (error) {
     await messageDialog("MCP access", `The settings could not be shown. ${error instanceof Error ? error.message : String(error)}`);
   }
-  $("b-mcp").focus();
+  focusBack("b-mcp");
 });
 
 // A link inside a preview works inside it: the help site's links open that topic, and the book's contents jump to that place.
@@ -581,7 +606,7 @@ async function editBlockComments(block: Block) {
   pageEditor.focusBlockControl(block.id, "comments");
 }
 
-$("b-unresolved").addEventListener("click", async () => {
+onCommand("b-unresolved", async () => {
   const pick = await unresolvedDialog({
     items: () => unresolvedIn(project.tree),
     resolve: (item) => {
@@ -592,7 +617,7 @@ $("b-unresolved").addEventListener("click", async () => {
   pageEditor.refresh();
   renderProperties();
   if (pick) goToComment(pick);
-  else $("b-unresolved").focus();
+  else focusBack("b-unresolved");
 });
 
 /** Takes the author to the block a comment is on. */
@@ -686,7 +711,7 @@ function renderProperties() {
   const node = selected();
   const numbers = numbering(project.tree);
   const inBook = unresolvedCount(project.tree);
-  $("b-unresolved").textContent = `Unresolved comments (${inBook})`;
+  setLabel("b-unresolved", `Unresolved comments (${inBook})`);
   $("props-comments-line").textContent = node
     ? `Open comments: ${openCount(node.page)} in this topic, ${inBook} in the whole book.`
     : `Open comments: ${inBook} in the whole book.`;
@@ -696,9 +721,6 @@ function renderProperties() {
   const host = $("props-block");
   host.replaceChildren();
   const chosen = pageEditor.selected();
-  const heading = document.createElement("h4");
-  heading.textContent = "Selected block";
-  host.append(heading);
   if (!chosen) {
     const none = document.createElement("p");
     none.className = "help";
@@ -727,13 +749,16 @@ function renderProperties() {
 }
 
 function renderHeading() {
-  $("project-heading").textContent = `${project.name}${dirty ? " (unsaved changes)" : ""}`;
+  $("doc-name").textContent = project.name;
+  const state = $("save-state");
+  state.textContent = dirty ? "Unsaved changes" : filePath ? "Saved" : "Not saved yet";
+  state.classList.toggle("dirty", dirty);
   document.title = `${dirty ? "* " : ""}${project.name} - OpenExplainer`;
   // The window's own title (title bar, taskbar, Alt+Tab, and what a screen reader says) names the project too.
   void setWindowTitle(windowTitle(project.name, dirty));
   $("folder-line").textContent = filePath ? `Saved file: ${filePath}` : "Not saved to a file yet.";
   const waiting = draftCount(project);
-  $("b-drafts").textContent = waiting > 0 ? `Drafts (${waiting} waiting)` : "Drafts";
+  setLabel("b-drafts", waiting > 0 ? `Drafts (${waiting} waiting)` : "Drafts");
 }
 
 // ---- Drawing the tree --------------------------------------------------------------------
@@ -888,7 +913,7 @@ async function moveCircle(nodeId: string, picture: Picture, name: string) {
   announce(choice.kind === "reset" ? `The click circle of ${name} is back on the click.` : `The click circle of ${name} was moved to ${choice.x} across and ${choice.y} down.`);
 }
 
-$("b-zoom").addEventListener("click", async () => {
+onCommand("b-zoom", async () => {
   const next = await zoomSettingsDialog(project.zoom, project.paper);
   if (!next) return;
   project.zoom = next.zoom;
@@ -899,7 +924,7 @@ $("b-zoom").addEventListener("click", async () => {
   announce(`Zoom settings saved. The automatic zoom for print is ${next.paper.autoZoom ? "on" : "off"}.`);
 });
 
-$("b-highlight").addEventListener("click", async () => {
+onCommand("b-highlight", async () => {
   const next = await highlightDialog(project.highlight);
   if (!next) return;
   project.highlight = next;
@@ -917,13 +942,14 @@ function renderPictures() {
   const list = $<HTMLUListElement>("pictures");
   list.replaceChildren();
   const node = selected();
-  $<HTMLButtonElement>("b-import").disabled = !node;
-  $<HTMLButtonElement>("b-capture").disabled = !node;
-  $<HTMLButtonElement>("b-draft-topic").disabled = !node || !node.pictures.some((p) => (p.callouts ?? []).length > 0);
-  $<HTMLButtonElement>("b-procedure").disabled = !node || !node.pictures.some((p) => p.click);
-  $<HTMLButtonElement>("b-opener").disabled = !node;
-  $<HTMLButtonElement>("b-summary").disabled = !node;
-  $<HTMLButtonElement>("b-boxes").disabled = !node;
+  setEnabled("b-import", !(!node));
+  for (const id of ["add-paragraph", "add-heading", "add-picture", "add-procedure", "add-callout", "add-snippet"] as const) setEnabled(id, !!node);
+  setEnabled("b-capture", !(!node));
+  setEnabled("b-draft-topic", !(!node || !node.pictures.some((p) => (p.callouts ?? []).length > 0)));
+  setEnabled("b-procedure", !(!node || !node.pictures.some((p) => p.click)));
+  setEnabled("b-opener", !(!node));
+  setEnabled("b-summary", !(!node));
+  setEnabled("b-boxes", !(!node));
   $("page-heading").textContent = node ? `Page of ${node.title}` : "Page";
   $("pictures-empty").textContent = !node
     ? "Select a chapter or topic to see or add its pictures."
@@ -958,18 +984,6 @@ function renderPictures() {
     edit.dataset.edit = picture.id;
     edit.setAttribute("aria-label", `Edit description of ${name}`);
     edit.addEventListener("click", () => void editDescription(node.id, picture));
-    const replace = document.createElement("button");
-    replace.type = "button";
-    replace.textContent = "Replace the picture file";
-    replace.dataset.replace = picture.id;
-    replace.setAttribute("aria-label", `Replace the file of ${name} with another of the same size`);
-    replace.addEventListener("click", () => void replaceFile(node.id, picture, name));
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.textContent = "Remove picture";
-    remove.dataset.remove = picture.id;
-    remove.setAttribute("aria-label", `Remove ${name}`);
-    remove.addEventListener("click", () => void removeOnePicture(node.id, picture, name));
     info.append(description, size);
     // A click picture says where the click was, what Windows said about the item, and what its circle is doing, and has its own circle choices.
     if (picture.click) {
@@ -1031,25 +1045,34 @@ function renderPictures() {
     calloutsButton.dataset.callouts = picture.id;
     calloutsButton.setAttribute("aria-label", `Callouts of ${name}`);
     calloutsButton.addEventListener("click", () => void editCallouts(picture, name));
-    const viewButton = document.createElement("button");
-    viewButton.type = "button";
-    viewButton.textContent = "Picture view";
-    viewButton.dataset.view = picture.id;
-    viewButton.setAttribute("aria-label", `Picture view of ${name}`);
-    viewButton.addEventListener("click", () => void editView(node.id, picture, name));
     const drawingButton = document.createElement("button");
     drawingButton.type = "button";
     drawingButton.textContent = "Drawing";
     drawingButton.dataset.drawing = picture.id;
     drawingButton.setAttribute("aria-label", `Drawing on ${name}`);
     drawingButton.addEventListener("click", () => void editDrawing(picture, name));
-    const draftButton = document.createElement("button");
-    draftButton.type = "button";
-    draftButton.textContent = "Draft callout text";
-    draftButton.dataset.draft = picture.id;
-    draftButton.setAttribute("aria-label", `Draft callout text for ${name} with AI`);
-    draftButton.addEventListener("click", () => void draftFor(node.id, picture.id, () => document.querySelector<HTMLElement>(`[data-draft="${picture.id}"]`)?.focus()));
-    info.append(edit, " ", viewButton, " ", calloutsButton, ...((picture.callouts ?? []).length > 0 ? [" ", draftButton] : []), " ", drawingButton, " ", replace, " ", remove);
+    // The three used most are buttons; the rest are in the picture's "..." menu. That button carries the markers the others had
+    // (data-view, data-draft, data-replace, data-remove), so a jump to one of them, from the book check say, lands on it.
+    const more = el(document, "button", { type: "button", class: "panel-menu-button icon-only picture-more", "aria-haspopup": "menu", "aria-expanded": "false", "aria-controls": "picture-more-menu", "aria-label": `More for ${name}`, title: `More for ${name}` },
+      uiIcon(document, "ellipsis"));
+    for (const key of ["view", "draft", "replace", "remove"]) more.dataset[key] = picture.id;
+    const moreEntries = (): MenuEntry[] => [
+      { label: "Picture view...", icon: "crop", title: `Show ${name} whole, cropped, or zoomed in on its click`, run: () => void editView(node.id, picture, name) },
+      ...((picture.callouts ?? []).length > 0
+        ? [{ label: "Draft callout text", icon: "wand-sparkles", title: `Have the AI write a sentence for each callout of ${name} that has none`, run: () => void draftFor(node.id, picture.id, () => focusBack(`picture-more-${picture.id}`)) } satisfies MenuCommand]
+        : []),
+      "-",
+      { label: "Replace the picture file...", icon: "image-up", title: `Replace the file of ${name} with another of the same size`, run: () => void replaceFile(node.id, picture, name) },
+      { label: "Remove picture", icon: "trash", title: `Remove ${name}`, run: () => void removeOnePicture(node.id, picture, name) },
+    ];
+    more.id = `picture-more-${picture.id}`;
+    const showMore = (where: "first" | "last") => pictureMenu.open(moreEntries(), more, { trigger: more, where, returnTo: () => more, label: `More for ${name}` });
+    more.addEventListener("click", () => (pictureMenu.isOpen ? pictureMenu.close(true) : showMore("first")));
+    more.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") { e.preventDefault(); showMore("first"); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); showMore("last"); }
+    });
+    info.append(el(document, "div", { class: "picture-actions" }, edit, calloutsButton, drawingButton, more));
     li.append(info);
     list.append(li);
   }
@@ -1116,7 +1139,7 @@ async function importPictures() {
   }
 }
 
-$("b-import").addEventListener("click", () => void importPictures());
+onCommand("b-import", () => void importPictures());
 
 // ---- Capturing a window or a rectangle of the screen -------------------------------------
 // The helper (capture-helper/) takes the picture. OpenExplainer hides while it does, a Cancel window shows, and the
@@ -1236,11 +1259,11 @@ async function captureIntoTopic() {
     await messageDialog("The capture did not work", `${error instanceof Error ? error.message : String(error)} Your project was not changed.`);
   } finally {
     capturing = false;
-    $<HTMLButtonElement>("b-capture").focus();
+    focusBack("b-capture");
   }
 }
 
-$("b-capture").addEventListener("click", () => void captureIntoTopic());
+onCommand("b-capture", () => void captureIntoTopic());
 
 function select(id: string) {
   selectedId = id;
@@ -1390,12 +1413,12 @@ function exportFileName(kind: string, extension = "zip", suffix = ""): string {
 /** Makes an export of the whole book as one zip file the author chooses where to save. Nothing in the project changes. */
 async function exportBook() {
   const choice: ExportChoice | null = await exportDialog({
-    checkFirst: () => void $("b-check").click(),
+    checkFirst: () => runCommand("b-check"),
     unresolved: unresolvedCount(project.tree),
     guides: project.guides.map((g) => ({ id: g.id, name: g.name })),
     targets: project.targets.map((t) => ({ id: t.id, name: t.name })),
   });
-  if (!choice) return $("b-export").focus();
+  if (!choice) return focusBack("b-export");
   const name = EXPORT_KINDS.find((k) => k.id === choice.kind)!.name;
   try {
     const guide = GUIDE_KINDS.includes(choice.kind) ? project.guides.find((g) => g.id === choice.guideId) : undefined;
@@ -1405,7 +1428,7 @@ async function exportBook() {
       guide ? `${projectFileName(guide.name).replace(/\.openexplainer$/, "")}.${extension}` : exportFileName(choice.kind === "help-site" ? "help site" : choice.kind === "json" ? "JSON export" : "Markdown", extension, choice.kind === "word-review" ? " review copy" : choice.kind === "xliff" ? ` ${choice.language}` : ""),
       extension,
     );
-    if (!path) return $("b-export").focus();
+    if (!path) return focusBack("b-export");
     announce(`Making the ${name} export. This can take a moment.`);
     const made = await makeExport(project, assets, choice.kind, { guideId: choice.guideId, comments: choice.comments, targetId: choice.targetId, language: choice.language, flatten: flattenPicture, now: new Date().toISOString() });
     const bytes = made.bytes;
@@ -1416,7 +1439,7 @@ async function exportBook() {
   } catch (error) {
     await messageDialog("Could not make the export", `${error instanceof Error ? error.message : String(error)} Your project was not changed.`);
   } finally {
-    $("b-export").focus();
+    focusBack("b-export");
   }
 }
 
@@ -1446,7 +1469,7 @@ async function importExport() {
 /** Reads a Word document (.docx) into chapters and topics added at the end of this book, after the author has read what will and will not come in. */
 async function importWord() {
   const picked = await chooseWordPath();
-  if (!picked) return $("b-import-word").focus();
+  if (!picked) return focusBack("b-import-word");
   try {
     const name = picked.split(/[\\/]/).pop() ?? picked;
     announce(`Reading ${name}. This can take a moment.`);
@@ -1461,14 +1484,14 @@ async function importWord() {
   } catch (error) {
     await messageDialog("Could not import the Word file", `${error instanceof Error ? error.message : String(error)}\nYour book was not changed.`);
   } finally {
-    $("b-import-word").focus();
+    focusBack("b-import-word");
   }
 }
 
 /** Reads a translation (an XLIFF file back from a translator) and saves a copy of the book in the new language as a new project file. The book that is open is not changed. */
 async function importTranslation() {
   const picked = await chooseXliffPath();
-  if (!picked) return $("b-import-translation").focus();
+  if (!picked) return focusBack("b-import-translation");
   try {
     const name = picked.split(/[\\/]/).pop() ?? picked;
     announce(`Reading ${name}. This can take a moment.`);
@@ -1483,14 +1506,14 @@ async function importTranslation() {
   } catch (error) {
     await messageDialog("Could not import the translation", `${error instanceof Error ? error.message : String(error)}\nNothing was changed.`);
   } finally {
-    $("b-import-translation").focus();
+    focusBack("b-import-translation");
   }
 }
 
 /** Reads the comments reviewers made in a review copy (Export, Word review copy) and adds each to the block it was made on, after the author has read how many will come in. */
 async function importReview() {
   const picked = await chooseWordPath("Bring in review comments");
-  if (!picked) return $("b-review-in").focus();
+  if (!picked) return focusBack("b-review-in");
   try {
     const name = picked.split(/[\\/]/).pop() ?? picked;
     announce(`Reading the comments in ${name}. This can take a moment.`);
@@ -1505,7 +1528,7 @@ async function importReview() {
   } catch (error) {
     await messageDialog("Could not bring in the comments", `${error instanceof Error ? error.message : String(error)}\nYour book was not changed.`);
   } finally {
-    $("b-review-in").focus();
+    focusBack("b-review-in");
   }
 }
 
@@ -1521,15 +1544,15 @@ async function editHistory() {
     renderPreview();
     announce("The book was put back from a snapshot.");
   }
-  $("b-history").focus();
+  focusBack("b-history");
 }
-$("b-history").addEventListener("click", () => void editHistory());
+onCommand("b-history", () => void editHistory());
 
-$("b-export").addEventListener("click", () => void exportBook());
-$("b-review-in").addEventListener("click", () => void importReview());
-$("b-import-translation").addEventListener("click", () => void importTranslation());
-$("b-import-word").addEventListener("click", () => void importWord());
-$("b-import-export").addEventListener("click", () => void importExport());
+onCommand("b-export", () => void exportBook());
+onCommand("b-review-in", () => void importReview());
+onCommand("b-import-translation", () => void importTranslation());
+onCommand("b-import-word", () => void importWord());
+onCommand("b-import-export", () => void importExport());
 
 async function save(asNew = false) {
   try {
@@ -1623,18 +1646,18 @@ document.addEventListener("keydown", (event) => {
 });
 
 // ---- Buttons -----------------------------------------------------------------------------
-$("b-new").addEventListener("click", () => void newProject());
-$("b-open").addEventListener("click", () => void openProject());
-$("b-save").addEventListener("click", () => void save());
-$("b-saveas").addEventListener("click", () => void save(true));
-$("b-chapter").addEventListener("click", () => void addChapter());
-$("b-topic").addEventListener("click", () => void addTopic());
-$("b-rename").addEventListener("click", () => void rename());
-$("b-up").addEventListener("click", () => reorder(moveUp, "Moved up"));
-$("b-down").addEventListener("click", () => reorder(moveDown, "Moved down"));
-$("b-indent").addEventListener("click", () => reorder(indent, "Indented"));
-$("b-outdent").addEventListener("click", () => reorder(outdent, "Outdented"));
-$("b-delete").addEventListener("click", () => void remove());
+onCommand("b-new", () => void newProject());
+onCommand("b-open", () => void openProject());
+onCommand("b-save", () => void save());
+onCommand("b-saveas", () => void save(true));
+onCommand("b-chapter", () => void addChapter());
+onCommand("b-topic", () => void addTopic());
+onCommand("b-rename", () => void rename());
+onCommand("b-up", () => reorder(moveUp, "Moved up"));
+onCommand("b-down", () => reorder(moveDown, "Moved down"));
+onCommand("b-indent", () => reorder(indent, "Indented"));
+onCommand("b-outdent", () => reorder(outdent, "Outdented"));
+onCommand("b-delete", () => void remove());
 statusSelect.addEventListener("change", () => {
   if (!selectedId) return;
   setStatus(project.tree, selectedId, statusSelect.value as Status);
@@ -1644,21 +1667,21 @@ statusSelect.addEventListener("change", () => {
 });
 
 /** The book check: optional, advises only. What the author ignores is saved with the project. */
-$("b-check").addEventListener("click", async () => {
+onCommand("b-check", async () => {
   const go = await checkDialog({
     issues: () => checkProject(project, { hasFile: (file) => assets.has(file) }),
     settings: () => project.checks,
     setSettings: (next) => { project.checks = next; markDirty(); },
   });
   if (go) goToIssue(go);
-  else $("b-check").focus();
+  else focusBack("b-check");
 });
 
 /** Takes the author to the thing the check found: the topic, and the button or block where it is put right. */
 function goToIssue(issue: Issue) {
   if (issue.kind === "variable-empty" || issue.kind === "variable-unused") {
     announce("Opening the project variables.");
-    $("b-vars").click();
+    runCommand("b-vars");
     return;
   }
   if (viewMode !== "edit") setViewMode("edit", { announce: false });
@@ -1674,7 +1697,7 @@ function goToIssue(issue: Issue) {
     case "avoid-word":
       if (issue.blockId) pageEditor.focusBlockControl(issue.blockId, "first");
       else if (issue.pictureId) pick(issue.key.includes(":alt:") ? "edit" : "callouts");
-      else $("b-rename").focus();
+      else focusBack("b-rename");
       break;
     case "empty-topic": pageEditor.focus(); break;
     case "ai-draft": announce("Opening Drafts."); void openDrafts(); return;
@@ -1682,7 +1705,7 @@ function goToIssue(issue: Issue) {
   announce(`Went to ${issue.where}.`);
 }
 
-$("b-vars").addEventListener("click", async () => {
+onCommand("b-vars", async () => {
   const result = await variablesDialog(project.variables);
   if (!result) return;
   project.variables = result;
@@ -1691,7 +1714,7 @@ $("b-vars").addEventListener("click", async () => {
 });
 
 // ---- Writing style and drafts ------------------------------------------------------------------------------
-$("b-style").addEventListener("click", async () => {
+onCommand("b-style", async () => {
   const result = await styleDialog({ style: project.writingStyle, avoid: project.avoidWords });
   if (result !== null) {
     const styleChanged = result.style !== project.writingStyle;
@@ -1706,7 +1729,7 @@ $("b-style").addEventListener("click", async () => {
       announce(said.join(" "));
     }
   }
-  $("b-style").focus();
+  focusBack("b-style");
 });
 
 /** Drafts a sentence for each callout without one, in a topic or on one picture, then lets the author look at the drafts. */
@@ -1726,7 +1749,7 @@ async function draftProcedureFor(nodeId: string) {
   const made = draftProcedure(project, nodeId, new Date().toISOString());
   if (!made.ok) {
     await messageDialog("Draft a procedure", made.words);
-    $("b-procedure").focus();
+    focusBack("b-procedure");
     return;
   }
   markDirty();
@@ -1758,24 +1781,24 @@ async function openDrafts(focus?: string) {
   });
   renderHeading();
   if (go) goToDraft(go);
-  else $("b-drafts").focus();
+  else focusBack("b-drafts");
 }
 
 function goToDraft(row: DraftRow) {
   if (viewMode !== "edit") setViewMode("edit", { announce: false });
   select(row.nodeId);
   if (row.draft.kind === "callout-sentence") document.querySelector<HTMLElement>(`[data-callouts="${row.draft.pictureId}"]`)?.focus();
-  else if (row.draft.kind === "chapter-text") $(row.draft.role === "opener" ? "b-opener" : "b-summary").focus();
-  else if (row.draft.kind === "box") $("b-boxes").focus();
-  else $("b-procedure").focus();
+  else if (row.draft.kind === "chapter-text") focusBack(row.draft.role === "opener" ? "b-opener" : "b-summary");
+  else if (row.draft.kind === "box") focusBack("b-boxes");
+  else focusBack("b-procedure");
   announce(`Went to ${row.where}.`);
 }
 
-$("b-drafts").addEventListener("click", () => void openDrafts());
-$("b-draft-topic").addEventListener("click", () => {
-  if (selectedId) void draftFor(selectedId, undefined, () => $("b-draft-topic").focus());
+onCommand("b-drafts", () => void openDrafts());
+onCommand("b-draft-topic", () => {
+  if (selectedId) void draftFor(selectedId, undefined, () => focusBack("b-draft-topic"));
 });
-$("b-procedure").addEventListener("click", () => {
+onCommand("b-procedure", () => {
   if (selectedId) void draftProcedureFor(selectedId);
 });
 
@@ -1789,10 +1812,10 @@ async function draftChapterFor(role: ChapterTextRole) {
   }
   renderHeading();
   if (run?.openDrafts) await openDrafts();
-  else $(role === "opener" ? "b-opener" : "b-summary").focus();
+  else focusBack(role === "opener" ? "b-opener" : "b-summary");
 }
-$("b-opener").addEventListener("click", () => void draftChapterFor("opener"));
-$("b-summary").addEventListener("click", () => void draftChapterFor("summary"));
+onCommand("b-opener", () => void draftChapterFor("opener"));
+onCommand("b-summary", () => void draftChapterFor("summary"));
 
 /** Suggests boxed notes for the selected topic, then lets the author look at them. */
 async function suggestBoxesFor() {
@@ -1804,9 +1827,9 @@ async function suggestBoxesFor() {
   }
   renderHeading();
   if (run?.openDrafts) await openDrafts();
-  else $("b-boxes").focus();
+  else focusBack("b-boxes");
 }
-$("b-boxes").addEventListener("click", () => void suggestBoxesFor());
+onCommand("b-boxes", () => void suggestBoxesFor());
 
 // ---- Find and replace --------------------------------------------------------------------
 const findInput = $<HTMLInputElement>("find-input");
@@ -1841,7 +1864,94 @@ async function replaceAll() {
 }
 
 $("b-find-next").addEventListener("click", findNext);
+$("b-find-close").addEventListener("click", () => closeFind());
+$("find-panel").addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); closeFind(); } });
+
+/** Find and replace is out of the way until asked for (Chapters > Find and replace in titles...). */
+function closeFind() {
+  $("find-panel").hidden = true;
+  focusBack("tree-more");
+}
+onCommand("b-find", () => {
+  const panel = $<HTMLDetailsElement>("find-panel");
+  panel.hidden = false;
+  panel.open = true;
+  findInput.focus();
+});
 $("b-replace-all").addEventListener("click", () => void replaceAll());
 findInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); findNext(); } });
+
+// ---- The navy bar, the menus and the panes' buttons -----------------------------------------------
+const VIEW_OF: Partial<Record<CommandId, ViewMode>> = { "view-edit": "edit", "view-print": "print", "view-help": "help", "view-guide": "guide" };
+const ADD_BLOCK: Partial<Record<CommandId, BlockType>> = {
+  "add-paragraph": "paragraph", "add-heading": "heading", "add-picture": "picture", "add-procedure": "procedure", "add-callout": "callout", "add-snippet": "snippet",
+};
+for (const [id, mode] of Object.entries(VIEW_OF)) onCommand(id as CommandId, () => setViewMode(mode, { focusTab: true }));
+for (const [id, type] of Object.entries(ADD_BLOCK)) {
+  onCommand(id as CommandId, () => {
+    if (viewMode !== "edit") setViewMode("edit", { announce: false });
+    pageEditor.add(type);
+  });
+}
+
+function menuCommand(id: CommandId): MenuCommand {
+  const words: CommandWords = COMMANDS[id];
+  const view = VIEW_OF[id];
+  return {
+    label: words.label, icon: words.icon, keys: words.keys, title: words.title,
+    run: () => runCommand(id),
+    enabled: () => !commandOff.has(id),
+    labelNow: () => commandLabels.get(id) ?? words.label,
+    ...(view ? { checked: () => viewMode === view } : {}),
+  };
+}
+const entriesOf = (ids: readonly MenuItemId[]): MenuEntry[] => ids.map((id) => (id === "-" ? "-" : menuCommand(id)));
+const MENU_DEFS = MENUS.map((m) => ({ id: m.id, label: m.label, items: entriesOf(m.items) }));
+const menuBar = new MenuBar(document, MENU_DEFS);
+$("menu-row").append(menuBar.element);
+
+BAR_BUTTONS.forEach((b, i) => {
+  const words: CommandWords = COMMANDS[b.id];
+  const button = el(document, "button", { type: "button", id: b.id, class: `bar-button${i === BAR_BUTTONS.length - 1 ? " primary" : ""}`, title: words.keys ? `${words.title} (${words.keys})` : words.title },
+    uiIcon(document, words.icon), el(document, "span", { text: b.word }));
+  if (words.keys) button.setAttribute("aria-keyshortcuts", ariaKeys(words.keys));
+  // The button's name is the command's whole name ("Check the book"), which starts with the word it shows ("Check").
+  const name = words.label.replace(/\.\.\.$/, "");
+  if (name !== b.word) button.setAttribute("aria-label", name);
+  button.disabled = commandOff.has(b.id);
+  button.addEventListener("click", () => runCommand(b.id));
+  $("bar-buttons").append(button);
+});
+
+// The command search: a button in the navy bar that looks like a box to type in, Ctrl+K, and Help > Search for a command.
+const searchButton = el(document, "button", { type: "button", id: "bar-search", class: "bar-search", "aria-keyshortcuts": "Control+K", title: "Find any command by its name (Ctrl+K)" },
+  uiIcon(document, "search"), el(document, "span", { class: "bar-search-word", text: "Search" }), el(document, "kbd", { class: "bar-search-keys", text: "Ctrl+K" }));
+searchButton.addEventListener("click", () => runCommand("cmd-search"));
+$("bar-search-slot").replaceWith(searchButton);
+onCommand("cmd-search", () => openCommandSearch(document, searchEntries(MENU_DEFS), { fallback: () => commandFrom ?? searchButton }));
+onCommand("cmd-keys", () => openKeysDialog(document, { back: () => focusBack("cmd-keys") }));
+document.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || document.querySelector("dialog[open]")) return;
+  if (e.key.toLowerCase() === "k" && !e.shiftKey) { e.preventDefault(); runCommand("cmd-search"); }
+  else if (e.key === "/" || e.code === "Slash") { e.preventDefault(); runCommand("cmd-keys"); }
+});
+
+/** One of a pane's buttons that opens a menu: "+ Add" with its word, or "..." with only its icon. */
+function paneButton(id: string, text: string | undefined, name: string, icon: UiIconName, ids: readonly MenuItemId[]): HTMLButtonElement {
+  return menuButton(document, { id, text, name, icon, title: name, entries: () => entriesOf(ids) }).button;
+}
+$("tree-tools").append(
+  paneButton("tree-add", "Add", "Add a chapter or topic", "plus", PANE_MENUS.treeAdd),
+  paneButton("tree-more", undefined, "More for the selected chapter or topic", "ellipsis", PANE_MENUS.treeMore));
+$("page-tools").append(paneButton("page-more", undefined, "More for this page", "ellipsis", PANE_MENUS.pageMore));
+$("pictures-tools").append(
+  paneButton("pictures-add", "Add", "Add pictures", "plus", PANE_MENUS.picturesAdd),
+  paneButton("pictures-more", undefined, "More for the pictures", "ellipsis", PANE_MENUS.picturesMore));
+pageAddButton = paneButton("page-add", "Add", "Add to the page", "plus", PANE_MENUS.pageAdd);
+
+// The Properties pane: each group a section that opens and closes; the topic and the chosen block start open.
+for (const [id, icon, startsOpen] of [
+  ["props-topic", "file-text", true], ["props-index", "book-a", false], ["props-seealso", "link", false], ["props-conditions", "funnel", false], ["props-blockgroup", "square-pen", true],
+] as const) makeSection(document, { group: $(id), icon, startsOpen });
 
 render();

@@ -6,7 +6,7 @@ import { commentTotals } from "./project/comments.ts";
 import type { Picture, TreeNode } from "./project/model.ts";
 import { ensurePage } from "./project/model.ts";
 import {
-  addBlock, blockLabel, BLOCK_TYPES, CALLOUT_KINDS, calloutLabel, makeBlock, makeStep, moveBlock, moveItem, removeBlock,
+  addBlock, blockLabel, CALLOUT_KINDS, calloutLabel, makeBlock, makeStep, moveBlock, moveItem, removeBlock,
   type Block, type BlockType, type CalloutBlock, type CalloutKind, type HeadingBlock, type ParagraphBlock, type PictureBlock, type ProcedureBlock, type Step,
 } from "./project/page.ts";
 import { applyMark, formatMarks, linkRun, MARKS, parseMarks, plainText, type Mark, type Run } from "./project/text.ts";
@@ -14,6 +14,8 @@ import { applyMark, formatMarks, linkRun, MARKS, parseMarks, plainText, type Mar
 export interface PageEditorDeps {
   /** Where the blocks are drawn. */
   host: HTMLElement;
+  /** The page's Add button, a menu of the kinds of block (made by main.ts with the other panes' buttons); put above the blocks. */
+  addButton(): HTMLButtonElement | null;
   /** The topic whose page is shown, or null when none is selected. */
   node(): TreeNode | null;
   /** The bytes of a picture file, for a thumbnail. */
@@ -56,10 +58,12 @@ export interface PageEditor {
   /** Draws the page again if the topic or its pictures changed, or when `force` is set. */
   refresh(force?: boolean): void;
   selected(): SelectedBlock | null;
-  /** Puts the keyboard on the page: the first block, or the Add buttons when the page is empty. */
+  /** Puts the keyboard on the page: the first block, or the Add button when the page is empty. */
   focus(): void;
   /** Puts the keyboard on one control of a block (such as its Comments button), if the page is drawn. */
   focusBlockControl(blockId: string, role: string): void;
+  /** Adds a block of this kind after the block the author was last in, as the Add menu does (Insert in the menus calls it). */
+  add(type: BlockType): void;
 }
 
 const ADDABLE: BlockType[] = ["paragraph", "heading", "picture", "procedure", "callout", "snippet"];
@@ -552,26 +556,21 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
       return;
     }
     const intro = document.createElement("div");
-    const addBar = document.createElement("div");
-    addBar.setAttribute("role", "group");
-    addBar.setAttribute("aria-label", "Add to the page");
-    addBar.className = "toolbar";
-    addBar.append("Add to the page:");
-    for (const type of ADDABLE) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.dataset.add = type;
-      button.textContent = BLOCK_TYPES.find((t) => t.id === type)!.label;
-      button.addEventListener("click", () => add(type));
-      addBar.append(button);
+    const addButton = deps.addButton();
+    if (addButton) {
+      // One Add button with a menu of the kinds of block (Insert in the menus has the same), not a row of six.
+      addButton.dataset.add = "menu";
+      const addBar = document.createElement("div");
+      addBar.className = "page-add";
+      addBar.append(addButton);
+      intro.append(addBar);
     }
-    intro.append(addBar);
     const blocks = n.page?.blocks ?? [];
     const help = document.createElement("p");
     help.className = "help";
     help.textContent = blocks.length
       ? "A new block goes after the block you were last in, or at the end. Each block has its own Move up, Move down and Delete buttons."
-      : `The page of "${n.title}" is empty. Add a paragraph, a heading, a picture, a numbered procedure or a callout box.`;
+      : `The page of "${n.title}" is empty. Choose Add to put a paragraph, a heading, a picture, a numbered procedure or a callout box on it.`;
     intro.append(help);
     deps.host.append(intro);
     if (blocks.length) {
@@ -593,6 +592,9 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
       deps.selectionChanged();
     },
     selected,
+    add(type) {
+      if (ADDABLE.includes(type)) add(type);
+    },
     focusBlockControl(blockId, role) { focusControl(blockId, role); },
     focus() {
       const first = deps.host.querySelector<HTMLElement>(".block [data-role=first]") ?? deps.host.querySelector<HTMLElement>("[data-add]");

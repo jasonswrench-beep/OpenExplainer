@@ -466,6 +466,43 @@ Choices made without asking (all written in the docs named): links show their wo
 - **The tag lesson:** a push of `main` was rejected (GitHub's main had one commit I did not have) but the tag push still went through and started the build. The fix was to merge, not rebase, so the tagged commit stayed in main's history. Next time push `main` first and the tag only after it succeeds.
 - The workflow's release job now attaches only the setup file and the hash file (no guide PDFs: those in `docs/user-guide` are the 2026-10-23 ones and do not describe 0.2.0). A tag `vX.Y.Z-alpha.N` takes its notes from `docs/release-notes-X.Y.Z-alpha.N.md`. `v0.1.0` is still a draft. The installer is unsigned.
 
+## The OpenStage suite's look (2026-11-11)
+
+Jason, 2026-11-11: "Start in on the new look for Open Explainer", then "keep working until you have finished with the
+OpenStage-Explainer (capture). Just keep using the same basic theme for the suite of products." So OpenExplainer is the product the suite's
+plan called OpenCapture (its icon says so: "OpenCapture, Open Frame icon"), and it now has the look OpenStage Author and OpenStage Recorder
+were given on 2026-11-10 (the design specification and the decisions are in OpenStage Author's `design/` folder: `DESIGN-GUIDE.md`,
+`REVAMP-CHECKLIST.md`, `icons.json`). What moved where is in `docs/editor.md`, "The window". In short: a navy bar (Save, Capture, Check the
+book, Export, Search), nine menus holding every command, an Add and a "..." button on each pane, three buttons and a "..." on each
+picture, Properties as sections that open and close, Ctrl+K command search, Ctrl+/ Keyboard keys, and every dialog with a Close button and
+its row of buttons kept in sight.
+
+Choices made without asking (each is easy to change):
+- **The colour** is the gold of the icon: `#ffcd28` for the name on the navy bar (11.5:1), and a deeper gold `#7d5e00` for the filled
+  buttons, the chosen tab and the icons in menus (white words on it 6.1:1; on its tint 5.5:1). It sits close to the suite's colour for
+  warnings, but warnings always have words or a symbol too.
+- **The name** in the bar is still OpenExplainer. Jason called it "OpenStage-Explainer"; the icon file says OpenCapture. Renaming the
+  program is his call (it would touch the window title, the installer, the docs and the user guide).
+- **The navy bar's four buttons** are Save, Capture, Check the book and Export (Export filled). There is no Undo in OpenExplainer to put there.
+- **Each picture** keeps Edit description, Callouts and Drawing as buttons; Picture view, Draft callout text, Replace the picture file
+  and Remove picture are in its "..." (which carries the old buttons' data markers, so the book check's Go to still lands on it).
+- **Find and replace in titles** is hidden until Chapters > Find and replace in titles... (Escape or its Close puts it away).
+- **The block buttons** (Move up, Move down, Comments, Conditions, Delete) stay as words, smaller; they say counts ("Comments (2 open)")
+  that an icon alone would lose.
+
+Tried in a browser (Vite, with a stand-in for the desktop shell, so no window opened on Jason's screen): a 42-step check by keyboard and
+mouse, at full size, 375 and 320 pixels wide, 256 high, and in a high-contrast theme, and OpenStage Author's accessibility audit on the
+window and two dialogs (no findings). Tests 569 (567 pass; the 2 that fail are the old `python3` ones). `npm run build` works.
+**Not tried in the program's own window, with a screen reader, or on a real project with many pictures.** The user guide
+(`docs/user-guide/`) and its PDFs still show the old window; they need new pictures.
+
+For Jason to try by hand:
+- Open a real project: is everything where you would look for it? Write down anything you would move.
+- F10 and the arrow keys through the menus; Ctrl+K and type "capture" or "word"; Ctrl+/.
+- A picture's "..." (Picture view, Replace, Remove), and Check the book > Go to on a picture problem.
+- With NVDA: the menus ("File, menu, collapsed"), a section heading in Properties ("Index terms for this topic, button, collapsed"), and a dialog's Close button.
+- Windows high contrast: the chosen tab and the chosen chapter should be filled in the system's highlight colour.
+
 ## Still open (ask Jason, do not guess)
 
 - **Shipping (first installer built and tried 2026-10-23, see `docs/release.md`):** a per-user NSIS installer builds (`Build Installer.bat`) and the installed program passes a smoke test (`Test Installed App.bat`) and the MCP check; an install, an upgrade over it and an uninstall were tried silently. The installer had been missing the capture helper (fixed). Still open for Jason: code signing (SmartScreen warns on an unsigned installer),

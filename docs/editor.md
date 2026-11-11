@@ -6,9 +6,49 @@ rules about what a page is are in `docs/format-spec.md` ("The page"); this file 
 Status: the three panes, the block editor, the lettered callouts on pictures, the picture views and pointing at a picture with the mouse and the arrow keys are built
 (Step 4, parts 2 to 7), comments on blocks, the print and help site previews, the drawing marks of Step 5 and the book check. See `docs/HANDOFF.md`.
 
+## The window (the OpenStage suite's look, 2026-11-11)
+
+OpenExplainer has the look the OpenStage products share (OpenStage Author, OpenStage Recorder and the rest): the same colours, sizes,
+icons and way of finding things, with OpenExplainer's own colour, the gold of its icon. Nothing it does changed; every command it had is
+still there, with the same words, and every key works as before. What changed is where the commands are.
+
+- **The navy bar** at the top: the icon and the name, the open project and whether it is saved ("Unsaved changes", "Saved", "Not saved
+  yet"), a **Search** box (Ctrl+K) and four buttons: **Save**, **Capture**, **Check the book** (it shows "Check") and **Export** (filled in the gold).
+- **The menus** under it hold every command, each with its icon and its keys: **File** (New, Open, Save, Save as, the four imports,
+  Export, History), **Chapters** (Add chapter, Add topic under selected, Rename, Move up and down, Indent, Outdent, Find and replace in
+  titles, Delete), **Insert** (Import pictures, Capture, and the six kinds of block for the page), **Write** (Drafts, the five ways to
+  draft, Writing style), **Book** (Project variables, Look of the book, Reuse, Index, Guides, Click circle settings, Zoom settings),
+  **View** (Edit, Print preview, Help site preview, Guide preview, with a tick on the one showing), **Review** (Check the book, Unresolved
+  comments, Drafts), **Tools** (AI help, MCP access) and **Help** (Search for a command, Keyboard keys). A command that cannot be used now
+  stays in its menu, dimmed. **F10**, or Alt pressed and let go on its own, goes to the menus; the arrows move along them and in them, a
+  letter jumps to an item, Escape goes back.
+- **The panes** keep one **Add** button and a **...** button each, menus of the same commands: the chapters and topics (Add: chapter,
+  topic; ...: rename, move, indent, outdent, find and replace, delete), the page (Add: the six kinds of block; ...: unresolved comments
+  and the three AI drafts for a page), and the pictures (Add: import, capture; ...: draft callout text, draft a procedure, click circle
+  settings, zoom settings). Each picture keeps **Edit description**, **Callouts** and **Drawing**, and its own **...** holds Picture
+  view, Draft callout text, Replace the picture file and Remove picture. Find and replace in titles is out of the way until it is asked
+  for (Escape puts it away again).
+- **Properties** is a column of sections that open and close (Topic, Index terms, See also, Conditions, Selected block), each a heading
+  button with an icon that says whether it is expanded. The topic and the block start open; what the author opens or closes stays so
+  while the program is open.
+- **Ctrl+K** (or the Search box) finds any command by its name, its menu or what it is for. **Ctrl+/** (Help > Keyboard keys) lists every
+  key in tables; the paragraphs that explained keys under the panes are there instead, and stay in the page for screen readers.
+- **Every dialog** is a white panel with rounded corners over a darker page, never wider or taller than the window, with a **Close**
+  button in its corner that does what Escape does, and its row of buttons kept at the bottom while the rest scrolls, the main one in
+  gold (`src/ui/dialogchrome.ts`, added as `open()` in `src/dialogs.ts` shows a dialog).
+- A status line at the bottom says where the project is saved.
+
+Where the parts are: `src/ui/commands.ts` (every command's words, icon, keys and place; the ids are the ids the old buttons had, so a
+command still gives focus back to its own button when one is on the screen, or else to where the author was), `src/ui/menubar.ts`,
+`popupmenu.ts` and `commandsearch.ts` (copied from OpenStage Author, see `NOTICE`), `src/ui/keys.ts` and `keysdialog.ts`,
+`src/ui/sections.ts`, `src/openstage-ui.css` (the suite's style file, version 1) and `src/ui/uiicons.gen.ts` (made by Author's
+`tools/make_ui_icons.py --explainer`). Tried in a browser with a stand-in for the desktop shell: a 42-step check (keyboard and mouse,
+a narrow and a short window, a high-contrast theme, OpenStage Author's accessibility audit), and the 569 tests. **Not yet tried in the
+program's own window, or with a screen reader.**
+
 ## The panes
 
-- **Chapters and topics** (left): the tree and its buttons, as before. It stays in view while the page is scrolled.
+- **Chapters and topics** (left): the tree, with its Add and ... buttons. It stays in view while the page is scrolled.
 - **Page** (middle): the page of the selected topic, then the list of the topic's pictures (import, capture, click circle settings).
 - **Properties** (right): the selected topic (its number, title, how many pictures and blocks, and its status) and the block that has the keyboard (its
   kind, its position, a word count, the picture chosen, the kind of callout box). It also stays in view.
@@ -215,7 +255,7 @@ ignore the keyboard stays on the same place in the list (or goes to Close when n
 
 ## Export and import
 
-**Export** (a toolbar button) opens a dialog: Help site, JSON with images, Markdown, Word, Word review copy, E-book (EPUB), PDF, Guide (Word) or Guide (PDF), each described in words, with a box for the working comments when JSON is chosen (off to begin with) and an optional
+**Export** (in the navy bar, and File > Export...) opens a dialog: Help site, JSON with images, Markdown, Word, Word review copy, E-book (EPUB), PDF, Guide (Word) or Guide (PDF), each described in words, with a box for the working comments when JSON is chosen (off to begin with) and an optional
 **Check the book first** button that opens the book check on top (the dialog says the check is optional and only advises; it also says how many unresolved comments there are). It then asks where to save a zip
 file (a .docx file for Word), makes the export without changing the project, saves it, and says what was saved and anything that could not be included (a picture file that is missing or could not be drawn). **Import an export**
 reads a JSON export back into a project (asking first if there are unsaved changes), as an unsaved project. **Import from Word** chooses a `.docx` file, reads it, and shows what will come in (chapters, topics, pictures) and what will be left out;
@@ -224,7 +264,7 @@ drawing each picture's marks into a PNG on a canvas.
 
 ## Guides
 
-A **guide** is a few pages for one task, or for several (the quick, step-by-step handout, as opposed to the book). **Guides** (a toolbar button) opens a dialog to make, change and delete them; **Guide preview**
+A **guide** is a few pages for one task, or for several (the quick, step-by-step handout, as opposed to the book). **Guides** (Book > Guides...) opens a dialog to make, change and delete them; **Guide preview**
 (a fourth tab next to Edit, Print preview and Help site preview, with a picker for which guide) shows one. The format and the rules are in `docs/format-spec.md` ("Short guides") and `src/project/guides.ts`.
 
 - A guide holds **no text of its own**. It is a list of topics already in the book (a task each), a layout, and a few choices, so material is written once: editing a topic changes the book and every guide
@@ -246,7 +286,7 @@ A **guide** is a few pages for one task, or for several (the quick, step-by-step
 
 ## Reuse: snippets, conditions and targets
 
-Format version 19 (2026-11-01, from Jason's feature list: the book had only variables). **Reuse** (a toolbar button) opens one window for all three:
+Format version 19 (2026-11-01, from Jason's feature list: the book had only variables). **Reuse** (Book > Reuse...) opens one window for all three:
 
 - **Snippets.** A snippet is a piece of a page you write once: a heading, a paragraph, a boxed note or a numbered procedure (no pictures). Choose or make one, give it a name, and write what it says in the box (blocks separated by a blank line; `# words` is a heading, `> Caution: words` a boxed note, `1. words` lines the steps of a procedure, a line `Result: words` after a step its result; the window says this and counts the blocks and the places that use the snippet). In a topic, **Snippet** (beside Paragraph, Heading and the others under Add to the page) adds a block with a list of the snippets; the words that will be written there are shown under it. Change the snippet and every topic that uses it changes, in the preview and in every output. Deleting a snippet keeps its words where it was used, as ordinary blocks.
 - **Conditions.** A condition is a name for content that is only for some readers or versions, such as Administrators or Version 2. A list of boxes, one for each, with Add a condition and Remove.
@@ -260,13 +300,13 @@ Format version 19 (2026-11-01, from Jason's feature list: the book had only vari
 Format version 21 added the **language of the book**, a field in **Look of the book** (a code such as en, fr or pt-BR; the window says the language's name and warns in words if the code is not one). The PDF, Word file, e-book and help site say it, so a screen reader chooses its voice.
 
 - **Export**, kind **Translation file (XLIFF)**: a field asks which language to translate into (a code; the dialog says its name, and will not go on with a code that is not one). It saves an `.xlf` file for a translation program.
-- **Import a translation** (a toolbar button): chooses the returned file, shows how many pieces were translated and what was not (and what was wrong with the file), and after a question saves a **copy** of the book in the new language as a new project file you name. The book you have open is not changed; choose Open project to work on the copy.
+- **Import a translation** (File > Import a translation...): chooses the returned file, shows how many pieces were translated and what was not (and what was wrong with the file), and after a question saves a **copy** of the book in the new language as a new project file you name. The book you have open is not changed; choose Open project to work on the copy.
 - **Replace the picture file** (a button under each picture): chooses a PNG or JPEG of the **same size** and puts it in the place of the picture, keeping its description, callouts, marks and click. A file of another size is refused in words, with both sizes. Use it in the copy to show the translated program. The details are in `docs/exports.md` ("Translation").
 - The dialogs close by keyboard alone; every result is announced.
 
 ## History: snapshots of the book
 
-Format version 20 (2026-11-01, from Jason's feature list: before this the program had no way back from a bad edit). **History** (a toolbar button) opens a window with a list box of the book's snapshots, oldest first, each with its name, whether you or the program took it, and when. A snapshot is a dated copy of the whole book kept inside the project file. The window has:
+Format version 20 (2026-11-01, from Jason's feature list: before this the program had no way back from a bad edit). **History** (File > History...) opens a window with a list box of the book's snapshots, oldest first, each with its name, whether you or the program took it, and when. A snapshot is a dated copy of the whole book kept inside the project file. The window has:
 
 - **Take a snapshot now.** Asks for a name (empty: named from the date). The book keeps up to 20; at the limit the button is off and the window says to delete one.
 - **Compare with the book now.** Lists, in words, what is different: topics added, removed and changed (title, status, place, words, pictures, links), and settings of the book. It is a second list box.
@@ -281,7 +321,7 @@ Format version 20 (2026-11-01, from Jason's feature list: before this the progra
 
 ## Look of the book
 
-Format version 18 (2026-11-01, from Jason's feature list). **Look of the book** (a toolbar button) sets, for the whole project: the **font of the text** and the **font of the headings**, an **accent colour**, a **logo**, whether the book **starts with a title page**, the **words at the top** of every page after the first and the **words at the bottom** beside the page number, and the **paper size** (Letter or A4). They are used by the print preview, the PDF, the Word file and the help site, so the book looks the same everywhere. Until the author chooses, each output keeps the look it always had.
+Format version 18 (2026-11-01, from Jason's feature list). **Look of the book** (Book > Look of the book...) sets, for the whole project: the **font of the text** and the **font of the headings**, an **accent colour**, a **logo**, whether the book **starts with a title page**, the **words at the top** of every page after the first and the **words at the bottom** beside the page number, and the **paper size** (Letter or A4). They are used by the print preview, the PDF, the Word file and the help site, so the book looks the same everywhere. Until the author chooses, each output keeps the look it always had.
 
 - The accent colour is a list of dark ready-made colours or any six hex digits. A line under it says, in words and with a tick or a warning sign (never by colour alone), how readable the colour is as text on white. A colour that is too light is still used; the book check lists it as a problem to look at. The check only warns.
 - **Choose a logo picture** opens the usual file window for a PNG or JPEG, asks what it shows (a screen reader reads that on the title page) and brings the window back. **Remove the logo** takes it off. The logo is on the title page and, as decoration beside the book's name, in the help site's header. A logo with no description is listed by the book check.
@@ -308,7 +348,7 @@ Jason's choice (2026-10-21): **the software writes the first pass of the index, 
   keeps it when the author moves out of it and shows what was kept (blank lines, repeats and lines that cannot be a term, such as one with no letter or longer than 60 characters, are left out, and it says how many).
   The line under the box says how many terms the software proposed and how many the author wrote or changed. An update keeps the author's terms, does not bring back a term the author took out, keeps software terms
   the book still supports and drops software terms it no longer supports.
-- **Index** (a toolbar button) opens the index of the whole book: a heading for each letter, each term once, with every topic it is in as a button that goes to that topic. A box filters the terms. **Update the
+- **Index** (Book > Index...) opens the index of the whole book: a heading for each letter, each term once, with every topic it is in as a button that goes to that topic. A box filters the terms. **Update the
   index from the book** makes the first pass for every topic that has none and updates the rest, and says in words how many terms it added and took out. The terms themselves are edited in each topic's Properties.
 - The index is in every output made for reading: the print preview and the PDF (an Index at the end and as the last entry of the contents; in the PDF each term has the **page numbers** of its topics, found
   as the contents' are), Word (an Index heading with a heading for each letter and "index 1" paragraphs whose topic numbers link to the topics, and a contents entry), the help site (an Index page linked from

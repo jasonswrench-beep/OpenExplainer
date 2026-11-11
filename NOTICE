@@ -5,7 +5,62 @@ Licensed under the Apache License, Version 2.0.
 
 Third-party code and assets adopted into this project are listed below with attribution.
 
-Code copied from OpenStage or OpenScreen: none so far.
+Code copied from OpenStage: the OpenStage suite's look (2026-11-11), from OpenStage Author
+(https://github.com/jasonswrench-beep/openstage-author), Apache License 2.0, Copyright 2026 Jason S. Wrench, the same owner:
+
+- src/openstage-ui.css: the suite's style file (version 1), an exact copy of design/openstage-ui.css there.
+- src/ui/menubar.ts, src/ui/popupmenu.ts, src/ui/commandsearch.ts: the row of menus, the menus of the panes' buttons and the
+  command search (Ctrl+K), from editor/src/ of the same names, with their tests (tests/ui-menubar.test.ts, ui-popupmenu.test.ts,
+  ui-commandsearch.test.ts). Changed only so the icons come from OpenExplainer's own icon file.
+- src/ui/dialogchrome.ts: adapted from editor/src/dialogchrome.ts (the Close button, the foot that stays in sight, the main button).
+- src/ui/keysdialog.ts and src/ui/sections.ts: written for OpenExplainer after Author's Keyboard keys window and Properties sections.
+- src/ui/uiicons.gen.ts: made by Author's tools/make_ui_icons.py --explainer from the suite's list of icons (design/icons.json there).
+
+Code copied from OpenScreen: none.
+
+Lucide icons (the icons on the buttons, menus and panes, in src/ui/uiicons.gen.ts)
+  https://lucide.dev, version 1.56.0
+
+  ISC License
+
+  Copyright (c) 2026 Lucide Icons and Contributors
+
+  Permission to use, copy, modify, and/or distribute this software for any
+  purpose with or without fee is hereby granted, provided that the above
+  copyright notice and this permission notice appear in all copies.
+
+  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+  Of the icons used here, arrow-down, arrow-up, check, chevron-down, clock, link, plus, search,
+  trash, x and zoom-in are derived from the Feather project:
+
+  The MIT License (MIT)
+
+  Copyright (c) 2013-present Cole Bemis
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
 
 Libraries used by the capture helper (capture-helper/), each under a permissive licence:
 

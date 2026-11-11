@@ -6,7 +6,7 @@ are in `docs/ai-and-mcp-plan.md` (Jason's choices of 2026-10-21: the app itself 
 
 ## Turning it on
 
-MCP is **off** until the author turns it on. In the app, choose **MCP access** (a toolbar button):
+MCP is **off** until the author turns it on. In the app, choose **Tools > MCP access...**:
 
 - **Turn on MCP access**, and **the folder an assistant may use**. An assistant can only open, save and export inside this folder, and nowhere else on the PC. (The shell refuses to turn MCP on for a folder that
   does not exist.)

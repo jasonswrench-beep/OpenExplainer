@@ -1,4 +1,5 @@
 import { cleanVariableName, CORE_VARIABLES, type Project } from "./project/model.ts";
+import { dressDialog } from "./ui/dialogchrome.ts";
 import type { Done, ScreenInfo, WindowInfo } from "./capture/outcome.ts";
 import { checkRegionInput, screenLabel, screenName, wholeScreen, type Region, type RegionInput } from "./capture/region.ts";
 import type { Rect } from "./capture/selection.ts";
@@ -65,6 +66,8 @@ function wrapTab(dialog: HTMLDialogElement) {
 export function open(dialog: HTMLDialogElement, focusTarget: HTMLElement): Promise<void> {
   const returnTo = document.activeElement as HTMLElement | null;
   document.body.append(dialog);
+  // The suite's Close button, the foot that stays in sight and the main button (ui/dialogchrome.ts).
+  dressDialog(dialog);
   wrapTab(dialog);
   dialog.showModal();
   focusTarget.focus();
