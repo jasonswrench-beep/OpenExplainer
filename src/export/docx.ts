@@ -14,6 +14,7 @@ import { wordsSayNumber } from "../project/links.ts";
 import { calloutInView } from "../render/overlay.ts";
 import type { FlatPicture } from "./pictures.ts";
 import { zip } from "../project/zip.ts";
+import { exportLabel } from "../project/picture-check.ts";
 
 const encoder = new TextEncoder();
 const NS_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
@@ -143,7 +144,7 @@ function pictureXml(ctx: Context, original: Picture, indent: boolean): string {
   const picture = forPaper(original, ctx.project.zoom, ctx.project.paper);
   const made = ctx.flat.get(picture.id);
   const style = indent ? "StepContinued" : "Normal";
-  if (!made) return para(style, run(`(The picture "${picture.altText.trim() || picture.source.originalName || picture.file}" could not be included.)`, "<w:i/>"));
+  if (!made) return para(style, run(`(The picture "${exportLabel(picture)}" could not be included.)`, "<w:i/>"));
   const shown = shownPart(picture, ctx.project.zoom, "book");
   const lines = entries(picture)
     .map((entry, i) => ({ entry, i }))

@@ -11,6 +11,7 @@ import { shownPart } from "../project/views.ts";
 import { altTextFor, fillVariables } from "../render/html.ts";
 import { calloutInView } from "../render/overlay.ts";
 import { flatFiles, type FlatPicture } from "./pictures.ts";
+import { exportLabel } from "../project/picture-check.ts";
 
 export const MARKDOWN_FILE = "book.md";
 
@@ -53,7 +54,7 @@ const one = (text: string) => text.replace(/\s+/g, " ").trim();
 
 function pictureMarkdown(project: Project, picture: Picture, flat: Map<string, FlatPicture>): string {
   const made = flat.get(picture.id);
-  if (!made) return `*(The picture "${escapeInline(picture.altText.trim() || picture.source.originalName || picture.file)}" could not be included.)*`;
+  if (!made) return `*(The picture "${escapeInline(exportLabel(picture))}" could not be included.)*`;
   // Inside ![ ] only a backslash and the square brackets matter.
   const alt = one(altTextFor(picture)).replace(/\\/g, "\\\\").replace(/([[\]])/g, "\\$1");
   const shown = shownPart(picture, project.zoom, "book");

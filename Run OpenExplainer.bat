@@ -7,7 +7,7 @@ echo Checking that everything OpenExplainer needs is installed. This takes a few
 call npm.cmd install || (pause & exit /b 1)
 echo.
 echo Building the capture helper, the small program that takes the pictures.
-cargo build --release --manifest-path capture-helper\Cargo.toml || (echo. & echo The capture helper did not build. The app is built with it, so OpenExplainer cannot start without it. Send the text above to Claude. & pause)
+cargo build --release --manifest-path capture-helper\Cargo.toml || (echo. & echo The capture helper did not build. The app is built with it, so OpenExplainer cannot start without it. Send the text above to the AI assistant. & pause)
 echo.
 call npm.cmd run tauri -- dev
 pause

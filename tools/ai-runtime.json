@@ -1,34 +1,56 @@
 {
-  "about": "The one build of llama.cpp (MIT licence) that OpenExplainer carries to run the built-in AI model. Pinned by build and SHA-256 so what is bundled is exactly what was read through (docs/local-ai-plan.md section 5.2). Changing the build means reading its zip again and updating NOTICE.",
-  "build": "b11803",
-  "commit": "a37cc4610",
-  "released": "2026-10-21",
+  "about": "The one build of llama.cpp (MIT licence) that OpenExplainer carries to run the built-in AI model. Pinned by build and SHA-256 so what is bundled is exactly what was read through (docs/local-ai-plan.md section 5.2). Changing the build means reading its zip again and updating NOTICE. Updated 2026-11-13 from b11803 to b12359 (the build behind llama.cpp's v1.0.0 release), for its fixes to the server (SSRF, CORS, DNS rebinding).",
+  "build": "b12359",
+  "commit": "b1b770d90",
+  "released": "2026-11-13",
   "assets": {
     "x64": {
-      "file": "llama-b11803-bin-win-cpu-x64.zip",
-      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11803/llama-b11803-bin-win-cpu-x64.zip",
-      "bytes": 24069022,
-      "sha256": "68a11f1f0ab78587bfc42071d2dbd4aa1b621357ddc375c1ee25a24e76d27954",
-      "keep": ["llama-server.exe", "llama-server-impl.dll", "llama.dll", "llama-common.dll", "ggml.dll", "ggml-base.dll", "ggml-cpu*.dll", "mtmd.dll", "libomp.dll", "LICENSE-LLVM-OpenMP"]
+      "file": "llama-b12359-bin-win-cpu-x64.zip",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-win-cpu-x64.zip",
+      "bytes": 25097509,
+      "sha256": "837c1655e87df3b66989f4be33a792a1399c785bf259038dc75c900096683e69",
+      "keep": [
+        "llama-server.exe",
+        "llama-server-impl.dll",
+        "llama.dll",
+        "llama-common.dll",
+        "ggml.dll",
+        "ggml-base.dll",
+        "ggml-cpu*.dll",
+        "mtmd.dll",
+        "libomp.dll",
+        "LICENSE-LLVM-OpenMP"
+      ]
     },
     "arm64": {
-      "file": "llama-b11803-bin-win-cpu-arm64.zip",
-      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11803/llama-b11803-bin-win-cpu-arm64.zip",
-      "bytes": 12692561,
-      "sha256": "315288ba2131fb18bb6776f9a1234de1d37d83c43ada9db7b54b761f783dd6ec",
-      "keep": ["llama-server.exe", "llama-server-impl.dll", "llama.dll", "llama-common.dll", "ggml.dll", "ggml-base.dll", "ggml-cpu*.dll", "mtmd.dll", "libomp.dll", "LICENSE-LLVM-OpenMP"]
+      "file": "llama-b12359-bin-win-cpu-arm64.zip",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-win-cpu-arm64.zip",
+      "bytes": 13455326,
+      "sha256": "d27564c754478d2832789dfcebfc5ace018e36a224c41d810b7cbc1ba8243ec0",
+      "keep": [
+        "llama-server.exe",
+        "llama-server-impl.dll",
+        "llama.dll",
+        "llama-common.dll",
+        "ggml.dll",
+        "ggml-base.dll",
+        "ggml-cpu*.dll",
+        "mtmd.dll",
+        "libomp.dll",
+        "LICENSE-LLVM-OpenMP"
+      ]
     }
   },
   "licences": [
     {
       "name": "LICENSE-llama.cpp.txt",
-      "url": "https://raw.githubusercontent.com/ggml-org/llama.cpp/b11803/LICENSE",
+      "url": "https://raw.githubusercontent.com/ggml-org/llama.cpp/b12359/LICENSE",
       "bytes": 1078,
       "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
     },
     {
       "name": "LICENSE-jsonhpp.txt",
-      "url": "https://raw.githubusercontent.com/ggml-org/llama.cpp/b11803/licenses/LICENSE-jsonhpp",
+      "url": "https://raw.githubusercontent.com/ggml-org/llama.cpp/b12359/licenses/LICENSE-jsonhpp",
       "bytes": 1075,
       "sha256": "c0d068392ea65358b798b8c165103560f06e9e3b38c4ab4e2d8810a7b931af86"
     }

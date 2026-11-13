@@ -27,7 +27,7 @@ async function aiReady(title: string): Promise<boolean> {
     return false;
   }
   if (settings.choice === "key") {
-    await messageDialog(title, "Using your own key for ChatGPT, Claude or Gemini is not built yet. Choose the built-in model in AI help.");
+    await messageDialog(title, "Using your own key for a hosted AI service is not built yet. Choose the built-in model in AI help.");
     return false;
   }
   if ((await modelState()) !== "ready") {

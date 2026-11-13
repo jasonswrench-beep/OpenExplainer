@@ -76,6 +76,7 @@ export const COMMANDS = {
   // Help
   "cmd-search": { label: "Search for a command", icon: "search", keys: "Ctrl+K", title: "Find any command by its name" },
   "cmd-keys": { label: "Keyboard keys", icon: "keyboard", keys: "Ctrl+/", title: "Every key OpenExplainer has" },
+  "cmd-updates": { label: "Check for updates...", icon: "globe", title: "Ask, once, whether a newer OpenExplainer is published (nothing is installed)" },
 } as const satisfies Record<string, CommandWords>;
 
 export type CommandId = keyof typeof COMMANDS;
@@ -92,7 +93,7 @@ export const MENUS: readonly { id: string; label: string; items: readonly MenuIt
   { id: "view", label: "View", items: ["view-edit", "view-print", "view-help", "view-guide"] },
   { id: "review", label: "Review", items: ["b-check", "b-unresolved", "b-drafts"] },
   { id: "tools", label: "Tools", items: ["b-ai", "b-mcp"] },
-  { id: "help", label: "Help", items: ["cmd-search", "cmd-keys"] },
+  { id: "help", label: "Help", items: ["cmd-search", "cmd-keys", "cmd-updates"] },
 ];
 
 /** The buttons in the navy bar: the few things done all the time. The last one is filled in the product colour. */

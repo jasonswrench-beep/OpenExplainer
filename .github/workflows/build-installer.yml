@@ -1,14 +1,13 @@
-# Builds the Windows installer on GitHub's own computers, from the code in this repository and nothing else.
-# This is what SignPath Foundation needs before it will sign: the installer must come from a build anyone can look at, not from one PC.
-# See docs/code-signing.md for the whole story and the steps for Jason.
+# Builds the OpenExplainer installer on a clean Windows machine at GitHub, from the code in this repository, as a check that it builds.
 #
-# Run it by hand: GitHub, Actions tab, "Build installer", Run workflow. It also runs when a version tag such as v0.1.0 is pushed.
-# Result: a download called "OpenExplainer-installer-unsigned" on the run's page. Once SignPath has approved the project and the
-# repository variables below are set, the same run also asks SignPath to sign the installer; Jason approves that on SignPath's site,
-# and a second download called "OpenExplainer-installer-signed" appears.
-# When a version tag is pushed, a second job (below) also makes a DRAFT pre-release on the Releases page with the unsigned installer and
-# its .sha256.txt attached (nothing else). A draft is seen only by people who can write to the repository. It is published only after the
-# installer has been downloaded and checked, and only when Jason says yes (the repository is public, so a release is seen by everyone).
+# Run it by hand (GitHub, Actions tab, "Build installer", Run workflow), or it runs when a version tag such as v0.2.0-alpha.4 is pushed.
+# It only builds. It makes no release and no draft, and it has no permission to: a release is built and signed on the owner's computer with
+# tools/build-installer.mjs --sign, which checks every signature in the setup, and published by hand (docs/code-signing.md). So this workflow
+# can never publish an unsigned installer.
+#
+# The build is the same script as a release's, without signing: the folder names of the machine are kept out of both programs and checked, and
+# the installer must carry the web view's setup. Its result, a download called "OpenExplainer-installer-unsigned" on the run's page, is for
+# checking only. The actions are pinned to the commit of a release, not to a tag that can move.
 name: Build installer
 
 on:
@@ -16,32 +15,30 @@ on:
   push:
     tags: ["v*"]
 
-# Only what a build needs: read the code, and (for SignPath) read this run's own details.
 permissions:
   contents: read
-  actions: read
 
 jobs:
   build:
-    # SignPath only signs builds made on GitHub's own computers.
     runs-on: windows-latest
-    # A build takes about 15 minutes; the rest is room to wait for Jason's approval on SignPath's site (GitHub stops any job after 6 hours).
-    timeout-minutes: 330
+    timeout-minutes: 60
     steps:
       - name: Get the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # the stable branch, 2026-11-13
+        with:
+          toolchain: stable
 
       - name: Remember Rust's work between runs
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
         with:
           workspaces: |
             src-tauri
@@ -53,89 +50,20 @@ jobs:
       - name: Check the licences
         run: node tools/check-licences.mjs
 
+      - name: Check the app
+        run: |
+          npm run typecheck
+          npm test
+
       - name: Get the AI program (llama.cpp, MIT licence; one pinned build, checked by its SHA-256)
         run: node tools/get-ai-runtime.mjs x64
 
-      - name: Build the capture helper
-        run: cargo build --release --manifest-path capture-helper/Cargo.toml
-
-      - name: Build the program and the installer
-        run: npm run tauri -- build
+      - name: Build and check the installer
+        run: node tools/build-installer.mjs
 
       - name: Keep the unsigned installer
-        id: upload-unsigned
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: OpenExplainer-installer-unsigned
-          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          path: src-tauri/target/release-files/*
           if-no-files-found: error
-
-      # Everything below runs only after SignPath has approved the project and Jason has set the four repository
-      # variables (GitHub, Settings, Secrets and variables, Actions, Variables) and the secret SIGNPATH_API_TOKEN.
-      - name: Ask SignPath to sign the installer
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        id: sign
-        uses: signpath/github-action-submit-signing-request@v3
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
-          wait-for-completion: true
-          # Each release needs Jason's approval on SignPath's site, so allow up to 4 hours for it.
-          wait-for-completion-timeout-in-seconds: 14400
-          output-artifact-directory: signed
-
-      - name: Keep the signed installer
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: OpenExplainer-installer-signed
-          path: signed/*-setup.exe
-          if-no-files-found: error
-
-  # A draft pre-release for a version tag such as v0.1.0. It runs only after the build above has made the installer, and only for a tag
-  # (not for "Run workflow" by hand). It is the only part of the build that may write to the repository (releases only), and it uses nothing
-  # but the token GitHub gives every run and the `gh` program that GitHub's computers already have.
-  # It attaches the UNSIGNED installer. When SignPath signing is switched on, change this job to attach OpenExplainer-installer-signed instead.
-  release:
-    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Get the code (the release notes and the guides are in it)
-        uses: actions/checkout@v4
-
-      - name: Get the unsigned installer the build made
-        uses: actions/download-artifact@v4
-        with:
-          name: OpenExplainer-installer-unsigned
-          path: installer
-
-      # Jason's release rule: attach only the setup file and its .sha256.txt (the SHA-256 of the setup file, so anyone can check a download).
-      - name: Write the SHA-256 file
-        run: |
-          cd installer
-          for f in *-setup.exe; do sha256sum "$f" > "$f.sha256.txt"; done
-          cat ./*.sha256.txt
-
-      - name: Make the draft release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          version="${TAG#v}"
-          notes="docs/release-notes-${version}.md"
-          if [ -f "$notes" ]; then note_args=(--notes-file "$notes"); else note_args=(--generate-notes); fi
-          # A tag such as v0.2.0-alpha.1 is titled "OpenExplainer 0.2.0 alpha 1".
-          title="OpenExplainer ${version/-alpha./ alpha }"
-          gh release create "$TAG" \
-            installer/*-setup.exe \
-            installer/*-setup.exe.sha256.txt \
-            --draft --prerelease --verify-tag \
-            --title "$title" \
-            "${note_args[@]}"

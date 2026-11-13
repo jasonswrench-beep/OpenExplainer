@@ -1,4 +1,4 @@
-// The AI help dialog: who drafts text for the author (nobody, the built-in model on this PC, or later the author's own key with ChatGPT, Claude or Gemini), the facts about the built-in model in
+// The AI help dialog: who drafts text for the author (nobody, the built-in model on this PC, or later the author's own key for a hosted AI service), the facts about the built-in model in
 // words, and its download: Download, Pause, Resume, Cancel, Check the file, Delete the model, and the licence text. The choice is kept by the shell (src-tauri/src/ai.rs). The download belongs
 // to the app, not to this dialog (src/ai/model-state.ts), so it carries on when the dialog is closed and the dialog shows where it has got to when it is opened again.
 //
@@ -55,7 +55,7 @@ export async function aiDialog(): Promise<AiSettings | null> {
         <legend>Who drafts</legend>
         <p><label><input type="radio" name="ai-choice" value="none" id="ai-none" aria-describedby="ai-none-help"> No AI</label><br><span class="help" id="ai-none-help">Nothing is drafted and nothing is sent anywhere. This is how OpenExplainer starts.</span></p>
         <p><label><input type="radio" name="ai-choice" value="builtin" id="ai-builtin" aria-describedby="ai-builtin-help"> Built-in model on this PC</label><br><span class="help" id="ai-builtin-help">A small AI model that runs on this PC. It needs no account and no internet once it has been downloaded, and nothing you write or capture leaves this PC.</span></p>
-        <p><label><input type="radio" name="ai-choice" value="key" id="ai-key" disabled aria-describedby="ai-key-help"> My own key (ChatGPT, Claude or Gemini)</label><br><span class="help" id="ai-key-help">Not built yet.</span></p>
+        <p><label><input type="radio" name="ai-choice" value="key" id="ai-key" disabled aria-describedby="ai-key-help"> My own key for a hosted AI service</label><br><span class="help" id="ai-key-help">Not built yet.</span></p>
       </fieldset>
       <p id="ai-status" role="status"></p>
       <h3 id="ai-model-heading">The built-in model</h3>

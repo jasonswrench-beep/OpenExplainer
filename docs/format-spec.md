@@ -38,6 +38,12 @@ Each node holds a list of pictures: `{ id, file, width, height, altText, source 
 
 ## Click notes
 
+Checked every time a project is opened (`src/project/picture-check.ts`, from the security review of 2026-11-13; no format change): a picture's `id` must be letters, digits, `_` and `-`
+(1 to 64 of them, the same rule as topic ids) and no other picture may have it, its `file` must be `images/<a plain name>.png`, `.jpg` or `.jpeg`, and its `width` and `height` must be
+numbers of pixels (a fraction is rounded; a side above 100,000 is cut to it). A picture that breaks a rule is left out and the author is told how many were. A variable's name is
+cleaned the way the Project variables dialog cleans a new one (capital letters, digits and `_`); a name that cleans to nothing, or a value that is not text, is left out.
+A window capture is saved with `source.originalName` "Window capture <n>", never the window's title, which can hold a path or a document's name.
+
 A picture made by a click-by-click capture has `source.kind` `click` and a `click` note. A picture from any other source has no `click`.
 `click` is `{ x, y, button, double?, target? }`:
 

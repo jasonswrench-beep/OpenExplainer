@@ -51,6 +51,8 @@ tree (the current topic marked with `aria-current`), breadcrumbs, the topic (hea
 symbol, pictures with their descriptions and callout entries), a list of the topics under it, Previous and Next links, and a Print this page button. Links between pages are ordinary links to files, so the
 site works with no script. The pages are made by the same code as the help site preview (`src/render/help.ts`, `html.ts`).
 
+Every page carries its own content security policy (`HELP_SITE_CSP` in `src/export/help-site.ts`): scripts only from the site's own files, no inline script or event handler, pictures
+only from its own files. Tried in a real browser, from a folder and from a web server: search works, and an inline script does not run.
 The only script is `assets/site.js`: search and the Print this page button. The search index is a script (`window.SEARCH_INDEX = [...]`) rather than a JSON file, so search also works when the pages are opened
 straight from a folder, where a browser will not fetch a JSON file. It finds every word typed (in the title, the number or the text of a topic, including the entries under pictures, with variables filled in),
 ranks title matches first, shows each hit with a snippet, says in words how many topics match and puts the keyboard on the results. Colours meet WCAG 2.2 AA (`tests/export.test.ts` checks them), every
@@ -64,6 +66,8 @@ A zip holding `book.json` and `images/` (the project's own picture files, not fl
 - `name`, `template`, `variables`, `highlight` (the click circle settings), `zoom`, `styles`.
 - `tree`: the chapters and topics, each `{ id, number, title, status, page?, pictures, children }`. `number` is informational (worked out again on import). `page` is `{ blocks, comments? }` as in
   `docs/format-spec.md` ("The page"); `comments` only when asked for. `pictures` are the picture records (`docs/format-spec.md`: click notes, callouts, marks, views, circle choices).
+  Without **Include capture details** (off to begin with; `include_capture_details` in MCP), each picture's `source` is only its kind with an empty `capturedAt`, and its `click` keeps
+  where the click was but not `target` (what was clicked): a capture's name or a clicked item can name a file, a folder or a person (security review, 2026-11-13).
 
 **Importing.** An export is read back by turning it into the same files a saved project is made from and opening those, so it goes through the same upgrading and cleaning: a block of an unknown kind, a colour
 that is not one, a mark off the picture and so on are put right or dropped. An export that has no `book.json`, is damaged, is not one, or was made by a newer export format is refused in plain words and nothing

@@ -54,7 +54,9 @@ pub fn pdf_workspace_remove(path: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Prints the page at `page` (a file inside the work folder) to the PDF at `pdf`. `options` is what Chromium's Page.printToPDF is asked for, as JSON.
+/// Prints the page at `page` (a file inside the work folder) to the PDF at `pdf`, which must be inside the work folder too: the page reads the PDF from
+/// there and saves it where the author chose, through the file permissions the save dialog gave it (security review, 2026-11-13). `options` is what
+/// Chromium's Page.printToPDF is asked for, as JSON.
 #[tauri::command]
 pub async fn print_pdf(app: tauri::AppHandle, page: String, pdf: String, options: String) -> Result<(), String> {
     let page = PathBuf::from(page);
@@ -64,6 +66,9 @@ pub async fn print_pdf(app: tauri::AppHandle, page: String, pdf: String, options
     let pdf = PathBuf::from(pdf);
     if pdf.extension().map(|e| e.to_ascii_lowercase()) != Some("pdf".into()) {
         return Err("The PDF must be saved with the name ending in .pdf.".into());
+    }
+    if !inside_work_root(&pdf, &work_root()) || pdf.parent() != page.parent() {
+        return Err("A PDF is made only in the folder its page is in.".into());
     }
     let options: Value = serde_json::from_str(&options).map_err(|_| "The print options were not understood.".to_string())?;
     if !options.is_object() {

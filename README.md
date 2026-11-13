@@ -26,7 +26,7 @@ paragraph above are in those menus (Capture into the selected item is Capture, I
 - Warn about low contrast as you work (a warning only, never a block).
 - Export a book as tagged PDF and Word, plus help site, JSON with images, and Markdown.
 - Export short step-by-step guides in two layouts.
-- Optional AI help (local Qwen 3.5, or your own ChatGPT, Claude or Gemini key). Everything works by hand without it.
+- Optional AI help (local Qwen 3.5, or later your own key for a hosted AI service). Everything works by hand without it.
 - An MCP server so an AI assistant can help build documentation and eLearning.
 
 ## Running it

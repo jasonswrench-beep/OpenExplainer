@@ -17,6 +17,7 @@ import { cleanLook, defaultLook } from "./look.ts";
 import { cleanConditions, cleanSnippets, cleanTargets, cleanTreeConditions } from "./snippets.ts";
 import { cleanHistory } from "./history.ts";
 import { cleanLanguage, DEFAULT_LANGUAGE } from "./language.ts";
+import { cleanTreePictures, cleanVariables, notePicturesLeftOut } from "./picture-check.ts";
 
 type Raw = { version?: unknown; [key: string]: unknown };
 
@@ -89,6 +90,14 @@ export function migrate(input: unknown): Project {
   }
   // A click note and the circle's settings are checked every time a project is opened, whatever version it was saved as.
   const project = raw as unknown as Project;
+  // A picture's id, file and size, and the variables' names, are checked first, because the other cleaners and every export rely on them (picture-check.ts).
+  let leftOut = 0;
+  if (Array.isArray(project.tree)) {
+    const checked = cleanTreePictures(project.tree as TreeNode[]);
+    project.tree = checked.tree;
+    leftOut = checked.dropped;
+  }
+  project.variables = cleanVariables(project.variables);
   if (Array.isArray(project.tree)) project.tree = cleanTreeSeeAlso(cleanTreeIndex(cleanTreeShapes(cleanTreeViews(cleanTreeCallouts(cleanTreeHighlights(cleanClicks(project.tree as TreeNode[])))))));
   project.highlight = cleanHighlight(project.highlight);
   project.zoom = cleanZoom(project.zoom);
@@ -110,5 +119,7 @@ export function migrate(input: unknown): Project {
   // The snapshots are read from their own files after this (files.ts); any that arrive here are checked.
   const history = cleanHistory(project.history);
   const { tree, writingStyle: _style, avoidWords: _avoid, drafts: _drafts, history: _history, ...rest } = project;
-  return { ...rest, writingStyle, avoidWords, drafts, history, tree } as Project;
+  const opened = { ...rest, writingStyle, avoidWords, drafts, history, tree } as Project;
+  notePicturesLeftOut(opened, leftOut);
+  return opened;
 }

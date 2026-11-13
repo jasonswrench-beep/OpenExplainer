@@ -2,7 +2,8 @@
 // Downloads the one pinned build (tools/ai-runtime.json) for this PC's kind of processor, or the kind named on the command line (x64 or arm64),
 // checks its SHA-256, unpacks it, keeps only the files the server needs, adds the licence texts, and puts them in src-tauri/runtime/llama.
 // The installer takes that folder (src-tauri/tauri.conf.json, bundle.resources) and a development build looks there. Nothing here is committed to git.
-//   node tools/get-ai-runtime.mjs [x64|arm64]
+//   node tools/get-ai-runtime.mjs [x64|arm64] [--zip <the pinned zip, already downloaded>]
+// With --zip, that file is used instead of downloading it again; it must have the pinned size and SHA-256 just the same.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -14,7 +15,10 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pin = JSON.parse(readFileSync(join(root, "tools", "ai-runtime.json"), "utf8"));
-const arch = process.argv[2] ?? (process.arch === "arm64" ? "arm64" : "x64");
+const zipAt = process.argv.indexOf("--zip");
+const localZip = zipAt > 0 ? process.argv[zipAt + 1] : undefined;
+const kindGiven = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : undefined;
+const arch = kindGiven ?? (process.arch === "arm64" ? "arm64" : "x64");
 const asset = pin.assets[arch];
 if (!asset) {
   console.error(`There is no build pinned for "${arch}". Use x64 or arm64.`);
@@ -55,7 +59,13 @@ try {
   rmSync(work, { recursive: true, force: true });
   mkdirSync(join(work, "unpacked"), { recursive: true });
   const zip = join(work, asset.file);
-  await download(asset.url, zip, asset.bytes, asset.sha256, `llama.cpp ${pin.build} for ${arch} (${(asset.bytes / 1e6).toFixed(0)} MB)`);
+  if (localZip) {
+    // A zip downloaded before: copied in and checked exactly as a download is.
+    copyFileSync(localZip, zip);
+    if (statSync(zip).size !== asset.bytes || sha256(zip) !== asset.sha256) throw new Error(`${localZip} is not the pinned llama.cpp ${pin.build} zip for ${arch}, so it was not used.`);
+  } else {
+    await download(asset.url, zip, asset.bytes, asset.sha256, `llama.cpp ${pin.build} for ${arch} (${(asset.bytes / 1e6).toFixed(0)} MB)`);
+  }
   say("Checked: it is the build that was read through.");
   // Windows' own tar reads zip files.
   execFileSync(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe"), ["-xf", zip, "-C", join(work, "unpacked")], { stdio: "inherit" });

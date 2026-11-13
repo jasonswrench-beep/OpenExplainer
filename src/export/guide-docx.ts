@@ -16,6 +16,7 @@ import { altTextFor, fillVariables } from "../render/html.ts";
 import { calloutInView } from "../render/overlay.ts";
 import { assembleDocx, drawing, para, run, runsXml, xml, type Context } from "./docx.ts";
 import { guideKey, type FlatPicture } from "./pictures.ts";
+import { exportLabel } from "../project/picture-check.ts";
 
 /** The width of a picture in the left layout's left column (the column is 2.7 inches; the rest is the cell's own margin). */
 const LEFT_PICTURE_PIXELS = 240;
@@ -44,7 +45,7 @@ function stepXml(ctx: Context, item: GuideStep): string {
   const result = step.result && step.result.length ? para("Normal", run("Result: ", "<w:b/>") + runsXml(step.result, v)) : "";
   if (!picture) return head + text + result;
   const whole = ctx.flat.get(guideKey(step.id));
-  if (!whole) return head + para("Normal", run(`(The picture "${picture.altText.trim() || picture.source.originalName || picture.file}" could not be included.)`, "<w:i/>")) + text + result;
+  if (!whole) return head + para("Normal", run(`(The picture "${exportLabel(picture)}" could not be included.)`, "<w:i/>")) + text + result;
   const close = ctx.flat.get(guideKey(step.id, true));
   const alt = altTextFor(picture, words);
   const closeAlt = `Close-up of the clicked spot. ${alt}`;

@@ -14,6 +14,7 @@ import { assetFiles } from "../project/package.ts";
 import { pictureToJson } from "./blocks.ts";
 import { text, type ToolContent, type ToolDef, type ToolResult } from "./protocol.ts";
 import type { Session } from "./session.ts";
+import { windowCaptureName } from "../project/picture-check.ts";
 
 /** A part of a picture or of the desktop, in pixels. */
 export interface Box {
@@ -53,6 +54,15 @@ export interface CaptureDeps {
   /** A picture small enough to send to the assistant (a PNG no wider than `maxWidth`). */
   forAssistant(bytes: Uint8Array, maxWidth: number): Promise<Uint8Array>;
 }
+
+/** Said when the author has not allowed an assistant to capture at all (security review, 2026-11-13). Window titles are not listed then either. */
+export const WINDOWS_OFF =
+  "Capturing is turned off: an assistant may not see or capture the windows on this PC. The author can allow it in OpenExplainer, in MCP access " +
+  "(Let an assistant capture windows). Everything else, such as writing the pages and making the exports, still works.";
+
+/** Whether an assistant may capture windows, and whether it may capture whole screens too (which needs both settings). */
+export const windowsAllowed = (settings: { allowWindows: boolean }) => settings.allowWindows === true;
+export const fullScreenAllowed = (settings: { allowWindows: boolean; allowFullScreen: boolean }) => settings.allowWindows === true && settings.allowFullScreen === true;
 
 const FULL_SCREEN_OFF =
   "Capturing a part of the screen that is not one window is turned off. An assistant can capture one window at a time (list_windows, then capture_window). " +
@@ -172,7 +182,10 @@ export function createCaptureTools(session: Session, deps: CaptureDeps): ToolDef
       name: "list_windows",
       description: "The open windows an assistant may capture: id, title, program, where it is and how big. Minimized windows cannot be captured until they are restored.",
       inputSchema: schema({}),
-      handler: async () => text(JSON.stringify((await deps.listWindows()).map(windowJson), null, 2)),
+      handler: async () => {
+        if (!windowsAllowed(session.settings)) throw new Error(WINDOWS_OFF);
+        return text(JSON.stringify((await deps.listWindows()).map(windowJson), null, 2));
+      },
     },
     {
       name: "capture_window",
@@ -185,11 +198,13 @@ export function createCaptureTools(session: Session, deps: CaptureDeps): ToolDef
       }, ["topic_id"]),
       handler: async (args) => {
         const project = session.require();
+        if (!windowsAllowed(session.settings)) throw new Error(WINDOWS_OFF);
         const node = topicOf(project, text1(args, "topic_id"));
         const window = chooseWindow(await deps.listWindows(), args);
         if (running) throw new Error("A click capture is running. Stop it with stop_click_capture first.");
         const picture = await deps.captureWindow(window, { bringToFront: args.bring_to_front === true });
-        const kept = keepPicture(session, node, picture, "window", { name: window.title, alt: text1(args, "alt_text") });
+        // Saved under a plain name, never the window's title, which can hold a path or a document's name (security review, 2026-11-13).
+        const kept = keepPicture(session, node, picture, "window", { name: windowCaptureName(project.tree), alt: text1(args, "alt_text") });
         const saved = await keep();
         return {
           content: [{ type: "text", text: `Captured "${window.title}" into "${node.title}" as picture ${kept.id} (${kept.width} by ${kept.height}).${saved}` }, await image(deps, picture.bytes)],
@@ -202,7 +217,8 @@ export function createCaptureTools(session: Session, deps: CaptureDeps): ToolDef
       inputSchema: schema({ topic_id: str("The topic the picture goes into."), x: num("Left edge on the desktop."), y: num("Top edge."), width: num("Width."), height: num("Height."), alt_text: str("What it shows.") }, ["topic_id", "x", "y", "width", "height"]),
       handler: async (args) => {
         const project = session.require();
-        if (!session.settings.allowFullScreen) throw new Error(FULL_SCREEN_OFF);
+        if (!windowsAllowed(session.settings)) throw new Error(WINDOWS_OFF);
+        if (!fullScreenAllowed(session.settings)) throw new Error(FULL_SCREEN_OFF);
         const node = topicOf(project, text1(args, "topic_id"));
         const region = { x: number(args, "x"), y: number(args, "y"), width: number(args, "width"), height: number(args, "height") };
         if (running) throw new Error("A click capture is running. Stop it with stop_click_capture first.");
@@ -224,8 +240,9 @@ export function createCaptureTools(session: Session, deps: CaptureDeps): ToolDef
         const project = session.require();
         const node = topicOf(project, text1(args, "topic_id"));
         if (running) throw new Error(`A click capture is already running for the topic with the id ${running.topicId}. Stop it with stop_click_capture.`);
+        if (!windowsAllowed(session.settings)) throw new Error(WINDOWS_OFF);
         let window: WindowInfo | null = null;
-        if (!session.settings.allowFullScreen || args.window_title !== undefined || args.window_id !== undefined) {
+        if (!fullScreenAllowed(session.settings) || args.window_title !== undefined || args.window_id !== undefined) {
           window = chooseWindow(await deps.listWindows(), args);
           if (window.minimized) throw new Error(`The window "${window.title}" is minimized. Restore it first, then start again.`);
         }

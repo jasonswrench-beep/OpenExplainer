@@ -1,6 +1,6 @@
 # MCP: letting an AI assistant use OpenExplainer
 
-MCP (the Model Context Protocol) is the way an AI assistant such as Claude uses a program's tools. With it on, an assistant can document a program **while nobody is at the keyboard**: it makes a
+MCP (the Model Context Protocol) is the way an AI assistant uses a program's tools. With it on, an assistant can document a program **while nobody is at the keyboard**: it makes a
 project, captures the program's windows and the clicks made in it, writes the pages, names the callouts, builds the index, runs the book check and makes any export. The decisions behind this
 are in `docs/ai-and-mcp-plan.md` (Jason's choices of 2026-10-21: the app itself runs with no window, MCP is off until turned on, capture is by window only).
 
@@ -10,9 +10,10 @@ MCP is **off** until the author turns it on. In the app, choose **Tools > MCP ac
 
 - **Turn on MCP access**, and **the folder an assistant may use**. An assistant can only open, save and export inside this folder, and nowhere else on the PC. (The shell refuses to turn MCP on for a folder that
   does not exist.)
-- **Let an assistant capture a whole screen, not only one window** is off to begin with (see "Capture" below).
-- The dialog gives the lines to connect an assistant: for **Claude Desktop** the block to add to `claude_desktop_config.json`, for **Claude Code** the command `claude mcp add openexplainer -- "<path>" --mcp`,
-  each with a Copy button.
+- **Let an assistant capture windows** is off to begin with: without it an assistant sees no window titles and captures nothing (security review, 2026-11-13).
+  **Also let it capture a whole screen, not only one window** is a second step on top, off to begin with too (see "Capture" below).
+- The dialog gives the lines to connect an assistant: for one that reads its MCP servers from a settings file, the block to add to that file; for one that asks for the
+  command that starts a server, the command itself (`"<path>" --mcp`), each with a Copy button.
 
 The settings are kept in `mcp.json` in the app's config folder (`%APPDATA%\\org.openexplainer.app`). Settings are read each time an assistant connects, so a change takes effect for the next one. A byte order mark at the start of the file (which Windows PowerShell's `Set-Content -Encoding UTF8` writes) is skipped; the AI help file `ai.json` is read the same way.
 
@@ -53,7 +54,11 @@ a note of what was clicked, never anything typed and never a password box's cont
 - `start_click_capture` (naming the window), then the assistant uses the program, then `stop_click_capture`. Only clicks **inside the named window** are kept and each picture is cut to that window's part, so
   a mail window or a password manager on the same screen never gets into the project. Each kept picture has its click note and a first callout at the item that was clicked. Clicks outside the window are counted
   and said.
-- `capture_region`, and a click capture with no window, need the author to have allowed whole screens. They are refused otherwise, with words saying how to allow them.
+- Every capture tool, and `list_windows`, needs the author to have allowed **capturing windows** in MCP access. Without it they are refused with words saying how to allow it,
+  and no window title is given out (security review, 2026-11-13).
+- `capture_region`, and a click capture with no window, need the author to have allowed whole screens too. They are refused otherwise, with words saying how to allow them.
+- A path an assistant names is checked by its name (no `..`, inside the folder) and then by where it really leads, with links and junctions followed (`mcp_real_path` in
+  `src-tauri/src/mcp.rs`), so a junction inside the folder is not a way out of it.
 - **The Stop window (click capture) and the Cancel window (other captures) stay visible**, as they always do, so a person who comes back can stop it at once. A copy of OpenExplainer does not capture its own windows; another copy running on the same PC (the program being documented, when that is OpenExplainer) can be captured.
 - `view_picture` gives the assistant a PNG no wider than 1280 pixels (or what it asks for) to look at.
 

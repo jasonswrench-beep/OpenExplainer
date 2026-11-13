@@ -80,9 +80,34 @@ export function zip(files: Record<string, Uint8Array>): Uint8Array {
   return out;
 }
 
-async function inflate(data: Uint8Array): Promise<Uint8Array> {
+/** The most one file inside a package may unpack to, and the most all of them together may (security review, 2026-11-13). A book with many large
+ * screen captures is far smaller; a file made to unpack to far more than it holds is refused before it fills the memory. */
+export const MAX_ENTRY_BYTES = 512 * 1024 * 1024;
+export const MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
+export const MAX_ENTRIES = 100_000;
+
+const TOO_BIG = "This file unpacks to more than OpenExplainer will read, so it was not opened.";
+
+/** Unpacks one compressed file, a piece at a time, and stops as soon as it would be larger than `limit`. */
+async function inflate(data: Uint8Array, limit: number): Promise<Uint8Array> {
   const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+  const reader = stream.getReader();
+  const pieces: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > limit) {
+      await reader.cancel();
+      throw new Error(TOO_BIG);
+    }
+    pieces.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const piece of pieces) { out.set(piece, at); at += piece.length; }
+  return out;
 }
 
 export async function unzip(bytes: Uint8Array): Promise<Record<string, Uint8Array>> {
@@ -94,8 +119,11 @@ export async function unzip(bytes: Uint8Array): Promise<Record<string, Uint8Arra
   if (end < 0) throw new Error("This file is not an OpenExplainer project (it is not a valid package).");
 
   const count = view.getUint16(end + 10, true);
+  if (count > MAX_ENTRIES) throw new Error(TOO_BIG);
   let at = view.getUint32(end + 16, true);
-  const files: Record<string, Uint8Array> = {};
+  // No prototype, so a file named __proto__ or constructor inside a package is only a name (security review, 2026-11-13).
+  const files: Record<string, Uint8Array> = Object.create(null);
+  let unpacked = 0;
 
   for (let n = 0; n < count; n++) {
     if (view.getUint32(at, true) !== 0x02014b50) throw new Error("This project file is damaged.");
@@ -115,10 +143,13 @@ export async function unzip(bytes: Uint8Array): Promise<Record<string, Uint8Arra
     const start = localAt + 30 + localName + localExtra;
     const raw = bytes.subarray(start, start + compressedSize);
 
+    // What a file says it unpacks to is checked before anything is unpacked, and again while it is.
+    if (size > MAX_ENTRY_BYTES || unpacked + size > MAX_TOTAL_BYTES) throw new Error(TOO_BIG);
     let data: Uint8Array;
     if (method === 0) data = raw;
-    else if (method === 8) data = await inflate(raw);
+    else if (method === 8) data = await inflate(raw, Math.min(MAX_ENTRY_BYTES, size));
     else throw new Error(`This project uses a compression method (${method}) that OpenExplainer cannot read.`);
+    unpacked += data.length;
 
     if (data.length !== size || crc32(data) !== crc) throw new Error(`The file "${name}" inside this project is damaged.`);
     if (!name.endsWith("/")) files[name] = data;

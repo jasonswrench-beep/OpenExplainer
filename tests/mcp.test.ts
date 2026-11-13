@@ -139,7 +139,7 @@ function memory(): McpFiles & { has(path: string): boolean; size(path: string): 
 
 function setup() {
   const files = memory();
-  const session = new Session({ enabled: true, folder: FOLDER, allowFullScreen: false }, files);
+  const session = new Session({ enabled: true, folder: FOLDER, allowWindows: false, allowFullScreen: false }, files);
   const made: { kind: string; options: unknown }[] = [];
   const tools = createTools({
     session,
@@ -228,9 +228,9 @@ test("tools: a project is made, filled, saved at every step, reopened, checked, 
   const word = await call("export_book", { kind: "word", file: "Out\\Acme" });
   assert.match(word.text, /Made the word export: C:\\Docs\\OpenExplainer\\Out\\Acme\.docx \(4 bytes, Acme\.docx\)\.\nNot everything could be included:\nA note about a picture\./);
   assert.ok(files.has(`${FOLDER}\\Out\\Acme.docx`));
-  assert.deepEqual(made[0], { kind: "word", options: { guideId: undefined, comments: false } });
+  assert.deepEqual(made[0], { kind: "word", options: { guideId: undefined, comments: false, captureDetails: false } });
   await call("export_book", { kind: "guide-pdf", file: "G.pdf", guide_id: guideId });
-  assert.deepEqual(made[1], { kind: "guide-pdf", options: { guideId, comments: false } });
+  assert.deepEqual(made[1], { kind: "guide-pdf", options: { guideId, comments: false, captureDetails: false } });
   assert.ok(files.has(`${FOLDER}\\G.pdf`));
   assert.match((await call("export_book", { kind: "tar", file: "x" })).text, /kind must be one of/);
   assert.match((await call("export_book", { kind: "json", file: "C:\\Windows\\x" })).text, /not inside the folder/);

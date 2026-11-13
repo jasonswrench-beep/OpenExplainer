@@ -8,6 +8,7 @@ mod llama;
 mod mcp;
 mod models;
 mod pdf;
+mod updates;
 
 fn main() {
     tauri::Builder::default()
@@ -51,6 +52,7 @@ fn main() {
             mcp::mcp_reply,
             mcp::mcp_settings_get,
             mcp::mcp_exe_path,
+            mcp::mcp_real_path,
             mcp::mcp_settings_set,
             ai::ai_settings_get,
             ai::ai_settings_set,
@@ -65,7 +67,10 @@ fn main() {
             models::ai_model_read_licence,
             llama::ai_runtime_start,
             llama::ai_runtime_stop,
-            llama::ai_runtime_status
+            llama::ai_runtime_status,
+            updates::app_release,
+            updates::check_for_updates,
+            updates::open_release_page
         ])
         .build(tauri::generate_context!())
         .expect("OpenExplainer could not start.")

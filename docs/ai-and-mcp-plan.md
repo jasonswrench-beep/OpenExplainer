@@ -21,7 +21,7 @@ Sources: [Qwen3.5-9B model card](https://huggingface.co/Qwen/Qwen3.5-9B), [Qwen3
 
 The detailed plan, with the licence check on the exact model and runtime files, is in `docs/local-ai-plan.md`. What follows is the first outline.
 
-1. **One connector, three ways to fill it**: the built-in local model, the author's own ChatGPT, Claude or Gemini key, or none. Keys are kept on the PC, protected with Windows' own key storage (DPAPI), and never sent anywhere except the service they are for.
+1. **One connector, three ways to fill it**: the built-in local model, the author's own key for a hosted AI service, or none. Keys are kept on the PC, protected with Windows' own key storage (DPAPI), and never sent anywhere except the service they are for.
 2. **The local runtime**: `llama-server` from llama.cpp, started by the app on a private local port only when a draft is asked for and stopped afterwards. Bundled in the installer (about 15 to 30 MB for the CPU builds, one for x64 and one for ARM64) so only the model is downloaded.
 3. **The model**: downloaded the first time AI is turned on, not at install. A dialog says the size and where it comes from, with a progress bar, **Pause and Resume** (HTTP range requests, so a broken connection continues), **Cancel**, a check of the file's SHA-256, and a button to delete it. Stored in the app's data folder.
 4. **What it drafts**, one thing at a time, each marked as a draft until accepted: names and one-sentence descriptions for callouts; a numbered procedure from a click-by-click capture; chapter openers and summaries; suggested boxes (labelled as suggestions); a consistency pass against the project's style sheet. (The index's first pass already works without AI.)
@@ -30,7 +30,7 @@ The detailed plan, with the licence check on the exact model and runtime files, 
 
 ## The MCP server
 
-**Goal**: an AI assistant (Claude Desktop, Claude Code or another) asks OpenExplainer to document a program while nobody is at the keyboard.
+**Goal**: an AI assistant that supports MCP asks OpenExplainer to document a program while nobody is at the keyboard.
 
 **How it runs (recommended)**: `openexplainer.exe --mcp` starts the app with no visible window and speaks MCP over standard input and output. The app's own TypeScript does the work, so **everything that exists works the same way**, including the drawing of marks onto pictures and the PDF, which cannot be done from a plain Node program. A small part of the shell passes the messages to the hidden window. The assistant's settings point at that command; the app can show a "Copy the MCP settings" box that gives the exact lines.
 

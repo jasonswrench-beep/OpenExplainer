@@ -1,4 +1,4 @@
-// The MCP access dialog: whether an AI assistant may use OpenExplainer (MCP), which folder it may keep projects in, whether it may capture a whole screen and not only one window, and the lines to
+// The MCP access dialog: whether an AI assistant may use OpenExplainer (MCP), which folder it may keep projects in, whether it may capture windows and, on top of that, a whole screen, and the lines to
 // give an assistant so it can connect. MCP is off until it is turned on here. The settings are kept by the shell (src-tauri/src/mcp.rs) in the app's config folder. Everything can be done by keyboard.
 import { invoke } from "@tauri-apps/api/core";
 import { open as chooseFolder } from "@tauri-apps/plugin-dialog";
@@ -8,6 +8,7 @@ import { connectionLines } from "./mcp/connect.ts";
 export interface McpAccess {
   enabled: boolean;
   folder: string;
+  allowWindows: boolean;
   allowFullScreen: boolean;
 }
 
@@ -21,17 +22,18 @@ export async function mcpDialog(): Promise<McpAccess | null> {
   dialog.innerHTML = `
     <form method="dialog">
       <h2 id="dlg-title">MCP access</h2>
-      <p class="help" id="mcp-intro">MCP lets an AI assistant (such as Claude) use OpenExplainer to document a program while nobody is at the keyboard: it can make a project, capture a window, write the pages, run the checks and make the exports. It is <strong>off</strong> until you turn it on here. An assistant works in its own hidden copy of OpenExplainer, so do not edit the same project in this window while one is working on it.</p>
+      <p class="help" id="mcp-intro">MCP lets an AI assistant that supports MCP use OpenExplainer to document a program while nobody is at the keyboard: it can make a project, capture a window, write the pages, run the checks and make the exports. It is <strong>off</strong> until you turn it on here. An assistant works in its own hidden copy of OpenExplainer, so do not edit the same project in this window while one is working on it.</p>
       <p><label><input type="checkbox" id="mcp-enabled"> Turn on MCP access</label></p>
       <p><label for="mcp-folder">Folder an assistant may use</label><br><input type="text" id="mcp-folder" size="52" aria-describedby="mcp-folder-help"> <button type="button" id="mcp-choose">Choose the folder</button></p>
       <p class="help" id="mcp-folder-help">An assistant can only open, save and export inside this folder, and nowhere else on this PC. A plain log of what it did is kept there too (OpenExplainer MCP log.txt).</p>
-      <p><label><input type="checkbox" id="mcp-full" aria-describedby="mcp-full-help"> Let an assistant capture a whole screen, not only one window</label><br><span class="help" id="mcp-full-help">Off to begin with. With it off, an assistant captures one window at a time and a click capture keeps only the clicks inside the window it was told to watch, so a mail window or a password manager on the same screen never gets into a project. A small window with a Stop button is always showing while a click capture runs.</span></p>
+      <p><label><input type="checkbox" id="mcp-windows" aria-describedby="mcp-windows-help"> Let an assistant capture windows</label><br><span class="help" id="mcp-windows-help">Off to begin with. With it off, an assistant cannot see the titles of your open windows or capture anything on the screen; it can still make projects, write the pages and make the exports. With it on, it captures one window at a time.</span></p>
+      <p><label><input type="checkbox" id="mcp-full" aria-describedby="mcp-full-help"> Also let it capture a whole screen, not only one window</label><br><span class="help" id="mcp-full-help">Off to begin with, and only used when capturing windows is allowed. With it off, a click capture keeps only the clicks inside the window it was told to watch, so a mail window or a password manager on the same screen never gets into a project. A small window with a Stop button is always showing while a click capture runs.</span></p>
       <p id="mcp-error" role="alert" class="error"></p>
       <h3>Connecting an assistant</h3>
-      <p class="help">Give the assistant these lines once. For Claude Desktop, add this to its settings file (claude_desktop_config.json):</p>
-      <p><textarea id="mcp-desktop" rows="7" cols="60" readonly aria-label="Settings for Claude Desktop"></textarea><br><button type="button" id="mcp-copy-desktop">Copy these settings</button></p>
-      <p class="help">For Claude Code, run this once:</p>
-      <p><textarea id="mcp-code" rows="2" cols="60" readonly aria-label="Command for Claude Code"></textarea><br><button type="button" id="mcp-copy-code">Copy this command</button></p>
+      <p class="help">Give the assistant these lines once. For an assistant that reads its MCP servers from a settings file, add this to that file:</p>
+      <p><textarea id="mcp-desktop" rows="7" cols="60" readonly aria-label="Settings for an assistant's settings file"></textarea><br><button type="button" id="mcp-copy-desktop">Copy these settings</button></p>
+      <p class="help">For an assistant that asks for the command that starts a server, give it this:</p>
+      <p><textarea id="mcp-code" rows="2" cols="60" readonly aria-label="The command that starts OpenExplainer for an assistant"></textarea><br><button type="button" id="mcp-copy-code">Copy this command</button></p>
       <p id="mcp-status" class="visually-hidden" role="status"></p>
       <p><button value="ok" id="mcp-save">Save</button> <button value="cancel" formnovalidate>Cancel</button></p>
     </form>`;
@@ -39,6 +41,7 @@ export async function mcpDialog(): Promise<McpAccess | null> {
   const say = (words: string) => { $("mcp-status").textContent = ""; setTimeout(() => ($("mcp-status").textContent = words), 30); };
   $<HTMLInputElement>("mcp-enabled").checked = current.enabled;
   $<HTMLInputElement>("mcp-folder").value = current.folder;
+  $<HTMLInputElement>("mcp-windows").checked = current.allowWindows === true;
   $<HTMLInputElement>("mcp-full").checked = current.allowFullScreen;
   $<HTMLTextAreaElement>("mcp-desktop").value = lines.desktop;
   $<HTMLTextAreaElement>("mcp-code").value = lines.code;
@@ -69,7 +72,7 @@ export async function mcpDialog(): Promise<McpAccess | null> {
   dialog.querySelector<HTMLFormElement>("form")!.addEventListener("submit", async (event) => {
     event.preventDefault();
     if ((event.submitter as HTMLButtonElement | null)?.value === "cancel") return dialog.close("cancel");
-    const next: McpAccess = { enabled: $<HTMLInputElement>("mcp-enabled").checked, folder: $<HTMLInputElement>("mcp-folder").value.trim(), allowFullScreen: $<HTMLInputElement>("mcp-full").checked };
+    const next: McpAccess = { enabled: $<HTMLInputElement>("mcp-enabled").checked, folder: $<HTMLInputElement>("mcp-folder").value.trim(), allowWindows: $<HTMLInputElement>("mcp-windows").checked, allowFullScreen: $<HTMLInputElement>("mcp-full").checked };
     if (next.enabled && !next.folder) {
       $("mcp-error").textContent = "Choose the folder an assistant may use before turning MCP on. It can only open and save projects inside it.";
       $("mcp-folder").focus();

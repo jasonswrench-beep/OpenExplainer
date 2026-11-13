@@ -1,5 +1,6 @@
 // Where an assistant may open and save things: only inside the folder the author named in the MCP settings. These rules are about names only (they never touch the disk), so they are tried on
-// their own. Windows paths are not case sensitive, so they are compared without regard to capitals, and `/` and `\` mean the same.
+// their own. Windows paths are not case sensitive, so they are compared without regard to capitals, and `/` and `\` mean the same. Before a file is touched, src/mcp/main.ts also
+// follows the path through links and junctions (the shell's mcp_real_path) and checks where it really leads with `isInside` again.
 
 /** A path with one kind of slash, no repeated or trailing slashes. */
 export function normalizePath(path: string): string {

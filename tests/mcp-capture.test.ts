@@ -31,12 +31,12 @@ test("which clicks are in a window, and where the window is in each picture", ()
   assert.equal(gone.target?.role, "pane");
 });
 
-function setup(options: { full?: boolean } = {}) {
+function setup(options: { full?: boolean; windows?: boolean } = {}) {
   const store = new Map<string, Uint8Array>();
   const files: McpFiles = {
     read: async (p) => store.get(p.toLowerCase())!, write: async (p, b) => { store.set(p.toLowerCase(), b); }, exists: async (p) => store.has(p.toLowerCase()), list: async () => [], makeFolder: async () => {}, append: async () => {},
   };
-  const session = new Session({ enabled: true, folder: FOLDER, allowFullScreen: options.full === true }, files);
+  const session = new Session({ enabled: true, folder: FOLDER, allowWindows: options.windows !== false, allowFullScreen: options.full === true }, files);
   const project = createProject("Capture test");
   const topic = addNode(project.tree, null, "Saving");
   session.project = project;
@@ -73,7 +73,8 @@ test("capture_window finds exactly one window by a part of its title, keeps the 
   assert.equal(done.images, 1, "a picture comes back for the assistant to see");
   assert.match(done.text, /Captured "Calculator" into "Saving" as picture \w+ \(300 by 400\)\./);
   assert.equal(topic.pictures.length, 1);
-  assert.deepEqual([topic.pictures[0].source.kind, topic.pictures[0].source.originalName, topic.pictures[0].altText], ["window", "Calculator", "The calculator."]);
+  // Kept under a plain name, never the window's title (security review, 2026-11-13); the assistant is still told which window it captured.
+  assert.deepEqual([topic.pictures[0].source.kind, topic.pictures[0].source.originalName, topic.pictures[0].altText], ["window", "Window capture 1", "The calculator."]);
   assert.ok(session.assets.has(topic.pictures[0].file), "the picture's file is in the project");
   assert.ok(done.text.includes("Saved to"), "and it is saved at once");
   assert.equal(log[0], "capture Calculator front=false");
@@ -160,4 +161,21 @@ test("a topic's picture can be looked at and removed", async () => {
   assert.equal(topic.pictures.length, 0);
   assert.equal(session.assets.has(file), false);
   assert.match((await call("remove_picture", { topic_id: topic.id, picture_id: id })).text, /has no picture/);
+});
+
+test("with capturing not allowed, an assistant sees no window titles and captures nothing, and is told how the author can allow it", async () => {
+  const { call, topic, log } = setup({ windows: false, full: true });
+  for (const [name, args] of [
+    ["list_windows", {}],
+    ["capture_window", { topic_id: topic.id, window_title: "calc" }],
+    ["capture_region", { topic_id: topic.id, x: 0, y: 0, width: 100, height: 100 }],
+    ["start_click_capture", { topic_id: topic.id, window_title: "notepad - notes" }],
+  ] as const) {
+    const answer = await call(name, args);
+    assert.equal(answer.isError, true, name);
+    assert.match(answer.text, /^Capturing is turned off: an assistant may not see or capture the windows on this PC\..*Let an assistant capture windows/, name);
+    assert.ok(!answer.text.includes("Notepad") && !answer.text.includes("Calculator"), `${name} names no window`);
+  }
+  assert.equal(topic.pictures.length, 0);
+  assert.deepEqual(log, [], "the capture helper was never asked for anything");
 });

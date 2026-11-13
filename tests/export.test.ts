@@ -120,13 +120,14 @@ test("a JSON export holds the structure, the text of every page, the callouts an
 
 test("an export is read back into the same project, and the picture files come with it", async () => {
   const { project, assets } = book();
-  const { bytes, missing } = packJsonExport(project, assets, { comments: true });
+  // Everything asked for, so the book comes back the same in every way (capture details are left out of an export unless asked for: tests/picture-check.test.ts).
+  const { bytes, missing } = packJsonExport(project, assets, { comments: true, captureDetails: true });
   assert.deepEqual(missing, ["images/p4.png"]);
   const back = await unpackJsonExport(bytes);
   assert.deepEqual(back.project, project, "the same book, comments included when they were exported");
   assert.deepEqual([...back.assets.keys()].sort(), ["images/p1.png", "images/p2.png", "images/p3.png"]);
   assert.deepEqual(back.missing, ["images/p4.png"], "a picture whose file was not in the export is reported");
-  const without = (await unpackJsonExport(packJsonExport(project, assets).bytes)).project;
+  const without = (await unpackJsonExport(packJsonExport(project, assets, { captureDetails: true }).bytes)).project;
   assert.equal(without.tree[0].children[0].page!.comments, undefined);
   assert.deepEqual({ ...without, tree: [] }, { ...project, tree: [] });
 });

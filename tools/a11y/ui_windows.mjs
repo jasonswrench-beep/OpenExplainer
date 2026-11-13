@@ -16,7 +16,7 @@ const profile = path.join(dir, "profile");
 fs.rmSync(dir, { recursive: true, force: true });
 fs.mkdirSync(profile, { recursive: true });
 const file = path.join(dir, "Guide copy.openexplainer");
-fs.copyFileSync(process.env.OE_PROJECT ?? "C:\\Users\\Jason\\Documents\\OpenStage Author Manual\\OpenStage Author User Guide.openexplainer", file);
+fs.copyFileSync(process.env.OE_PROJECT ?? (() => { throw new Error("Set OE_PROJECT to the project to copy (it needs a topic 2.2 with a picture); see tools/a11y/README.md."); })(), file);
 endProfileProcesses(profile);
 const child = spawn(EXE, [file], { env: { ...process.env, WEBVIEW2_USER_DATA_FOLDER: profile, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${PORT} --force-renderer-accessibility` }, stdio: "ignore" });
 const target = await waitFor(async () => { try { return (await (await fetch(`http://127.0.0.1:${PORT}/json`)).json()).find((x) => x.type === "page" && /tauri\.localhost/.test(x.url) && !/click-bar|capture-bar|selection/.test(x.url)); } catch { return null; } }, 40000, 300);

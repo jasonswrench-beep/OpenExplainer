@@ -63,7 +63,7 @@ downloads the first time the author turns the built-in model on; drafts and writ
 
 ### What part 3 is
 
-- **The program**: llama.cpp's `llama-server`, build b11803 (MIT), pinned in `tools/ai-runtime.json` with the SHA-256 of both zips (they matched GitHub's published fingerprints). `Get AI Runtime.bat` (`tools/get-ai-runtime.mjs`) downloads the zip for this
+- **The program**: llama.cpp's `llama-server`, build b11803 (MIT; updated on 2026-11-13 to b12359, see 5.2), pinned in `tools/ai-runtime.json` with the SHA-256 of both zips (they matched GitHub's published fingerprints). `Get AI Runtime.bat` (`tools/get-ai-runtime.mjs`) downloads the zip for this
   PC's kind of processor (or `x64` / `arm64` on the command line), checks the size and fingerprint, keeps only what the server needs (23 files, 45 MB unpacked for x64; the zip also holds benchmarking, quantizing and speech tools that are left out),
   adds the licence texts (also pinned), and puts them in `src-tauri/runtime/llama`. That folder is not in git (a note, `README.txt`, keeps it there) and is listed in `bundle.resources` of `src-tauri/tauri.conf.json`, so the installer carries it as a `llama` folder;
   a build copies it beside the program (checked: `target/release/llama` has all of it). The ARM64 zip was downloaded and its contents read, but nothing of it can be run on this PC.
@@ -371,7 +371,7 @@ window by keyboard for each new entry, and once for each job with the real model
 ## 1. What the author will see
 
 - A toolbar button **AI help**. It opens a dialog with three choices: **No AI** (the starting choice), **Built-in model on this
-  PC**, and **My own key** (ChatGPT, Claude or Gemini; built last).
+  PC**, and **My own key** (for a hosted AI service; built last).
 - Under "Built-in model" the dialog says in words what is needed and where it comes from: the name, the size (about 2.7 GB),
   the web address it comes from, the licence (Apache 2.0) with a button that shows the licence text, and how much free disk
   space and memory the PC has. It then offers **Download**. While it downloads there is a progress bar with the numbers in
@@ -462,6 +462,7 @@ three 3 GB files to compare. If the first real test reads badly, swapping is a o
 | Builds | Prebuilt Windows zips exist for both our targets: `llama-bNNNNN-bin-win-cpu-x64.zip` (about 24 MB) and `llama-bNNNNN-bin-win-cpu-arm64.zip` (about 12.7 MB). Today's newest build is `b11803`. Graphics-card builds (Vulkan, CUDA) also exist and are left for later. |
 | The zip, read in part 3 | Build `b11803`: the x64 zip holds 52 files (62 MB unpacked), the ARM64 zip 38 (28 MB). Both fingerprints matched what GitHub publishes and are pinned in `tools/ai-runtime.json`. Nothing in them is signed. The only licence file inside is the LLVM OpenMP one (Apache 2.0 with LLVM exceptions); the llama.cpp MIT licence and nlohmann/json's are fetched from the repository at the same build and shipped beside the program. The server needs 23 of the files (45 MB); the rest are benchmark, quantizing, speech and command-line tools. `NOTICE` lists all of it. |
 | Versions | llama.cpp publishes a new build many times a day and marks them all "pre-release". One tested build is pinned (`b11803`), not the newest. |
+| Update, 2026-11-13 | The pin moved to `b12359`, the build behind llama.cpp's first numbered release (v1.0.0, which carries no files of its own), after the security review of that day: its server fixes include SSRF in the CORS proxy and media addresses, `--cors-origins`, and DNS rebinding. The x64 zip now holds 52 files and the ARM64 zip 38; the files the server needs have the same names, so the list of what is kept did not change, and the two licence texts are the same, byte for byte. Both fingerprints matched what GitHub publishes. The server now gets its password from the LLAMA_API_KEY environment variable instead of its command line. |
 
 ### 5.3 Result
 
@@ -497,7 +498,7 @@ speed on a modest PC is untried.
    `docs/format-spec.md` come in the same commit.
 5. **Draft a procedure from a click capture.**
 6. **Chapter openers and summaries, suggested boxes, the consistency pass**, if the first two read well.
-7. **My own key**: ChatGPT, Claude, Gemini, with Windows key storage and the "this is what will be sent" box.
+7. **My own key** for a hosted AI service, with Windows key storage and the "this is what will be sent" box.
 8. **The MCP draft tool**, so an assistant can ask for a draft; it hands back the structured details when no model is set up.
 
 Parts 1 to 3 give a working "Test the AI". Parts 4 and 5 are where it starts to be useful.

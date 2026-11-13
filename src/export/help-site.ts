@@ -11,6 +11,13 @@ import { bookMarkdown, escapeInline, topicPageMarkdown } from "./markdown.ts";
 import { flatFiles, type FlatPicture } from "./pictures.ts";
 import { siteCss, SITE_JS } from "./site-assets.ts";
 
+/**
+ * The help site's own content security policy, on every page (security review, 2026-11-13): its scripts come only from its own files (no script written into a page
+ * runs, and no event handler in its markup), pictures only from its own files, and nothing is loaded from anywhere else. Inline styles stay allowed, because
+ * the pages give each picture its size with a style attribute.
+ */
+export const HELP_SITE_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'";
+
 const encoder = new TextEncoder();
 
 /** A short, plain name for a file from a title: lower case letters and digits joined by hyphens. */
@@ -104,6 +111,7 @@ export function buildHelpSiteText(project: Project, flat: Map<string, FlatPictur
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="${HELP_SITE_CSP}">
 <title>${esc(title)}</title>
 <link rel="stylesheet" href="assets/site.css">
 ${markdown ? `<link rel="alternate" type="text/markdown" href="${esc(markdown)}">\n` : ""}</head>

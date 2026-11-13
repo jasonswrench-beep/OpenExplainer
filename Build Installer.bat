@@ -15,14 +15,12 @@ if not exist "src-tauri\runtime\llama\llama-server.exe" (
   if not exist "src-tauri\runtime\llama\llama-server.exe" (echo The AI program is still missing, so the installer cannot be built. & goto :end)
 )
 echo.
-echo Step 1 of 2: building the capture helper.
-cargo build --release --manifest-path capture-helper\Cargo.toml || (echo. & echo THE CAPTURE HELPER DID NOT BUILD. Copy the red text above and send it to Claude. & goto :end)
+rem The same script a release uses (without signing): it builds the capture helper and the program without this PC's folder names in them,
+rem checks that, and that the installer carries the web view's setup, and writes the setup and its SHA-256 (docs/code-signing.md).
+node tools\build-installer.mjs || (echo. & echo THE BUILD FAILED. Copy the red text above and send it to whoever is helping you with OpenExplainer. & goto :end)
 echo.
-echo Step 2 of 2: building the program and the installer.
-call npm.cmd run tauri -- build || (echo. & echo THE BUILD FAILED. Copy the red text above and send it to Claude. & goto :end)
-echo.
-echo Done. The installer is in src-tauri\target\release\bundle\nsis (OpenExplainer_..._x64-setup.exe).
-start "" "src-tauri\target\release\bundle\nsis"
+echo Done. The installer is in src-tauri\target\release-files (OpenExplainer-...-Setup.exe), with its SHA-256 beside it. It is not signed.
+start "" "src-tauri\target\release-files"
 :end
 echo.
 pause

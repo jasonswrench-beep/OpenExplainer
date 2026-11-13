@@ -1,7 +1,9 @@
 //! The program that runs the built-in AI model (see `docs/local-ai-plan.md`): llama.cpp's `llama-server`, started by OpenExplainer on this PC only and stopped again.
 //!
 //! It is started when a draft is asked for (or the Test the AI button is pressed), listens on `127.0.0.1` (this PC, not the network) on a free port, and wants a password made fresh for each run
-//! that only OpenExplainer knows, so no other program can use it. Its own web page and slot list are switched off. It dies with OpenExplainer: it is put in a Windows "job" that ends every
+//! that only OpenExplainer knows, so no other program can use it. The password is given to it in its environment (LLAMA_API_KEY), not on its command line, which other programs can
+//! read; and before the port is used, Windows is asked which program listens on it, so a program that took the port first is never sent the book's text (security review,
+//! 2026-11-13). Its own web page and slot list are switched off. It dies with OpenExplainer: it is put in a Windows "job" that ends every
 //! program in it when the last handle to the job closes, which happens however OpenExplainer ends, even if it is killed. The TypeScript (`src/ai/runtime.ts`) decides when to start and stop; this
 //! file only does what needs the shell: find the program, start it hidden, wait until it answers, stop it.
 //!
@@ -71,8 +73,9 @@ fn free_port() -> Result<u16, String> {
     listener.local_addr().map(|a| a.port()).map_err(|e| format!("A free port on this PC could not be found: {e}"))
 }
 
-/// The options the program is started with. Kept as a plain list so it can be tested: this PC only, a password, no web page, no slot list, no thinking, one request at a time.
-fn arguments(model: &Path, port: u16, api_key: &str, context: u32, threads: u32) -> Vec<String> {
+/// The options the program is started with. Kept as a plain list so it can be tested: this PC only, no web page, no slot list, no thinking, one request at a time. The password is not
+/// among them: it goes in the environment (`environment`).
+fn arguments(model: &Path, port: u16, context: u32, threads: u32) -> Vec<String> {
     let context = context.clamp(1024, 32768);
     let threads = threads.clamp(1, 64);
     [
@@ -82,8 +85,6 @@ fn arguments(model: &Path, port: u16, api_key: &str, context: u32, threads: u32)
         "127.0.0.1",
         "--port",
         &port.to_string(),
-        "--api-key",
-        api_key,
         "--ctx-size",
         &context.to_string(),
         "--threads",
@@ -105,6 +106,79 @@ fn arguments(model: &Path, port: u16, api_key: &str, context: u32, threads: u32)
     .iter()
     .map(|s| s.to_string())
     .collect()
+}
+
+/// What the program is given in its environment: the password for this run, which llama-server reads from LLAMA_API_KEY as it would from --api-key.
+fn environment(api_key: &str) -> Vec<(&'static str, String)> {
+    vec![("LLAMA_API_KEY", api_key.to_string())]
+}
+
+/// The programs listening on `port` on this PC (on 127.0.0.1, or on every address), by process number, from Windows' own table of connections.
+#[cfg(windows)]
+fn listeners(port: u16) -> Vec<u32> {
+    use std::ffi::c_void;
+    use windows::Win32::NetworkManagement::IpHelper::{GetExtendedTcpTable, MIB_TCPROW_OWNER_PID, MIB_TCPTABLE_OWNER_PID, TCP_TABLE_OWNER_PID_LISTENER};
+    const AF_INET: u32 = 2;
+    let loopback = u32::from_ne_bytes([127, 0, 0, 1]);
+    unsafe {
+        let mut size = 0u32;
+        let _ = GetExtendedTcpTable(None, &mut size, false, AF_INET, TCP_TABLE_OWNER_PID_LISTENER, 0);
+        // Room for a few more rows in case some appear between the two calls; u32s, so the table is aligned.
+        let mut buffer = vec![0u32; (size as usize + 4096) / 4 + 1];
+        let mut size = (buffer.len() * 4) as u32;
+        if GetExtendedTcpTable(Some(buffer.as_mut_ptr() as *mut c_void), &mut size, false, AF_INET, TCP_TABLE_OWNER_PID_LISTENER, 0) != 0 {
+            return Vec::new();
+        }
+        let table = &*(buffer.as_ptr() as *const MIB_TCPTABLE_OWNER_PID);
+        let rows: &[MIB_TCPROW_OWNER_PID] = std::slice::from_raw_parts(table.table.as_ptr(), table.dwNumEntries as usize);
+        rows.iter()
+            .filter(|r| u16::from_be(r.dwLocalPort as u16) == port && (r.dwLocalAddr == loopback || r.dwLocalAddr == 0))
+            .map(|r| r.dwOwningPid)
+            .collect()
+    }
+}
+
+#[cfg(not(windows))]
+fn listeners(_port: u16) -> Vec<u32> {
+    Vec::new()
+}
+
+/// The process that started process `pid`, from Windows' list of processes (which needs no right to open either of them), or None.
+#[cfg(windows)]
+fn parent_of(pid: u32) -> Option<u32> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS};
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).ok()?;
+        let mut entry = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+        let mut found = None;
+        let mut more = Process32FirstW(snapshot, &mut entry).is_ok();
+        while more {
+            if entry.th32ProcessID == pid {
+                found = Some(entry.th32ParentProcessID);
+                break;
+            }
+            more = Process32NextW(snapshot, &mut entry).is_ok();
+        }
+        let _ = CloseHandle(snapshot);
+        found
+    }
+}
+
+#[cfg(not(windows))]
+fn parent_of(_pid: u32) -> Option<u32> {
+    None
+}
+
+/// Is every program listening on `port` the one with process number `pid`, or one that it started itself? (llama-server's launcher may hand the
+/// work to a server it starts.) While `pid` is running its number cannot be given to another process, so this cannot be fooled by a reused number.
+/// On a system where this cannot be asked, it is taken as yes.
+fn only_listener(port: u16, pid: u32) -> bool {
+    if cfg!(not(windows)) {
+        return true;
+    }
+    let found = listeners(port);
+    !found.is_empty() && found.iter().all(|&p| p == pid || parent_of(p) == Some(pid))
 }
 
 /// Does the program answer on `port` with "ok"? (`/health` needs no password.) A plain request over a socket, so no extra library is needed.
@@ -187,26 +261,36 @@ pub async fn ai_runtime_start(app: AppHandle, state: State<'_, RuntimeState>, fi
         }
     }
     let log_path = data_folder(&app)?.join("llama-server.log");
-    let log = File::create(&log_path).map_err(|e| format!("The model program's log could not be made: {e}"))?;
-    let log_again = log.try_clone().map_err(|e| format!("The model program's log could not be made: {e}"))?;
-    let port = free_port()?;
-    let mut command = Command::new(program.join("llama-server.exe"));
-    command.args(arguments(&model, port, &api_key, context, threads)).current_dir(&program).stdin(Stdio::null()).stdout(Stdio::from(log)).stderr(Stdio::from(log_again));
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: nothing appears on screen.
+    // A port is free when it is chosen and taken by the program a moment later, so another program could take it in between. Windows is asked who listens on it once the
+    // program answers; if it is not the program just started, that one is stopped and a fresh port is tried.
+    for _try in 0..3 {
+        let log = File::create(&log_path).map_err(|e| format!("The model program's log could not be made: {e}"))?;
+        let log_again = log.try_clone().map_err(|e| format!("The model program's log could not be made: {e}"))?;
+        let port = free_port()?;
+        let mut command = Command::new(program.join("llama-server.exe"));
+        command.args(arguments(&model, port, context, threads)).envs(environment(&api_key)).current_dir(&program).stdin(Stdio::null()).stdout(Stdio::from(log)).stderr(Stdio::from(log_again));
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: nothing appears on screen.
+        }
+        let child = command.spawn().map_err(|e| format!("The model's program could not be started: {e}"))?;
+        let pid = child.id();
+        tie_to_this_program(&child);
+        {
+            let mut guard = state.inner.lock().map_err(|_| "The model's program could not be checked.".to_string())?;
+            *guard = Some(Running { child, port, api_key: api_key.clone(), file: file.clone() });
+        }
+        // Wait for it to load the model and answer. The state is looked at each time round, so a stop from elsewhere ends the wait at once.
+        let waiter = app.clone();
+        let waited_log = log_path.clone();
+        tauri::async_runtime::spawn_blocking(move || wait_until_ready(&waiter, port, &waited_log)).await.map_err(|e| format!("The wait for the model's program stopped unexpectedly: {e}"))??;
+        if only_listener(port, pid) {
+            return Ok(json!({ "port": port, "apiKey": api_key }));
+        }
+        stop_all(&app);
     }
-    let child = command.spawn().map_err(|e| format!("The model's program could not be started: {e}"))?;
-    tie_to_this_program(&child);
-    {
-        let mut guard = state.inner.lock().map_err(|_| "The model's program could not be checked.".to_string())?;
-        *guard = Some(Running { child, port, api_key: api_key.clone(), file: file.clone() });
-    }
-    // Wait for it to load the model and answer. The state is looked at each time round, so a stop from elsewhere ends the wait at once.
-    let waiter = app.clone();
-    tauri::async_runtime::spawn_blocking(move || wait_until_ready(&waiter, port, &log_path)).await.map_err(|e| format!("The wait for the model's program stopped unexpectedly: {e}"))??;
-    Ok(json!({ "port": port, "apiKey": api_key }))
+    Err("Another program kept answering on the port chosen for the model, so the model was not used. Close other programs and try again.".into())
 }
 
 /// Waits until the program on `port` answers, it stops, or it has been too long.
@@ -263,11 +347,12 @@ mod tests {
 
     #[test]
     fn the_options_keep_it_on_this_pc_behind_a_password_with_nothing_extra_switched_on() {
-        let args = arguments(Path::new("C:\\m\\model.gguf"), 18080, "abcdefghijklmnop1234", 8192, 4);
+        let args = arguments(Path::new("C:\\m\\model.gguf"), 18080, 8192, 4);
         let value_after = |flag: &str| args.iter().position(|a| a == flag).map(|i| args[i + 1].clone());
         assert_eq!(value_after("--host").as_deref(), Some("127.0.0.1"), "this PC only");
         assert_eq!(value_after("--port").as_deref(), Some("18080"));
-        assert_eq!(value_after("--api-key").as_deref(), Some("abcdefghijklmnop1234"));
+        assert!(!args.iter().any(|a| a == "--api-key"), "the password is never on the command line, which other programs can read");
+        assert_eq!(environment("abcdefghijklmnop1234"), vec![("LLAMA_API_KEY", "abcdefghijklmnop1234".to_string())], "it goes in the environment");
         assert_eq!(value_after("--model").as_deref(), Some("C:\\m\\model.gguf"));
         assert_eq!(value_after("--parallel").as_deref(), Some("1"));
         assert_eq!(value_after("--reasoning").as_deref(), Some("off"));
@@ -275,11 +360,11 @@ mod tests {
         assert!(!args.iter().any(|a| a == "0.0.0.0" || a == "::"), "never the network");
         // The numbers are kept sensible whatever is asked.
         assert_eq!(value_after("--ctx-size").as_deref(), Some("8192"));
-        let wild = arguments(Path::new("m"), 1, "abcdefghijklmnop1234", 99, 0);
+        let wild = arguments(Path::new("m"), 1, 99, 0);
         let wild_after = |flag: &str| wild.iter().position(|a| a == flag).map(|i| wild[i + 1].clone());
         assert_eq!(wild_after("--ctx-size").as_deref(), Some("1024"));
         assert_eq!(wild_after("--threads").as_deref(), Some("1"));
-        let big = arguments(Path::new("m"), 1, "abcdefghijklmnop1234", 10_000_000, 1000);
+        let big = arguments(Path::new("m"), 1, 10_000_000, 1000);
         let big_after = |flag: &str| big.iter().position(|a| a == flag).map(|i| big[i + 1].clone());
         assert_eq!(big_after("--ctx-size").as_deref(), Some("32768"));
         assert_eq!(big_after("--threads").as_deref(), Some("64"));
@@ -311,6 +396,19 @@ mod tests {
         assert!(!answers(port), "a 503 is not ready");
         assert!(answers(port), "a 200 is");
         server.join().unwrap();
+    }
+
+    #[test]
+    fn windows_says_which_program_listens_on_a_port() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(only_listener(port, std::process::id()), "this test listens on it, and no one else");
+        assert!(!only_listener(port, std::process::id() + 1), "another process number is not the listener");
+        // The program that started this test is this test's parent: a listener started by the program OpenExplainer started counts as its own.
+        let parent = parent_of(std::process::id()).expect("this test has a parent process");
+        assert!(only_listener(port, parent), "a listener the started program started itself");
+        drop(listener);
+        assert!(!only_listener(port, std::process::id()), "nobody listens on it any more");
     }
 
     #[test]

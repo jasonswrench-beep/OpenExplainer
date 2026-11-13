@@ -18,21 +18,26 @@ import { createTools, INSTRUCTIONS } from "./tools.ts";
 
 const VERSION = "0.2.0";
 
-const settings: McpSettings = { enabled: false, folder: "", allowFullScreen: false };
+const settings: McpSettings = { enabled: false, folder: "", allowWindows: false, allowFullScreen: false };
 
-/** Real files, and every path is checked to be inside the chosen folder first, whatever asked for it. */
-function guard(path: string): string {
+/**
+ * Real files, and every path is checked to be inside the chosen folder first, whatever asked for it: by its name (no `..`), and then by where it really leads,
+ * with links and junctions followed by the shell (mcp_real_path), so a junction inside the folder is not a way out of it (security review, 2026-11-13).
+ */
+async function guard(path: string): Promise<string> {
   if (!isInside(path, settings.folder)) throw new Error(`That path is outside the folder MCP may use (${settings.folder}).`);
+  const [real, folder] = await Promise.all([invoke<string>("mcp_real_path", { path }), invoke<string>("mcp_real_path", { path: settings.folder })]);
+  if (!isInside(real, folder)) throw new Error(`That path leads outside the folder MCP may use (${settings.folder}), through a link or a junction.`);
   return path;
 }
 
 const files: McpFiles = {
-  read: (path) => readFile(guard(path)),
-  write: (path, bytes) => writeFile(guard(path), bytes),
-  exists: (path) => exists(guard(path)),
-  list: async (folder) => (await readDir(guard(folder))).map((e) => ({ name: e.name, isDirectory: e.isDirectory })),
-  makeFolder: (path) => mkdir(guard(path), { recursive: true }),
-  append: (path, words) => writeFile(guard(path), new TextEncoder().encode(words), { append: true }),
+  read: async (path) => readFile(await guard(path)),
+  write: async (path, bytes) => writeFile(await guard(path), bytes),
+  exists: async (path) => exists(await guard(path)),
+  list: async (folder) => (await readDir(await guard(folder))).map((e) => ({ name: e.name, isDirectory: e.isDirectory })),
+  makeFolder: async (path) => mkdir(await guard(path), { recursive: true }),
+  append: async (path, words) => writeFile(await guard(path), new TextEncoder().encode(words), { append: true }),
 };
 
 const session = new Session(settings, files);

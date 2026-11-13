@@ -37,7 +37,7 @@ import type { Session } from "./session.ts";
 export interface ToolDeps {
   session: Session;
   /** Makes an export of the open project (src/export/make.ts, with the app's drawing and printing). */
-  exporter(kind: ExportKind, options: { guideId?: string; comments?: boolean; targetId?: string; language?: string }): Promise<MadeExport>;
+  exporter(kind: ExportKind, options: { guideId?: string; comments?: boolean; captureDetails?: boolean; targetId?: string; language?: string }): Promise<MadeExport>;
 }
 
 type Args = Record<string, unknown>;
@@ -941,6 +941,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         kind: { type: "string", enum: Object.keys(EXPORT_EXTENSION), description: "The kind of export." },
         file: str("The file to make, inside the MCP folder. Its ending (.zip, .docx, .epub, .xlf or .pdf) is added if left off."), guide_id: str("For a guide kind: which guide."),
         include_comments: { type: "boolean", description: "For json: include the working comments." },
+        include_capture_details: { type: "boolean", description: "For json: include when each picture was taken, the name it was captured under, and what was clicked. Off unless asked for." },
         language: str("For xliff: the language to translate into, such as fr or pt-BR."),
         target: str("For every kind but json: the name of a target (set_targets) to make it for. Content with a condition that target hides is left out. Without it nothing is left out."),
       }, ["kind", "file"]),
@@ -956,7 +957,7 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         const project = session.require();
         const target = targetName ? project.targets.find((t) => t.name.toLowerCase() === targetName.trim().toLowerCase()) : undefined;
         if (targetName && !target) throw new Error(`There is no target called "${targetName}" (${project.targets.map((t) => t.name).join(", ") || "none have been made; set_targets makes them"}).`);
-        const made = await deps.exporter(kind, { guideId: optionalString(args, "guide_id"), ...(optionalString(args, "language") ? { language: optionalString(args, "language") } : {}), comments: args.include_comments === true, ...(target ? { targetId: target.id } : {}) });
+        const made = await deps.exporter(kind, { guideId: optionalString(args, "guide_id"), ...(optionalString(args, "language") ? { language: optionalString(args, "language") } : {}), comments: args.include_comments === true, captureDetails: args.include_capture_details === true, ...(target ? { targetId: target.id } : {}) });
         await session.files.makeFolder(folderOf(path));
         await session.files.write(path, made.bytes);
         return text(`Made the ${kind} export: ${path} (${made.bytes.length} bytes, ${baseName(path)}).${made.notes.length ? `\nNot everything could be included:\n${made.notes.join("\n")}` : ""}`);

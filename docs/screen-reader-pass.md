@@ -132,4 +132,4 @@ Please do not mark anything OK that you were not sure about. A line marked UNSUR
 
 ## What this guide cannot tell you
 
-It tests NVDA with Edge, a desktop PDF reader, Word and one reading app. Other screen readers (JAWS, Narrator, VoiceOver) and other browsers may differ; a person who uses one of those every day is the best judge. The pass does not test voice control, magnification, or a switch.
+It tests NVDA with Edge, a desktop PDF reader, Word and one reading app. Other screen readers (a paid Windows screen reader, Narrator, the Mac's screen reader) and other browsers may differ; a person who uses one of those every day is the best judge. The pass does not test voice control, magnification, or a switch.

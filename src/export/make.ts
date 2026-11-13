@@ -33,6 +33,8 @@ export interface MakeOptions {
   guideId?: string;
   /** For the JSON export: put the working comments in, too. */
   comments?: boolean;
+  /** For the JSON export: put each picture's capture details in, too (when it was taken, the name it was captured under, and what was clicked). */
+  captureDetails?: boolean;
   /** Draws a picture with its marks into a PNG (src/render/flatten.ts). */
   flatten: Flattener;
   /** When it was made, for the JSON export. */
@@ -60,7 +62,7 @@ export async function makeExport(whole: Project, assets: Assets, kind: ExportKin
   const notes: string[] = [];
   const extension = EXPORT_EXTENSION[kind];
   if (kind === "json") {
-    const made = packJsonExport(project, assets, { comments: options.comments === true, now: options.now });
+    const made = packJsonExport(project, assets, { comments: options.comments === true, captureDetails: options.captureDetails === true, now: options.now });
     notes.push(...made.missing.map((file) => `The picture file ${file} is missing from the project, so it is not in the export.`));
     return { bytes: made.bytes, extension, notes };
   }

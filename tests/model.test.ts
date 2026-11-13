@@ -77,6 +77,9 @@ import { join } from "node:path";
 import { fileNameFor, packProject, unpackProject } from "../src/project/package.ts";
 import { unzip } from "../src/project/zip.ts";
 
+/** Python, which the zip checks below use as "another program": on Windows it is python, elsewhere python3. */
+const PYTHON = process.platform === "win32" ? "python" : "python3";
+
 test("a project packs into one file and unpacks to the same project", async () => {
   const { p } = sample();
   assert.deepEqual((await unpackProject(packProject(p))).project, p);
@@ -87,7 +90,7 @@ test("the packed file is a valid zip that other programs accept", () => {
   const dir = mkdtempSync(join(tmpdir(), "oe-"));
   const file = join(dir, "t.openexplainer");
   writeFileSync(file, packProject(p));
-  const out = execFileSync("python3", ["-c", "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1]);print(z.testzip());print(sorted(z.namelist()))", file]).toString();
+  const out = execFileSync(PYTHON, ["-c", "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1]);print(z.testzip());print(sorted(z.namelist()))", file]).toString();
   assert.match(out, /None/);
   assert.match(out, /project\.json/);
 });
@@ -95,7 +98,7 @@ test("the packed file is a valid zip that other programs accept", () => {
 test("compressed zips from other programs can be read", async () => {
   const dir = mkdtempSync(join(tmpdir(), "oe-"));
   const file = join(dir, "c.zip");
-  execFileSync("python3", ["-c", "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED);z.writestr('a.txt','hello '*500)", file]);
+  execFileSync(PYTHON, ["-c", "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED);z.writestr('a.txt','hello '*500)", file]);
   const { readFileSync } = await import("node:fs");
   const files = await unzip(new Uint8Array(readFileSync(file)));
   assert.equal(new TextDecoder().decode(files["a.txt"]), "hello ".repeat(500));

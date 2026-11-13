@@ -34,5 +34,5 @@ test("the lines to give an assistant are valid, and a path with spaces and backs
   const exe = "C:\\Program Files\\OpenExplainer\\openexplainer.exe";
   const lines = connectionLines(exe);
   assert.deepEqual(JSON.parse(lines.desktop), { mcpServers: { openexplainer: { command: exe, args: ["--mcp"] } } });
-  assert.equal(lines.code, 'claude mcp add openexplainer -- "C:\\\\Program Files\\\\OpenExplainer\\\\openexplainer.exe" --mcp');
+  assert.equal(lines.code, '"C:\\\\Program Files\\\\OpenExplainer\\\\openexplainer.exe" --mcp', "the command line itself, for any assistant that asks for one");
 });

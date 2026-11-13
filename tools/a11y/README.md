@@ -1,6 +1,6 @@
 # Accessibility checks
 
-Scripts that check, without a person, what a screen reader and a keyboard user meet in OpenExplainer and in the things it makes. They are for whoever works on the program (they are run by Claude Code, not by hand), and they find faults; they cannot tell how anything sounds. The results and what they do not cover are in `docs/screen-reader-machine-checks.md`. The part that needs a person and NVDA is `docs/screen-reader-pass.md`.
+Scripts that check, without a person, what a screen reader and a keyboard user meet in OpenExplainer and in the things it makes. They are for whoever works on the program (they are run by the AI assistant, not by hand), and they find faults; they cannot tell how anything sounds. The results and what they do not cover are in `docs/screen-reader-machine-checks.md`. The part that needs a person and NVDA is `docs/screen-reader-pass.md`.
 
 They need a built program (`npm run tauri -- build --no-bundle`, then `src-tauri\target\release\openexplainer.exe`), Node 24, and Microsoft Edge (for the help site and e-book pages). They drive the program's page through its debugging port, on a **copy** of a project, in a browser profile of their own, so they never use the real mouse or keyboard and never touch the author's own files. Results are written to `tools/a11y/out/` (not kept in git).
 
@@ -14,11 +14,12 @@ They need a built program (`npm run tauri -- build --no-bundle`, then `src-tauri
 How to run them (the outputs of the guide are made with the assistant tools; see `docs/mcp.md`):
 
 ```
-set OE_EXE=C:\Users\Jason\OpenExplainer\src-tauri\target\release\openexplainer.exe
+set OE_EXE=<the OpenExplainer folder>\src-tauri\target\release\openexplainer.exe
+set OE_PROJECT=<a project to copy, with a topic 2.2 that has a picture>
 node tools\a11y\a11y_editor.mjs
 node tools\a11y\ui_windows.mjs
 node tools\a11y\a11y_site.mjs <unpacked help site folder> <unpacked e-book OEBPS folder>
 node tools\a11y\pdf_tags.mjs <book.pdf>
 ```
 
-`OE_PROJECT` names the project to copy (it must have a topic 2.2 with a picture; the default is the OpenStage Author guide). `A11Y_OUT` changes where results go.
+`OE_PROJECT` names the project to copy (it must have a topic 2.2 with a picture; the OpenStage Author guide was used); the two scripts stop and say so when it is not set. `A11Y_OUT` changes where results go.

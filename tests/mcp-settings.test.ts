@@ -14,7 +14,7 @@ function setup() {
   const files: McpFiles = {
     read: async (p) => store.get(p.toLowerCase())!, write: async (p, b) => { store.set(p.toLowerCase(), b); }, exists: async (p) => store.has(p.toLowerCase()), list: async () => [], makeFolder: async () => {}, append: async () => {},
   };
-  const session = new Session({ enabled: true, folder: FOLDER, allowFullScreen: false }, files);
+  const session = new Session({ enabled: true, folder: FOLDER, allowWindows: false, allowFullScreen: false }, files);
   const project = createProject("Settings test");
   const chapter = addNode(project.tree, null, "Getting started");
   const saving = addNode(project.tree, chapter.id, "Saving");

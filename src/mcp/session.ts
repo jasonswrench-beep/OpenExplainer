@@ -9,7 +9,9 @@ export interface McpSettings {
   enabled: boolean;
   /** Projects can only be opened and saved inside this folder. */
   folder: string;
-  /** May an assistant capture a whole screen? Off: only one window at a time. */
+  /** May an assistant see the open windows and capture them (one at a time)? Off to begin with: then it captures nothing and lists no window titles. */
+  allowWindows: boolean;
+  /** On top of windows, may an assistant capture a whole screen or a part of one? Off: only one window at a time. Means nothing while allowWindows is off. */
   allowFullScreen: boolean;
 }
 

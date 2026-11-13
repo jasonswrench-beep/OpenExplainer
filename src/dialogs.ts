@@ -1507,31 +1507,45 @@ export async function unresolvedDialog(options: UnresolvedDialogOptions): Promis
 export async function variablesDialog(variables: Record<string, string>): Promise<Record<string, string> | null> {
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-labelledby", "dlg-title");
-  const rows = Object.keys(variables)
-    .map((name, i) => {
-      const core = CORE_VARIABLES.includes(name);
-      return `<p><label for="v-${i}">${name}</label><br>
-        <input id="v-${i}" data-name="${name}" type="text" size="40">
-        ${core ? "" : `<label><input type="checkbox" data-remove="${name}"> Remove ${name}</label>`}</p>`;
-    })
-    .join("");
   dialog.innerHTML = `
     <form method="dialog">
       <h2 id="dlg-title">Project variables</h2>
       <p>Write {{NAME}} in your text. It is replaced with the value when you export.</p>
-      ${rows}
+      <div id="v-rows"></div>
       <p><label for="v-new-name">New variable name (optional)</label><br><input id="v-new-name" type="text" size="24"></p>
       <p><label for="v-new-value">Its value</label><br><input id="v-new-value" type="text" size="40"></p>
       <p><button value="ok">OK</button> <button value="cancel" formnovalidate>Cancel</button></p>
     </form>`;
-  dialog.querySelectorAll<HTMLInputElement>("input[data-name]").forEach((el) => (el.value = variables[el.dataset.name!]));
-  await open(dialog, dialog.querySelector<HTMLInputElement>("input[data-name]")!);
+  // Each row is built from elements, and each name is set as text, never as markup: a project from someone else decides the names (security review, 2026-11-13).
+  const rows: { name: string; value: HTMLInputElement; remove: HTMLInputElement | null }[] = [];
+  const host = dialog.querySelector<HTMLElement>("#v-rows")!;
+  Object.keys(variables).forEach((name, i) => {
+    const row = document.createElement("p");
+    const label = document.createElement("label");
+    label.htmlFor = `v-${i}`;
+    label.textContent = name;
+    const value = document.createElement("input");
+    value.id = `v-${i}`;
+    value.type = "text";
+    value.size = 40;
+    value.value = variables[name];
+    value.dataset.name = name;
+    row.append(label, document.createElement("br"), value);
+    let remove: HTMLInputElement | null = null;
+    if (!CORE_VARIABLES.includes(name)) {
+      const removeLabel = document.createElement("label");
+      remove = document.createElement("input");
+      remove.type = "checkbox";
+      removeLabel.append(remove, ` Remove ${name}`);
+      row.append(" ", removeLabel);
+    }
+    host.append(row);
+    rows.push({ name, value, remove });
+  });
+  await open(dialog, rows[0]?.value ?? dialog.querySelector<HTMLInputElement>("#v-new-name")!);
   if (dialog.returnValue !== "ok") return null;
   const result: Record<string, string> = {};
-  dialog.querySelectorAll<HTMLInputElement>("input[data-name]").forEach((el) => {
-    const name = el.dataset.name!;
-    if (!dialog.querySelector<HTMLInputElement>(`input[data-remove="${name}"]`)?.checked) result[name] = el.value;
-  });
+  for (const row of rows) if (!row.remove?.checked) result[row.name] = row.value.value;
   const newName = cleanVariableName(dialog.querySelector<HTMLInputElement>("#v-new-name")!.value);
   if (newName) result[newName] = dialog.querySelector<HTMLInputElement>("#v-new-value")!.value;
   return result;

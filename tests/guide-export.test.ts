@@ -86,7 +86,8 @@ test("a guide's pictures are made for each step, with the step's number on the c
   assert.deepEqual(result.flat.get("s1")!.path, "images/step-1.png");
   assert.equal(result.flat.get("s1:close-up")!.path, "images/step-1-close-up.png");
   assert.equal(result.flat.get("s4")!.path, "images/step-4.png");
-  assert.deepEqual(result.missing, ["gone.png"], "a missing picture file is named for the writer");
+  // Named by its file in the package: a capture's own name can be a window's title (security review, 2026-11-13).
+  assert.deepEqual(result.missing, ["images/gone.png"], "a missing picture file is named for the writer");
   assert.deepEqual(result.failed, []);
   assert.deepEqual(calls[0].shown, { x: 0, y: 0, width: 1920, height: 1080 }, "the whole picture");
   assert.deepEqual(calls[1].shown, { x: 576, y: 324, width: 768, height: 432 }, "the close-up is cut at the quick-guide zoom size (40 percent of the width)");
@@ -140,7 +141,7 @@ test("the Word file of a guide has its name, each task, each step with its pictu
     "The File menu is open.", "Close-up of the clicked spot. The File menu is open.", "Choose &lt;b&gt;Save&lt;/b&gt;.", "Close-up of the clicked spot. Choose &lt;b&gt;Save&lt;/b&gt;.", "A plain picture", "Look outside the crop.",
   ], "the picture's own description, else the words of its step; a close-up says it is one");
   assert.match(doc, /<w:pStyle w:val="Caption"\/><\/w:pPr><w:r><w:t xml:space="preserve">A\. Save: Saves your work\./, "a callout's entry is a caption under its picture");
-  assert.match(doc, /\(The picture &quot;gone\.png&quot; could not be included\.\)/, "a picture that could not be made is said");
+  assert.match(doc, /\(The picture &quot;images\/gone\.png&quot; could not be included\.\)/, "a picture that could not be made is said");
   assert.match(doc, /<w:pStyle w:val="Callout2"\/><\/w:pPr><w:r><w:rPr><w:b\/><\/w:rPr><w:t xml:space="preserve">Caution\. /, "the boxed note keeps its kind in words");
   assert.match(text(parts, "word/styles.xml"), /<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"\/><w:basedOn w:val="Normal"\/><w:next w:val="Normal"\/><w:uiPriority w:val="10"\/><w:qFormat\/><w:pPr><w:spacing w:before="0" w:after="200"\/><\/w:pPr>/, "the title is at the top of the page, not a cover");
   assert.match(text(parts, "word/header1.xml"), /Saving &lt;guide&gt;/);

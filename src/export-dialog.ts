@@ -12,6 +12,8 @@ export interface ExportChoice {
   kind: ExportKind;
   /** For the JSON export: put the working comments in, too. */
   comments: boolean;
+  /** For the JSON export: put each picture's capture details in, too. */
+  captureDetails: boolean;
   /** For a guide: which one. */
   guideId?: string;
   /** For the translation file: the language to translate into. */
@@ -42,7 +44,7 @@ export async function exportDialog(options: { checkFirst(): void; unresolved: nu
       <h2 id="dlg-title">Export</h2>
       <p class="help" id="ex-intro">Choose what to make. The book is exported as it prints: pictures use the book's click circle and zoom settings. Comments are working notes and are not included unless you ask for them in the JSON export.</p>
       <fieldset id="ex-kinds"><legend>What to export</legend></fieldset>
-      <p id="ex-json" hidden><label><input type="checkbox" id="ex-comments"> Include the working comments in the JSON export</label></p>
+      <div id="ex-json" hidden><p><label><input type="checkbox" id="ex-comments"> Include the working comments in the JSON export</label></p><p><label><input type="checkbox" id="ex-capture"> Include capture details (when each picture was taken, the name it was captured under, and what was clicked)</label></p></div>
       <p id="ex-language" hidden><label for="ex-language-input">Translate into (a language code such as fr, de or pt-BR)</label> <input id="ex-language-input" type="text" size="10" maxlength="35" autocomplete="off" aria-describedby="ex-language-line"><br><span class="help" id="ex-language-line" role="status"></span></p>
       <p id="ex-guide" hidden><label for="ex-guide-pick">Guide to export</label> <select id="ex-guide-pick"></select></p>
       <p id="ex-target" hidden><label for="ex-target-pick">Make it for</label> <select id="ex-target-pick" aria-describedby="ex-target-help"></select><br><span class="help" id="ex-target-help">A target leaves out everything that carries a condition it hides. JSON always holds the whole book.</span></p>
@@ -113,7 +115,7 @@ export async function exportDialog(options: { checkFirst(): void; unresolved: nu
       languageInput.focus();
       return;
     }
-    result = { kind: selected(), ...(selected() === "xliff" ? { language: tidyLanguage(languageInput.value)! } : {}), comments: selected() === "json" && dialog.querySelector<HTMLInputElement>("#ex-comments")!.checked, ...(GUIDE_KINDS.includes(selected()) ? { guideId: guidePick.value } : {}), ...(selected() !== "json" && targetPick.value ? { targetId: targetPick.value } : {}) };
+    result = { kind: selected(), ...(selected() === "xliff" ? { language: tidyLanguage(languageInput.value)! } : {}), comments: selected() === "json" && dialog.querySelector<HTMLInputElement>("#ex-comments")!.checked, captureDetails: selected() === "json" && dialog.querySelector<HTMLInputElement>("#ex-capture")!.checked, ...(GUIDE_KINDS.includes(selected()) ? { guideId: guidePick.value } : {}), ...(selected() !== "json" && targetPick.value ? { targetId: targetPick.value } : {}) };
     dialog.close("ok");
   });
   sync();

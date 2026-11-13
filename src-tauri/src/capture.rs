@@ -341,6 +341,13 @@ fn capture_inner(app: &AppHandle, state: &CaptureState, request: Value, timeout_
         return json!({ "kind": "unavailable", "reason": "bad-request", "detail": "The capture request was not an object." });
     };
     let wants_picture = object.get("command").and_then(Value::as_str).map(|c| c.starts_with("capture-") || c == "crop-picture").unwrap_or(false);
+    // Only a picture a capture made can be cropped, so the page cannot have the helper read any other picture on the PC (security review, 2026-11-13).
+    if object.get("command").and_then(Value::as_str) == Some("crop-picture") {
+        let source = object.get("source").and_then(Value::as_str).map(PathBuf::from);
+        if !source.is_some_and(|s| is_capture_picture(&s, &capture_folder())) {
+            return json!({ "kind": "unavailable", "reason": "bad-request", "detail": "Only a picture a capture made can be cropped." });
+        }
+    }
     object.insert("id".into(), json!(1));
     if wants_picture {
         let path = new_picture_path(&state.counter);
@@ -382,6 +389,13 @@ pub fn take_capture_picture(path: String) -> Result<tauri::ipc::Response, String
 
 pub fn take_picture_file(path: &Path, folder: &Path) -> Result<Vec<u8>, String> {
     read_picture_file(path, folder, true)
+}
+
+/// Is `path` a `.png` directly inside the capture folder (after following links)? The only pictures the app may read, delete or crop.
+fn is_capture_picture(path: &Path, folder: &Path) -> bool {
+    let (Ok(file), Ok(folder)) = (path.canonicalize(), folder.canonicalize()) else { return false };
+    let is_png = file.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("png"));
+    is_png && file.parent() == Some(folder.as_path())
 }
 
 /// Reads a picture a capture made, optionally deleting the file. Only a `.png` directly inside the capture folder is allowed.
@@ -766,6 +780,22 @@ mod tests {
         std::fs::write(&not_a_picture, b"x").unwrap();
         assert!(take_picture_file(&not_a_picture, &folder).is_err());
         let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn only_a_picture_a_capture_made_can_be_cropped() {
+        let folder = fresh_folder("crop-source");
+        let picture = folder.join("snap.png");
+        std::fs::write(&picture, b"x").unwrap();
+        assert!(is_capture_picture(&picture, &folder));
+        let elsewhere = fresh_folder("crop-elsewhere").join("x.png");
+        std::fs::write(&elsewhere, b"x").unwrap();
+        assert!(!is_capture_picture(&elsewhere, &folder), "a picture in another folder");
+        assert!(!is_capture_picture(&folder.join("missing.png"), &folder), "a picture that is not there");
+        std::fs::write(folder.join("notes.txt"), b"x").unwrap();
+        assert!(!is_capture_picture(&folder.join("notes.txt"), &folder), "a file that is not a PNG");
+        let _ = std::fs::remove_dir_all(&folder);
+        let _ = std::fs::remove_dir_all(elsewhere.parent().unwrap());
     }
 
     #[test]

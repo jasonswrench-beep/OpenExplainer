@@ -11,11 +11,11 @@ where node >nul 2>nul || (echo Node.js is not installed. Get it from nodejs.org,
 if not exist node_modules (call npm.cmd install || goto :end)
 echo Step 1 of 2: building the app. The first build takes a few minutes.
 cargo build --manifest-path src-tauri\Cargo.toml
-if errorlevel 1 (echo. & echo THE BUILD FAILED. Copy the red text above and send it to Claude. & goto :end)
+if errorlevel 1 (echo. & echo THE BUILD FAILED. Copy the red text above and send it to the AI assistant. & goto :end)
 echo.
 echo Step 2 of 2: talking to it as an assistant would. This takes about a minute.
 node tools\mcp-e2e.mjs
-if errorlevel 1 (echo. & echo SOME CHECKS FAILED. Copy the text above and send it to Claude. & goto :end)
+if errorlevel 1 (echo. & echo SOME CHECKS FAILED. Copy the text above and send it to the AI assistant. & goto :end)
 echo.
 echo All good: the MCP server works.
 :end

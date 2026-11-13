@@ -6,11 +6,13 @@
 //! messages for people go to standard error.
 //!
 //! MCP is **off** until the author turns it on in the app (a setting, kept in the app's config folder) and names the folder projects may be opened from. The hidden window can read and write
-//! only inside that folder. Whether it may capture a whole screen is a setting too, off to begin with. The wording an assistant reads when something is refused is in the TypeScript.
+//! only inside that folder, and every path is followed through links and junctions before it is checked (`mcp_real_path`). Whether it may capture windows at all, and on top of that
+//! a whole screen, are settings too, both off to begin with. The wording an assistant reads when something is refused is in the TypeScript.
 
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
-use std::path::PathBuf;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_fs::FsExt;
@@ -37,9 +39,9 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(crate::config::config_folder(app)?.join("mcp.json"))
 }
 
-/// The starting settings: off, no folder, no whole-screen capture.
+/// The starting settings: off, no folder, no capture of windows and no whole-screen capture.
 fn default_settings() -> Value {
-    json!({ "enabled": false, "folder": "", "allowFullScreen": false })
+    json!({ "enabled": false, "folder": "", "allowWindows": false, "allowFullScreen": false })
 }
 
 /// The settings as they are kept, with anything missing or odd replaced by the starting value.
@@ -49,6 +51,7 @@ fn read_settings(path: &PathBuf) -> Value {
     json!({
         "enabled": saved.get("enabled").and_then(Value::as_bool).unwrap_or(false),
         "folder": saved.get("folder").and_then(Value::as_str).unwrap_or(""),
+        "allowWindows": saved.get("allowWindows").and_then(Value::as_bool).unwrap_or(false),
         "allowFullScreen": saved.get("allowFullScreen").and_then(Value::as_bool).unwrap_or(false),
     })
 }
@@ -70,12 +73,55 @@ pub fn mcp_exe_path() -> Result<String, String> {
 pub fn mcp_settings_set(app: AppHandle, settings: Value) -> Result<(), String> {
     let enabled = settings.get("enabled").and_then(Value::as_bool).unwrap_or(false);
     let folder = settings.get("folder").and_then(Value::as_str).unwrap_or("").trim().to_string();
+    let windows = settings.get("allowWindows").and_then(Value::as_bool).unwrap_or(false);
     let full = settings.get("allowFullScreen").and_then(Value::as_bool).unwrap_or(false);
     if enabled && !PathBuf::from(&folder).is_dir() {
         return Err("Choose a folder that exists before turning MCP on. An assistant can only open and save projects inside it.".into());
     }
-    let text = serde_json::to_string_pretty(&json!({ "enabled": enabled, "folder": folder, "allowFullScreen": full })).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(&json!({ "enabled": enabled, "folder": folder, "allowWindows": windows, "allowFullScreen": full }))
+        .map_err(|e| e.to_string())?;
     crate::config::write_settings_file(&settings_path(&app)?, &text)
+}
+
+/// Where a path really leads: the deepest part of it that exists is followed through links and junctions, and the parts below it that do not exist yet
+/// (a project about to be saved) are put back as they were given. The hidden page checks the answer against the chosen folder, so a junction inside the
+/// folder that points somewhere else on the PC is not a way out of it (security review, 2026-11-13).
+#[tauri::command]
+pub fn mcp_real_path(path: String) -> Result<String, String> {
+    real_path(Path::new(&path)).map(|p| p.to_string_lossy().into_owned())
+}
+
+fn real_path(path: &Path) -> Result<PathBuf, String> {
+    let mut existing = path.to_path_buf();
+    let mut below: Vec<OsString> = Vec::new();
+    loop {
+        if let Ok(real) = std::fs::canonicalize(&existing) {
+            let mut out = plain_path(real);
+            for part in below.iter().rev() {
+                out.push(part);
+            }
+            return Ok(out);
+        }
+        let Some(name) = existing.file_name().map(|n| n.to_os_string()) else {
+            return Err(format!("The place {} could not be found on this PC.", path.display()));
+        };
+        below.push(name);
+        if !existing.pop() {
+            return Err(format!("The place {} could not be found on this PC.", path.display()));
+        }
+    }
+}
+
+/// A path without the `\\?\` start Windows gives a canonical path, which the page's folder check does not expect.
+fn plain_path(path: PathBuf) -> PathBuf {
+    let text = path.to_string_lossy().into_owned();
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) => PathBuf::from(rest),
+        None => path,
+    }
 }
 
 /// Hands a line from the assistant to the hidden page, or keeps it until the page is listening.
@@ -159,11 +205,43 @@ mod tests {
         std::fs::write(&path, r#"{"enabled":"yes","folder":7,"allowFullScreen":1}"#).unwrap();
         assert_eq!(read_settings(&path), default_settings(), "values of the wrong kind are not believed");
         std::fs::write(&path, r#"{"enabled":true,"folder":"C:\\Docs","allowFullScreen":true,"other":1}"#).unwrap();
-        assert_eq!(read_settings(&path), json!({ "enabled": true, "folder": "C:\\Docs", "allowFullScreen": true }));
+        assert_eq!(
+            read_settings(&path),
+            json!({ "enabled": true, "folder": "C:\\Docs", "allowWindows": false, "allowFullScreen": true }),
+            "a settings file from before the windows setting means windows are not allowed"
+        );
+        std::fs::write(&path, r#"{"enabled":true,"folder":"C:\\Docs","allowWindows":true,"allowFullScreen":false}"#).unwrap();
+        assert_eq!(read_settings(&path), json!({ "enabled": true, "folder": "C:\\Docs", "allowWindows": true, "allowFullScreen": false }));
         // A byte order mark at the start (what Windows PowerShell's Set-Content -Encoding UTF8 writes) is not a reason to call the file damaged.
         std::fs::write(&path, "\u{feff}{\"enabled\":true,\"folder\":\"C:\\\\Docs\",\"allowFullScreen\":false}").unwrap();
-        assert_eq!(read_settings(&path), json!({ "enabled": true, "folder": "C:\\Docs", "allowFullScreen": false }), "a byte order mark is skipped");
+        assert_eq!(
+            read_settings(&path),
+            json!({ "enabled": true, "folder": "C:\\Docs", "allowWindows": false, "allowFullScreen": false }),
+            "a byte order mark is skipped"
+        );
         let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn a_path_is_followed_through_a_junction_and_a_path_not_made_yet_keeps_its_last_parts() {
+        let base = std::env::temp_dir().join(format!("oe-mcp-real-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let (inside, outside) = (base.join("projects"), base.join("elsewhere"));
+        std::fs::create_dir_all(&inside).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let real_inside = real_path(&inside).unwrap();
+        assert!(!real_inside.to_string_lossy().starts_with(r"\\?\"), "no \\\\?\\ start: {}", real_inside.display());
+        let new_file = real_path(&inside.join("sub").join("Book.openexplainer")).unwrap();
+        assert_eq!(new_file, real_inside.join("sub").join("Book.openexplainer"), "what does not exist yet is put back as given");
+        // A junction inside the folder that leads outside it. Windows makes junctions without administrator rights.
+        let link = inside.join("link");
+        let made = std::process::Command::new("cmd").args(["/c", "mklink", "/J"]).arg(&link).arg(&outside).output().unwrap();
+        assert!(made.status.success(), "mklink: {}", String::from_utf8_lossy(&made.stdout));
+        let through = real_path(&link.join("Book.openexplainer")).unwrap();
+        assert_eq!(through, real_path(&outside).unwrap().join("Book.openexplainer"), "the junction is followed");
+        assert!(!through.starts_with(&real_inside));
+        let _ = std::fs::remove_dir(&link);
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

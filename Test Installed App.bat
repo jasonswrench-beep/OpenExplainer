@@ -9,7 +9,7 @@ echo.
 where node >nul 2>nul || (echo Node.js is not installed. Get it from nodejs.org, then run this again. & goto :end)
 if not exist "%LOCALAPPDATA%\OpenExplainer\openexplainer.exe" (echo OpenExplainer is not installed. Run the installer in src-tauri\target\release\bundle\nsis first. & goto :end)
 node tools\release-smoke.mjs
-if errorlevel 1 (echo. & echo SOME CHECKS FAILED. Copy the text above and send it to Claude. & goto :end)
+if errorlevel 1 (echo. & echo SOME CHECKS FAILED. Copy the text above and send it to the AI assistant. & goto :end)
 echo.
 echo All good: the installed program works.
 :end

@@ -37,7 +37,7 @@ Everything else the checks looked at was already in order. A few things the firs
 
 ## What these checks did not cover
 
-- **Anything spoken.** No screen reader was run. NVDA, JAWS, Narrator and VoiceOver can differ from one another and from the browser's tree.
+- **Anything spoken.** No screen reader was run. NVDA, Narrator, a paid Windows screen reader and the Mac's screen reader can differ from one another and from the browser's tree.
 - **Word and PDF checkers.** The Word file's structure was read back by the program's own reader, not opened in Word with a screen reader or run through Word's accessibility checker. The PDF was read for its tags, not run through a desktop PDF accessibility checker or a PDF/UA validator, and its reading order was not examined.
 - **The e-book in a reading app**, and EPUBCheck.
 - **The click-capture windows** (the always-visible Cancel window and the selection overlay) and the operating system's own file choosers; the program cannot drive these through the page.

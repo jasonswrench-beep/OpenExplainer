@@ -36,7 +36,7 @@ The installer is **not signed yet**, so Windows SmartScreen may show a blue "Win
 
 ## Known limits
 
-- The choice "My own key" (ChatGPT, Claude or Gemini) in AI help is switched off and says it is not built yet.
+- The choice "My own key" (for a hosted AI service) in AI help is switched off and says it is not built yet.
 - The program that runs the AI model keeps going for about 25 seconds after OpenExplainer is closed.
 - A project opens with a double-click only if Windows is not already set to open that kind of file with another program. Right-click the file, choose Open with, and choose OpenExplainer.
 - A second double-click while OpenExplainer is open starts a second copy of the program.

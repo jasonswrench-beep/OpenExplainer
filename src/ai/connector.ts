@@ -30,7 +30,7 @@ export function createConnector(settings: AiSettings, deps: ConnectorDeps = {}):
     case "none":
       return unavailable("none", new AiError("off", "AI help is off. Turn it on with the AI help button if you want drafts."));
     case "key":
-      return unavailable("key", new AiError("not-ready", "Using your own key for ChatGPT, Claude or Gemini is not built yet."));
+      return unavailable("key", new AiError("not-ready", "Using your own key for a hosted AI service is not built yet."));
     case "builtin": {
       const server = deps.local;
       if (!server) return unavailable("built-in", new AiError("not-ready", "The built-in model is not on this PC yet, so nothing can be drafted."));

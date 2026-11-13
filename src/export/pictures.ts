@@ -8,6 +8,7 @@ import { placedPictureIds } from "../project/page.ts";
 import type { Assets } from "../project/package.ts";
 import { forPaper, shownPart, type Rect } from "../project/views.ts";
 import { overlayFor, type Overlay } from "../render/overlay.ts";
+import { exportLabel } from "../project/picture-check.ts";
 
 /** Draws a picture with its marks into PNG bytes: the file's bytes, its name (for its kind), the part to keep, and what to draw over it. */
 export type Flattener = (bytes: Uint8Array, file: string, shown: Rect, overlay: Overlay | null) => Promise<Uint8Array>;
@@ -29,7 +30,7 @@ export interface FlatResult {
   failed: string[];
 }
 
-const label = (picture: Picture) => picture.altText.trim() || picture.source.originalName || picture.file;
+const label = (picture: Picture) => exportLabel(picture);
 
 /** Every picture on a page anywhere in the book, once. */
 export function placedPictures(project: Project): Picture[] {

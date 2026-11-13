@@ -23,6 +23,8 @@ import { addImported, importQuestion } from "./import/apply.ts";
 import { fileNameFor as projectFileName } from "./project/package.ts";
 import { readImageInfo } from "./project/image.ts";
 import type { Assets } from "./project/package.ts";
+import { picturesLeftOut, windowCaptureName } from "./project/picture-check.ts";
+import { updatesDialog } from "./updates-dialog.ts";
 import { calloutsDialog, captureDialog, commentsDialog, confirmDialog, highlightDialog, messageDialog, moveCircleDialog, newProjectDialog, pictureViewDialog, promptText, reviewClicksDialog, unresolvedDialog, variablesDialog, zoomSettingsDialog } from "./dialogs.ts";
 import { circleFor, HIGHLIGHT_KINDS, highlightWords, type HighlightKind } from "./project/highlight.ts";
 import { describeClick, describeClickDetails } from "./project/clicks.ts";
@@ -563,7 +565,7 @@ onCommand("b-ai", async () => {
 onCommand("b-mcp", async () => {
   try {
     const saved = await mcpDialog();
-    if (saved) announce(saved.enabled ? `MCP access is on. An assistant can use the folder ${saved.folder}${saved.allowFullScreen ? " and capture a whole screen" : ", one window at a time"}.` : "MCP access is off.");
+    if (saved) announce(saved.enabled ? `MCP access is on. An assistant can use the folder ${saved.folder}${!saved.allowWindows ? " and capture nothing" : saved.allowFullScreen ? " and capture windows and a whole screen" : " and capture one window at a time"}.` : "MCP access is off.");
   } catch (error) {
     await messageDialog("MCP access", `The settings could not be shown. ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -1247,7 +1249,8 @@ async function captureIntoTopic() {
     assets.set(file, bytes);
     addPicture(project.tree, node.id, {
       id, file, width, height, altText: altText ?? "",
-      source: { kind: choice.kind === "window" ? "window" : "region", capturedAt: new Date().toISOString(), originalName: what },
+      // A window's title can hold a path, a document's name or a message's subject, so a window capture is saved under a plain name (security review, 2026-11-13).
+      source: { kind: choice.kind === "window" ? "window" : "region", capturedAt: new Date().toISOString(), originalName: choice.kind === "window" ? windowCaptureName(project.tree) : what },
     });
     markDirty();
     renderPictures();
@@ -1372,6 +1375,7 @@ async function openProjectAt(picked: string) {
     render(true);
     announce(`Opened ${project.name}`);
     if (loaded.missing.length) await messageDialog("Some picture files are missing", `${loaded.missing.length} picture file(s) listed in this project were not found inside it. They show as missing, and you can remove or re-import them.`);
+    if (picturesLeftOut(loaded.project)) await messageDialog("Some pictures were left out", `${picturesLeftOut(loaded.project)} picture(s) in this project could not be used safely (a name, a file or a size that OpenExplainer does not make), so they were left out. Everything else is as it was.`);
   } catch (error) {
     await messageDialog("Could not open the project", error instanceof Error ? error.message : String(error));
   }
@@ -1430,7 +1434,7 @@ async function exportBook() {
     );
     if (!path) return focusBack("b-export");
     announce(`Making the ${name} export. This can take a moment.`);
-    const made = await makeExport(project, assets, choice.kind, { guideId: choice.guideId, comments: choice.comments, targetId: choice.targetId, language: choice.language, flatten: flattenPicture, now: new Date().toISOString() });
+    const made = await makeExport(project, assets, choice.kind, { guideId: choice.guideId, comments: choice.comments, captureDetails: choice.captureDetails, targetId: choice.targetId, language: choice.language, flatten: flattenPicture, now: new Date().toISOString() });
     const bytes = made.bytes;
     const left = made.notes;
     await writeBytes(path, bytes);
@@ -1461,6 +1465,7 @@ async function importExport() {
     renderHeading();
     announce(`Imported ${project.name}. Save it to keep it.`);
     if (loaded.missing.length) await messageDialog("Some picture files are missing", `${loaded.missing.length} picture file(s) listed in this export were not in it. They show as missing, and you can remove or re-import them.`);
+    if (picturesLeftOut(loaded.project)) await messageDialog("Some pictures were left out", `${picturesLeftOut(loaded.project)} picture(s) in this export could not be used safely (a name, a file or a size that OpenExplainer does not make), so they were left out. Everything else is as it was.`);
   } catch (error) {
     await messageDialog("Could not import the export", `${error instanceof Error ? error.message : String(error)} Your project was not changed.`);
   }
@@ -1930,6 +1935,7 @@ searchButton.addEventListener("click", () => runCommand("cmd-search"));
 $("bar-search-slot").replaceWith(searchButton);
 onCommand("cmd-search", () => openCommandSearch(document, searchEntries(MENU_DEFS), { fallback: () => commandFrom ?? searchButton }));
 onCommand("cmd-keys", () => openKeysDialog(document, { back: () => focusBack("cmd-keys") }));
+onCommand("cmd-updates", () => void updatesDialog());
 document.addEventListener("keydown", (e) => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey || document.querySelector("dialog[open]")) return;
   if (e.key.toLowerCase() === "k" && !e.shiftKey) { e.preventDefault(); runCommand("cmd-search"); }

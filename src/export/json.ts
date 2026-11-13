@@ -6,6 +6,7 @@ import { numbering, type Project, type TreeNode } from "../project/model.ts";
 import { liveAssetFiles, type Assets } from "../project/package.ts";
 import { PROJECT_FILE, STRUCTURE_FILE, topicFile } from "../project/files.ts";
 import { unzip, zip } from "../project/zip.ts";
+import { withoutCaptureDetails } from "../project/picture-check.ts";
 
 export const BOOK_FILE = "book.json";
 export const EXPORT_FORMAT = "openexplainer-export";
@@ -18,6 +19,9 @@ const decoder = new TextDecoder();
 export interface JsonExportOptions {
   /** Put the working comments in, too. Off unless asked for. */
   comments?: boolean;
+  /** Put each picture's capture details in, too: when it was taken, the name it was captured under, and what was clicked. Off unless asked for, because a
+   * capture's name or a clicked item can name a file, a folder or a person (security review, 2026-11-13). Where a click was always stays. */
+  captureDetails?: boolean;
   /** When it was made, as an ISO date and time. */
   now?: string;
 }
@@ -39,10 +43,10 @@ interface ExportNode {
   children: ExportNode[];
 }
 
-function exportNodes(nodes: TreeNode[], numbers: Map<string, string>, comments: boolean): ExportNode[] {
+function exportNodes(nodes: TreeNode[], numbers: Map<string, string>, comments: boolean, captureDetails: boolean): ExportNode[] {
   return nodes.map((node) => {
     const page = node.page && node.page.blocks.length > 0 ? { blocks: node.page.blocks, ...(comments && node.page.comments ? { comments: node.page.comments } : {}) } : undefined;
-    return { id: node.id, number: numbers.get(node.id) ?? "", title: node.title, status: node.status, ...(page ? { page } : {}), ...(node.index ? { index: node.index } : {}), ...(node.seeAlso ? { seeAlso: node.seeAlso } : {}), ...(node.conditions ? { conditions: node.conditions } : {}), pictures: node.pictures, children: exportNodes(node.children, numbers, comments) };
+    return { id: node.id, number: numbers.get(node.id) ?? "", title: node.title, status: node.status, ...(page ? { page } : {}), ...(node.index ? { index: node.index } : {}), ...(node.seeAlso ? { seeAlso: node.seeAlso } : {}), ...(node.conditions ? { conditions: node.conditions } : {}), pictures: captureDetails ? node.pictures : node.pictures.map(withoutCaptureDetails), children: exportNodes(node.children, numbers, comments, captureDetails) };
   });
 }
 
@@ -68,7 +72,7 @@ export function buildJsonExport(project: Project, assets: Assets, options: JsonE
     ...(project.targets.length > 0 ? { targets: project.targets } : {}),
     ...(project.writingStyle ? { writingStyle: project.writingStyle } : {}),
     ...(project.avoidWords.length > 0 ? { avoidWords: project.avoidWords } : {}),
-    tree: exportNodes(project.tree, numbers, options.comments === true),
+    tree: exportNodes(project.tree, numbers, options.comments === true, options.captureDetails === true),
   };
   const files: Record<string, Uint8Array> = { [BOOK_FILE]: encoder.encode(JSON.stringify(book, null, 2) + "\n") };
   const missing: string[] = [];

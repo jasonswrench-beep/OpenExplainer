@@ -91,8 +91,8 @@ The built-in AI model is not part of this program. The program offers to downloa
 - The licence text is downloaded and kept beside the model, and can be read from the AI help dialog. The audit is in docs/local-ai-plan.md.
 
 The program that runs the built-in AI model is carried with OpenExplainer (the installer takes the folder src-tauri/runtime/llama, which "Get AI Runtime.bat" fills; nothing of it is kept in git). It is llama.cpp's llama-server,
-build b11803 (2026-10-21, commit a37cc4610), the official Windows CPU build for x64 and for ARM64, pinned in tools/ai-runtime.json by SHA-256 (x64 68a11f1f0ab78587bfc42071d2dbd4aa1b621357ddc375c1ee25a24e76d27954,
-ARM64 315288ba2131fb18bb6776f9a1234de1d37d83c43ada9db7b54b761f783dd6ec). Only the files the server needs are kept (llama-server.exe, llama-server-impl.dll, llama.dll, llama-common.dll, ggml.dll, ggml-base.dll, the ggml-cpu*.dll
+build b12359 (2026-11-13, commit b1b770d90, the build behind llama.cpp's v1.0.0 release), the official Windows CPU build for x64 and for ARM64, pinned in tools/ai-runtime.json by SHA-256
+(x64 837c1655e87df3b66989f4be33a792a1399c785bf259038dc75c900096683e69, ARM64 d27564c754478d2832789dfcebfc5ace018e36a224c41d810b7cbc1ba8243ec0). Only the files the server needs are kept (llama-server.exe, llama-server-impl.dll, llama.dll, llama-common.dll, ggml.dll, ggml-base.dll, the ggml-cpu*.dll
 files, mtmd.dll, libomp.dll), with these licence texts, which are copied beside them:
 
 - llama.cpp and ggml, MIT License, Copyright (c) 2023-2026 The ggml authors. https://github.com/ggml-org/llama.cpp (LICENSE-llama.cpp.txt)

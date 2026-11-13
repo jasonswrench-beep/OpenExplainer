@@ -24,7 +24,9 @@ sha2 = "0.10"
 # The `windows` crate also reads the free disk space and the memory of this PC for the AI model's download (src/models.rs), and ties the model's program to OpenExplainer so it ends with it (src/llama.rs).
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39"
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_SystemInformation"] }
+# It also asks Windows which program listens on the model's port (src/llama.rs), and makes the one request of Check for updates with Windows' own HTTPS code and opens a release
+# page in the author's browser (src/updates.rs).
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinHttp", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_SystemInformation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 # Checking the 2.7 GB model file took a minute in a development build, where nothing is optimised; with this crate optimised even there it takes a few seconds, as in a release build.
 [profile.dev.package.sha2]
