@@ -42,7 +42,9 @@ await send("Runtime.enable"); await send("Log.enable");
 const press = async (key, code, vk, text) => { await send("Input.dispatchKeyEvent", { type: text ? "keyDown" : "rawKeyDown", key, code, windowsVirtualKeyCode: vk, ...(text ? { text } : {}) }); await send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: vk }); await sleep(120); };
 const typeText = async (text) => { await send("Input.insertText", { text }); await sleep(100); };
 const dialogTitle = () => ev(`document.querySelector('dialog[open] h2')?.textContent ?? null`);
-const openDialog = async (buttonId, title) => { await ev(`document.getElementById(${JSON.stringify(buttonId)}).click()`); return waitFor(async () => (await dialogTitle()) === title, 8000); };
+// Since the menus (2026-11-11) a command has no button of its own: it is a menu item. runMenu opens a menu by its name and chooses an item by its words, as a person would; it says "ok", "dimmed" or "missing".
+const runMenu = async (menu, label) => { await ev(`[...document.querySelectorAll('.menubar-item')].find((b) => b.textContent.trim() === ${JSON.stringify(menu)})?.click()`); await sleep(300); const got = await ev(`(() => { const b = [...document.querySelectorAll('.menu-item')].find((x) => x.offsetParent !== null && (x.querySelector('.menu-label') ?? x).textContent.trim() === ${JSON.stringify(label)}); if (!b) return "missing"; if (b.getAttribute("aria-disabled") === "true") return "dimmed"; b.click(); return "ok"; })()`); if (got !== "ok") await press("Escape", "Escape", 27); await sleep(250); return got; };
+const openDialog = async (menu, label, title) => { const got = await runMenu(menu, label); if (got !== "ok") { console.log(`      the menu item ${menu}, ${label} was ${got}`); return null; } return waitFor(async () => (await dialogTitle()) === title, 8000); };
 const closeDialog = async () => { await press("Escape", "Escape", 27); await waitFor(async () => (await dialogTitle()) === null, 4000); };
 
 process.on("uncaughtException", (e) => { console.log("  FAIL  the test itself stopped: " + String(e.message).slice(0, 300)); try { execSync("taskkill /F /IM openexplainer.exe /T", { stdio: "ignore" }); } catch {} process.exit(1); });
@@ -59,44 +61,44 @@ check(present("LICENSE.txt") && present("NOTICE.txt"), "the licence and the noti
 check(present("llama/LICENSE-llama.cpp.txt"), "the AI program's own licence travels with it");
 
 // ---- build a small book by hand
-const dlgFill = async (value) => { await sleep(300); await ev(`(() => { const d = document.querySelector('dialog[open]'); d.querySelector('input').value = ${JSON.stringify(value)}; d.querySelector('button[value=ok]').click(); })()`); await sleep(400); };
-await ev(`document.getElementById('b-chapter').click()`); await dlgFill("Smoke chapter");
-await ev(`document.getElementById('b-topic').click()`); await dlgFill("Smoke topic");
+const dlgFill = async (value) => { await waitFor(() => ev(`!!document.querySelector('dialog[open]')`), 5000, 100); await sleep(150); await ev(`(() => { const d = document.querySelector('dialog[open]'); d.querySelector('input').value = ${JSON.stringify(value)}; d.querySelector('button[value=ok]').click(); })()`); await sleep(400); };
+await runMenu("Chapters", "Add chapter"); await dlgFill("Smoke chapter");
+await runMenu("Chapters", "Add topic under selected"); await dlgFill("Smoke topic");
 check((await ev(`document.querySelectorAll('#tree li').length`)) >= 2, "a chapter and a topic can be made");
 // ---- the Capture dialog lists real windows, which proves the helper starts from the install folder
-check(!!(await openDialog("b-capture", "Capture")), "the Capture dialog opens");
+check(!!(await openDialog("Insert", "Capture...", "Capture")), "the Capture dialog opens");
 await sleep(2500);
 const cap = await ev(`(() => { const d = document.querySelector('dialog[open]'); const sel = [...d.querySelectorAll('select')].find((s) => s.options.length > 0); return { options: sel ? sel.options.length : 0, first: sel ? sel.options[0].textContent : '', text: d.textContent.replace(/\\s+/g, ' ').slice(0, 400) }; })()`);
 check(cap.options > 0, `it lists the open windows (${cap.options}; first: ${cap.first}) ${cap.options > 0 ? "" : "| " + cap.text}`);
 await closeDialog();
 
-await ev(`document.querySelector('[data-add=paragraph]').click()`); await sleep(250);
+await runMenu("Insert", "Paragraph"); await sleep(600);
 await typeText("Choose [[Save as]] to keep the file. This is the smoke test paragraph.");
-await ev(`document.querySelector('[data-add=procedure]').click()`); await sleep(250);
+await runMenu("Insert", "Numbered procedure"); await sleep(600);
 await typeText("Click [[OK]].");
-const page = await ev(`({ blocks: document.querySelectorAll('#page-editor .block').length, dirty: /unsaved/.test(document.getElementById('project-heading').textContent) })`);
+const page = await ev(`({ blocks: document.querySelectorAll('#page-editor .block').length, dirty: /unsaved/i.test(document.getElementById('project-heading').textContent) })`);
 check(page.blocks === 2 && page.dirty, `a paragraph and a numbered procedure were added and the project says it has unsaved changes: ${JSON.stringify(page)}`);
 
 // ---- the previews
-for (const [tab, what] of [["tab-print", "print preview"], ["tab-help", "help site preview"], ["tab-guide", "guide preview"], ["tab-edit", "editor"]]) {
-  await ev(`document.getElementById(${JSON.stringify(tab)}).click()`); await sleep(700);
+for (const [tab, what] of [["Print preview", "print preview"], ["Help site preview", "help site preview"], ["Guide preview", "guide preview"], ["Edit", "editor"]]) {
+  await runMenu("View", tab); await sleep(900);
   const shown = await ev(`document.body.innerText.length`);
   check(shown > 200, `the ${what} shows (${shown} letters on screen)`);
 }
-await ev(`document.getElementById('tab-print').click()`); await sleep(700);
+await runMenu("View", "Print preview"); await sleep(900);
 check(/smoke test paragraph/.test(await ev(`document.body.innerText`)), "the print preview has the paragraph that was typed");
-await ev(`document.getElementById('tab-edit').click()`); await sleep(400);
+await runMenu("View", "Edit"); await sleep(500);
 
 // ---- dialogs open and close by keyboard
-for (const [button, title] of [["b-vars", "Project variables"], ["b-style", "Writing style"], ["b-check", "Check the book"], ["b-drafts", "Drafts"], ["b-index", "Index of the book"], ["b-guides", "Guides"], ["b-ai", "AI help"], ["b-mcp", "MCP access"], ["b-export", "Export"]]) {
-  const opened = await openDialog(button, title);
+for (const [menu, label, title] of [["Book", "Project variables...", "Project variables"], ["Write", "Writing style...", "Writing style"], ["Review", "Check the book...", "Check the book"], ["Write", "Drafts...", "Drafts"], ["Book", "Index...", "Index of the book"], ["Book", "Guides...", "Guides"], ["Tools", "AI help...", "AI help"], ["Tools", "MCP access...", "MCP access"], ["File", "Export...", "Export"]]) {
+  const opened = await openDialog(menu, label, title);
   check(!!opened, `${title} opens`);
   if (opened) { await sleep(300); await closeDialog(); check((await dialogTitle()) === null, `and Escape closes ${title}`); }
   else { console.log("      dialog was: " + (await dialogTitle())); await ev(`document.querySelectorAll('dialog[open]').forEach((d) => d.close())`); }
 }
 
 // ---- the book check finds the consistency notes, in the installed app
-await openDialog("b-check", "Check the book"); await sleep(400);
+await openDialog("Review", "Check the book...", "Check the book"); await sleep(400);
 const ck = await ev(`document.getElementById('ck-summary')?.textContent ?? ''`);
 check(/thing|note|Nothing/.test(ck), `the book check answers: ${ck}`);
 await closeDialog();
@@ -104,10 +106,10 @@ await closeDialog();
 // ---- AI help: the model is on this PC, the program starts from the install folder, and a sentence comes back
 const aiBefore = await ev(`window.__TAURI_INTERNALS__.invoke('ai_settings_get')`);
 await ev(`window.__TAURI_INTERNALS__.invoke('ai_settings_set', { settings: { choice: 'builtin' } })`);
-await openDialog("b-ai", "AI help"); await sleep(1500);
+await openDialog("Tools", "AI help...", "AI help"); await sleep(1500);
 const ai = await ev(`document.querySelector('dialog[open]').textContent.replace(/\\s+/g, ' ')`);
 const ready = /Ready/.test(ai);
-check(ready, `AI help sees the downloaded model (${ready ? "Ready" : ai.slice(0, 200)})`);
+if (!ready && /Not downloaded/.test(ai)) console.log("  SKIP  the built-in AI model is not downloaded on this PC, so Test the AI was not tried"); else check(ready, `AI help sees the downloaded model (${ready ? "Ready" : ai.slice(0, 200)})`);
 if (ready) {
   const t0 = Date.now();
   await ev(`document.getElementById('ai-test').click()`);
