@@ -586,7 +586,7 @@ how a release is made now.
 ## The core round, 2026-11-16 (the OpenExplainer development list of 2026-11-15)
 
 Jason sent the list (`OpenExplainer Development List.docx`, five items in build order) and said: build on the shared core as published (`openstage-core`, read its `CORE-NOTES.md`; never copy or reimplement its code; note what it lacks in `CORE-REQUESTS.md`), keep building, put what only he can check in `TESTING-TODO.md`, never describe the tool as an alternative to a named product.
-Work is on the branch **`core-round-2026-11-16`** (four commits, nothing pushed). **No project format change** (still version 21). `CLAUDE.md` was changed to say OpenExplainer now builds on the core by tag.
+Work was done on the branch **`core-round-2026-11-16`**, then fast-forwarded into `main`, pushed and released as the signed pre-release **0.2.0 alpha 5** on 2026-11-16 (`docs/release-notes-0.2.0-alpha.5.md`; nobody has installed it by hand yet). **No project format change** (still version 21). `CLAUDE.md` was changed to say OpenExplainer now builds on the core by tag.
 
 | Item | State | Where |
 | --- | --- | --- |

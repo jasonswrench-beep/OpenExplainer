@@ -46,7 +46,7 @@ No project format changed in this round, so there is no migration to try and `do
 
 ## Not from the list, but you should know
 
-- [ ] **The branch.** The work is on `core-round-2026-11-16` (four commits) and **nothing was pushed**. Merge it when you are ready; push `main` before any tag (see the release notes).
+- [x] **The branch.** The work was fast-forwarded into `main` and pushed on 2026-11-16, and published as the signed pre-release **0.2.0 alpha 5** (`docs/release-notes-0.2.0-alpha.5.md`). Nobody has installed it by hand yet: install it once and look at **Insert**, **File** and AI help.
 - [ ] **The line in your message about PrismQDA** (switch it to the core's `prismqda-stats` tag and drop its own copy) was not done here: this repository has no PrismQDA, and no PrismQDA folder is on this PC. It belongs to the PrismQDA session.
 - [ ] **`CLAUDE.md` changed** in three places so it says what is now true: OpenExplainer builds on the shared core by tag (it used to say it ships nothing from OpenStage), the helper depends on the core's capture crates, and a third small Rust part keeps your AI keys (`keys.rs`, named in the AI plan you confirmed on 2026-10-21). Please read them.
 - [ ] **A real run of the whole program.** The new windows were checked by tests and a type check and the front end builds, but the installed or development program was not opened for this round (the machine was left alone). Open it once, look at **Insert** and **File** and AI help.

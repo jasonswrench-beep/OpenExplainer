@@ -25,7 +25,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** The release this build is. Raise it for every release: Check for updates compares it with the newest published tag. */
-export const RELEASE = "0.2.0-alpha.4";
+export const RELEASE = "0.2.0-alpha.5";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tauriDir = join(root, "src-tauri");
