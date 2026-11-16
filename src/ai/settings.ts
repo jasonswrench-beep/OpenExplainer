@@ -26,7 +26,7 @@ export function aiStatusWords(settings: AiSettings, model: ModelState): string {
     case "none":
       return "AI help is off. Everything works by hand, nothing is drafted and nothing is sent anywhere.";
     case "key":
-      return "Using your own key for a hosted AI service is not built yet, so nothing can be drafted.";
+      return "AI help will use your own key for a hosted AI service. Nothing is sent until you have seen exactly what would be sent.";
     case "builtin":
       switch (model) {
         case "ready":

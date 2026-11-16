@@ -13,6 +13,10 @@ import { isInside } from "./paths.ts";
 import { LOG_FILE, withLog } from "./log.ts";
 import { createServer } from "./protocol.ts";
 import { createCaptureTools, type CaptureDeps, type ClickResult } from "./capture-tools.ts";
+import { createDraftTools, type Drafter } from "./draft-tool.ts";
+import { appConnector } from "../ai/app.ts";
+import { modelSource, modelState } from "../ai/model-state.ts";
+import { cleanAiSettings } from "../ai/settings.ts";
 import { Session, type McpFiles, type McpSettings } from "./session.ts";
 import { createTools, INSTRUCTIONS } from "./tools.ts";
 
@@ -98,12 +102,25 @@ const capture: CaptureDeps = {
   recordingShots: async (folder, info, limit) => sure(await client.recordingShots(folder, info, { limit })),
 };
 
+/** The assistant's draft tool uses only the built-in model: a key for a hosted service is never used with nobody at the keyboard, because nobody can see what would be sent. */
+const drafter: Drafter = {
+  model: modelSource().file,
+  status: async () => {
+    const choice = cleanAiSettings(await invoke("ai_settings_get")).choice;
+    if (choice === "key") return { ready: false, why: "AI help is set to your own key for a hosted service. A key is never used when nobody is at the keyboard, because nobody can see what would be sent. Choose the built-in model in AI help if you want an assistant to draft with it." };
+    if (choice === "none") return { ready: false, why: "AI help is off in OpenExplainer." };
+    return (await modelState()) === "ready" ? { ready: true, why: "" } : { ready: false, why: "The built-in model is not on this PC yet, or has not been checked." };
+  },
+  ask: (messages, options) => appConnector({ choice: "builtin" }).ask(messages, options),
+};
+
 const tools = [
   ...createTools({
     session,
     exporter: (kind, options) => makeExport(session.require(), session.assets, kind, { ...options, flatten: flattenPicture, now: new Date().toISOString() }),
   }),
   ...createCaptureTools(session, capture),
+  ...createDraftTools(session, drafter),
 ];
 
 // Every use of a tool is written to a plain log beside the projects, so the author can read afterwards what happened while nobody was watching.

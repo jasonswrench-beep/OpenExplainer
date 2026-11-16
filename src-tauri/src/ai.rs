@@ -44,9 +44,56 @@ pub fn ai_settings_set(app: AppHandle, settings: Value) -> Result<(), String> {
     write_settings_file(&settings_path(&app)?, &text)
 }
 
+// ---- Which hosted service, and which of its models (used only when the choice is "key") -----------------------------------------------------------
+
+fn cloud_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(config_folder(app)?.join("ai-cloud.json"))
+}
+
+/// A model's name as the service spells it: letters, digits and `. : _ / -`, starting with a letter or digit. Anything else is not kept.
+fn model_name_ok(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphanumeric()) && name.len() <= 100 && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | ':' | '_' | '/' | '-'))
+}
+
+/// The service and the model names for each service, put right: an unknown service is OpenAI, and a name that is not a model's name is left out.
+fn clean_cloud(raw: &Value) -> Value {
+    let service = raw.get("service").and_then(Value::as_str).filter(|s| crate::keys::SERVICES.contains(s)).unwrap_or("openai");
+    let mut models = serde_json::Map::new();
+    for name in crate::keys::SERVICES {
+        if let Some(model) = raw.get("models").and_then(|m| m.get(name)).and_then(Value::as_str).map(str::trim).filter(|m| model_name_ok(m)) {
+            models.insert(name.to_string(), json!(model));
+        }
+    }
+    json!({ "service": service, "models": models })
+}
+
+/// Which hosted service AI help uses with the author's own key, and the model chosen for each.
+#[tauri::command]
+pub fn ai_cloud_get(app: AppHandle) -> Result<Value, String> {
+    let saved = crate::config::read_settings_file(&cloud_path(&app)?).map(Value::Object).unwrap_or(Value::Null);
+    Ok(clean_cloud(&saved))
+}
+
+#[tauri::command]
+pub fn ai_cloud_set(app: AppHandle, settings: Value) -> Result<(), String> {
+    let text = serde_json::to_string_pretty(&clean_cloud(&settings)).map_err(|e| e.to_string())?;
+    write_settings_file(&cloud_path(&app)?, &text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_service_and_models_are_put_right() {
+        assert_eq!(clean_cloud(&Value::Null), json!({ "service": "openai", "models": {} }));
+        assert_eq!(clean_cloud(&json!({ "service": "telepathy" }))["service"], "openai");
+        let kept = clean_cloud(&json!({ "service": "anthropic", "models": { "anthropic": " claude-sonnet-5-5 ", "openai": "gpt 5", "gemini": "../x", "other": "y" } }));
+        assert_eq!(kept, json!({ "service": "anthropic", "models": { "anthropic": "claude-sonnet-5-5" } }));
+        assert!(model_name_ok("models/gemini-2.5-pro") && model_name_ok("gpt-4o:latest"));
+        assert!(!model_name_ok("") && !model_name_ok("-x") && !model_name_ok(&"a".repeat(101)) && !model_name_ok("a b"));
+    }
 
     #[test]
     fn the_choice_starts_at_none_and_odd_files_are_put_right() {

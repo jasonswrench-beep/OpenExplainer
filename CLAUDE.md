@@ -35,7 +35,7 @@ Other OpenStage code is copied only when Claude judges it useful, and each piece
 
 ### Architecture
 
-- TypeScript throughout, with a Tauri shell. Rust only where native Windows needs it: the capture helper, and one small part of the shell that asks the browser engine to print a page to a PDF (`src-tauri/src/pdf.rs`, agreed with Jason on 2026-10-21), and two small parts for the built-in AI model that need Windows: keeping its files and reading the PC's disk space and memory (`models.rs`), and starting and stopping the program that runs it (`llama.rs`).
+- TypeScript throughout, with a Tauri shell. Rust only where native Windows needs it: the capture helper, and one small part of the shell that asks the browser engine to print a page to a PDF (`src-tauri/src/pdf.rs`, agreed with Jason on 2026-10-21), and two small parts for the built-in AI model that need Windows: keeping its files and reading the PC's disk space and memory (`models.rs`), and starting and stopping the program that runs it (`llama.rs`), and one for the author's own AI service keys: asking Windows to protect them for the author's Windows user (`keys.rs`, named in the AI plan the author confirmed on 2026-10-21).
 - No Python in the product.
 - Windows first, building for both ARM and x64.
 - The capture helper is its own process, with a timeout, an always-visible Cancel, and it never captures itself.
@@ -53,7 +53,7 @@ Use original code, assets and design.
 ### AI
 
 - Optional. Built-in local Qwen 3.5 by default, downloaded during first install with progress, resume and cancel.
-- Or the author's own ChatGPT, Claude or Gemini key. Keys are stored locally and never sent anywhere else.
+- Or the author's own ChatGPT, Claude or Gemini key (`docs/ai-keys.md`). Keys are stored locally, protected by Windows, and never sent anywhere else. Before the first question to a service each time the app opens, the author is shown exactly what would be sent. An assistant over MCP never uses a key: nobody is there to see what is sent.
 - The MCP server (`openexplainer.exe --mcp`, the app with no window) lets an AI assistant make a project, capture windows and clicks, write pages, build the index and run exports with nobody at the keyboard. It is off until the
   author turns it on, works only inside the folder the author names, and captures one window at a time unless the author allows more (`docs/mcp.md`).
 

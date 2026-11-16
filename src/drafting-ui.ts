@@ -3,11 +3,12 @@
 // it is made: the author deals with those in Drafts.
 import { invoke } from "@tauri-apps/api/core";
 import { messageDialog, open } from "./dialogs.ts";
-import { appConnector } from "./ai/app.ts";
+import { chosenAnswerer, cloudChoice, keyStatusFor } from "./ai/app.ts";
+import { serviceInfo } from "./ai/cloud.ts";
 import { boxReportWords, boxesPossible, draftBoxes } from "./ai/boxes.ts";
 import { chapterReportWords, chapterTextPossible, draftChapterText, type ChapterTextRole } from "./ai/chapter-text.ts";
 import { draftCallouts, reportWords } from "./ai/drafting.ts";
-import { modelSource, modelState } from "./ai/model-state.ts";
+import { modelState } from "./ai/model-state.ts";
 import { cleanAiSettings } from "./ai/settings.ts";
 import { AiError, type Answer, type AskOptions, type ChatMessage } from "./ai/types.ts";
 import type { Project } from "./project/model.ts";
@@ -27,8 +28,18 @@ async function aiReady(title: string): Promise<boolean> {
     return false;
   }
   if (settings.choice === "key") {
-    await messageDialog(title, "Using your own key for a hosted AI service is not built yet. Choose the built-in model in AI help.");
-    return false;
+    const { service, model } = await cloudChoice();
+    const info = serviceInfo(service);
+    const key = await keyStatusFor(service);
+    if (!key.saved || key.problem) {
+      await messageDialog(title, key.problem ?? `AI help is set to your own key for ${info.name.split(" (")[0]}, but no key is saved. Open AI help and paste one.`);
+      return false;
+    }
+    if (!model && !info.defaultModel) {
+      await messageDialog(title, `AI help is set to your own key for ${info.name.split(" (")[0]}, but no model is named. Open AI help and type the name of the model to use.`);
+      return false;
+    }
+    return true;
   }
   if ((await modelState()) !== "ready") {
     await messageDialog(title, "The built-in model is not on this PC yet, or has not been checked. Open AI help and download it first.");
@@ -83,11 +94,11 @@ export async function runDraftWindow(title: string, work: (tools: JobTools) => P
   });
   const shown = open(dialog, stop);
 
-  const answerer = appConnector({ choice: "builtin" });
+  const { answerer, model: modelName } = await chosenAnswerer();
   let made = 0;
   let lines: string[];
   try {
-    const result = await work({ ask: (messages, options) => answerer.ask(messages, options), model: modelSource().file, signal: controller.signal, progress: (words) => { progress.textContent = words; } });
+    const result = await work({ ask: (messages, options) => answerer.ask(messages, options), model: modelName, signal: controller.signal, progress: (words) => { progress.textContent = words; } });
     made = result.made;
     lines = result.lines;
   } catch (error) {

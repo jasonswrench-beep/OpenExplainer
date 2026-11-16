@@ -4,6 +4,7 @@
 import type { AiSettings } from "./settings.ts";
 import { createLocalAnswerer, type Connection, type LocalDeps } from "./local.ts";
 import { AiError, type Answer, type Answerer, type AskOptions, type ChatMessage } from "./types.ts";
+import { createCloudAnswerer, type CloudService, type Disclose, type KeyStore } from "./cloud.ts";
 
 /** Starts the built-in model's program if it is not running, and says where it is. Throws an `AiError` ("not-ready") if the model is not on this PC. */
 export interface LocalServer {
@@ -12,8 +13,19 @@ export interface LocalServer {
   reset?(): void;
 }
 
+/** What the author's own key needs: which service and model, where the key is kept, and how the author is shown what would be sent. Only the app's window can give this, so nothing unattended ever uses a key. */
+export interface CloudSetup {
+  service: CloudService;
+  model?: string;
+  keys: KeyStore;
+  disclose: Disclose;
+  /** The services the author has already agreed to send to since the app opened. */
+  agreed?: Set<CloudService>;
+}
+
 export interface ConnectorDeps extends LocalDeps {
   local?: LocalServer;
+  cloud?: CloudSetup;
 }
 
 function unavailable(name: string, error: AiError): Answerer {
@@ -30,7 +42,8 @@ export function createConnector(settings: AiSettings, deps: ConnectorDeps = {}):
     case "none":
       return unavailable("none", new AiError("off", "AI help is off. Turn it on with the AI help button if you want drafts."));
     case "key":
-      return unavailable("key", new AiError("not-ready", "Using your own key for a hosted AI service is not built yet."));
+      if (!deps.cloud) return unavailable("key", new AiError("not-ready", "Your own key is used only in the OpenExplainer window, where you can see what is about to be sent. Nothing was sent."));
+      return createCloudAnswerer(deps.cloud.service, { keys: deps.cloud.keys, model: deps.cloud.model, fetch: deps.fetch }, deps.cloud.disclose, deps.cloud.agreed);
     case "builtin": {
       const server = deps.local;
       if (!server) return unavailable("built-in", new AiError("not-ready", "The built-in model is not on this PC yet, so nothing can be drafted."));

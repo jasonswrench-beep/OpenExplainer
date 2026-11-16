@@ -3,6 +3,7 @@
 mod ai;
 mod capture;
 mod config;
+mod keys;
 mod launch;
 mod llama;
 mod mcp;
@@ -56,6 +57,12 @@ fn main() {
             mcp::mcp_settings_set,
             ai::ai_settings_get,
             ai::ai_settings_set,
+            ai::ai_cloud_get,
+            ai::ai_cloud_set,
+            keys::ai_key_set,
+            keys::ai_key_status,
+            keys::ai_key_get,
+            keys::ai_key_delete,
             models::ai_machine_facts,
             models::ai_model_files,
             models::ai_model_append,

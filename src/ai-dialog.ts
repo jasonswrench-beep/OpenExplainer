@@ -9,7 +9,8 @@ import { confirmDialog, messageDialog, open } from "./dialogs.ts";
 import { getDownloader, modelSource } from "./ai/model-state.ts";
 import { modelStateOf, type DownloadState, type DownloadStatus } from "./ai/download.ts";
 import { sizeInWords } from "./ai/model-info.ts";
-import { appConnector } from "./ai/app.ts";
+import { chosenAnswerer, keyStatusFor, type KeyState } from "./ai/app.ts";
+import { SERVICES, serviceInfo, type CloudService } from "./ai/cloud.ts";
 import { AiError } from "./ai/types.ts";
 import { aiStatusWords, cleanAiSettings, type AiChoice, type AiSettings } from "./ai/settings.ts";
 
@@ -55,7 +56,17 @@ export async function aiDialog(): Promise<AiSettings | null> {
         <legend>Who drafts</legend>
         <p><label><input type="radio" name="ai-choice" value="none" id="ai-none" aria-describedby="ai-none-help"> No AI</label><br><span class="help" id="ai-none-help">Nothing is drafted and nothing is sent anywhere. This is how OpenExplainer starts.</span></p>
         <p><label><input type="radio" name="ai-choice" value="builtin" id="ai-builtin" aria-describedby="ai-builtin-help"> Built-in model on this PC</label><br><span class="help" id="ai-builtin-help">A small AI model that runs on this PC. It needs no account and no internet once it has been downloaded, and nothing you write or capture leaves this PC.</span></p>
-        <p><label><input type="radio" name="ai-choice" value="key" id="ai-key" disabled aria-describedby="ai-key-help"> My own key for a hosted AI service</label><br><span class="help" id="ai-key-help">Not built yet.</span></p>
+        <p><label><input type="radio" name="ai-choice" value="key" id="ai-key" aria-describedby="ai-key-help"> My own key for a hosted AI service</label><br><span class="help" id="ai-key-help">Questions go to OpenAI, Anthropic or Google on your own account, with a key you paste in. Before the first question each time OpenExplainer is opened you are shown exactly what would be sent.</span></p>
+      </fieldset>
+      <fieldset id="ai-key-box" hidden>
+        <legend>Your own key</legend>
+        <p class="help" id="ai-key-intro">A key is a long line of letters that a service gives you so a program can ask it questions on your account. It is kept on this PC, protected by Windows for your Windows user only, and is sent only to the service it is for. The service may charge your account for the questions. Nothing is sent when you save a key.</p>
+        <p><label for="ai-service">Service</label><br><select id="ai-service"></select></p>
+        <p class="help" id="ai-key-getting"></p>
+        <p><label for="ai-model">Model</label><br><input id="ai-model" type="text" size="32" aria-describedby="ai-model-help" autocomplete="off" spellcheck="false"><br><span class="help" id="ai-model-help"></span></p>
+        <p><label for="ai-key-input">Paste your key here</label><br><input id="ai-key-input" type="password" size="44" autocomplete="off" spellcheck="false"></p>
+        <p id="ai-key-state" role="status"></p>
+        <p><button type="button" id="ai-key-save">Save the key</button> <button type="button" id="ai-key-remove">Remove the key</button></p>
       </fieldset>
       <p id="ai-status" role="status"></p>
       <h3 id="ai-model-heading">The built-in model</h3>
@@ -100,6 +111,66 @@ export async function aiDialog(): Promise<AiSettings | null> {
   const start = radios.find((r) => r.value === current.choice && !r.disabled) ?? $<HTMLInputElement>("ai-none");
   start.checked = true;
 
+  // ---- Your own key: which service and model, and the key itself (kept by Windows; this window is only ever told that one is saved, and its last four characters)
+  const cloud = (await invoke<{ service?: string; models?: Record<string, string> }>("ai_cloud_get")) ?? {};
+  let service = (SERVICES.some((s) => s.id === cloud.service) ? cloud.service : "openai") as CloudService;
+  const models: Record<string, string> = { ...(cloud.models ?? {}) };
+  let keyState: KeyState = { saved: false, last4: null, problem: null };
+  const select = $<HTMLSelectElement>("ai-service");
+  select.replaceChildren(...SERVICES.map((s) => Object.assign(document.createElement("option"), { value: s.id, textContent: s.name, selected: s.id === service })));
+  const keyWords = (): string => {
+    const info = serviceInfo(service);
+    const name = info.name.split(" (")[0];
+    if (keyState.problem) return keyState.problem;
+    if (!keyState.saved) return `AI help will use your own key for ${name}, but no key is saved yet. Paste one below and press Save the key.`;
+    if (!$<HTMLInputElement>("ai-model").value.trim() && !info.defaultModel) return `A key for ${name} is saved. Type the name of the model to use, then Save.`;
+    return `AI help will use ${name} with your key ending ${keyState.last4 ?? ""}. Before the first question you are shown exactly what would be sent.`;
+  };
+  const showService = async () => {
+    const info = serviceInfo(service);
+    $("ai-key-getting").textContent = info.keyHelp;
+    $<HTMLInputElement>("ai-model").value = models[service] ?? info.defaultModel ?? "";
+    $("ai-model-help").textContent = info.defaultModel
+      ? `The model's name as ${info.name.split(" (")[0]} lists it. Left as it is, ${info.defaultModel} is used.`
+      : `The model's name exactly as ${info.name.split(" (")[0]} lists it for your key. Names change, so none is chosen for you.`;
+    keyState = await keyStatusFor(service).catch(() => ({ saved: false, last4: null, problem: null }));
+    $("ai-key-state").textContent = keyState.problem ?? (keyState.saved ? `A key is saved for ${info.name.split(" (")[0]}, ending ${keyState.last4}.` : `No key is saved for ${info.name.split(" (")[0]}.`);
+    $<HTMLButtonElement>("ai-key-remove").hidden = !keyState.saved;
+    if (chosen() === "key") $("ai-status").textContent = keyWords();
+  };
+  select.addEventListener("change", () => {
+    models[service] = $<HTMLInputElement>("ai-model").value.trim();
+    service = select.value as CloudService;
+    void showService();
+  });
+  $("ai-model").addEventListener("input", () => {
+    models[service] = $<HTMLInputElement>("ai-model").value.trim();
+    if (chosen() === "key") $("ai-status").textContent = keyWords();
+  });
+  $("ai-key-save").addEventListener("click", async () => {
+    const typed = $<HTMLInputElement>("ai-key-input");
+    $("ai-error").textContent = "";
+    try {
+      await invoke("ai_key_set", { service, key: typed.value });
+      typed.value = "";
+      say("The key was saved.");
+      await showService();
+    } catch (error) {
+      $("ai-error").textContent = typeof error === "string" ? error : error instanceof Error ? error.message : "The key could not be saved.";
+      typed.focus();
+    }
+  });
+  $("ai-key-remove").addEventListener("click", async () => {
+    const name = serviceInfo(service).name.split(" (")[0];
+    const yes = await confirmDialog("Remove the key", `This removes the key for ${name} from this PC. You can paste it again later.`, "Remove the key");
+    if (yes) {
+      await invoke("ai_key_delete", { service });
+      await showService();
+      $("ai-key-input").focus();
+    } else $("ai-key-remove").focus();
+  });
+  void showService();
+
   let lastStatus: DownloadStatus | null = null;
   let lastTenth = -1;
   /** True while the dialog is first being filled in, so opening it does not announce anything. */
@@ -108,7 +179,8 @@ export async function aiDialog(): Promise<AiSettings | null> {
   const render = (state: DownloadState) => {
     // Noted first: the browser takes the keyboard off a button the moment it is hidden, so afterwards it can no longer be seen where it was.
     const focusedBefore = dialog.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
-    $("ai-status").textContent = aiStatusWords({ choice: chosen() }, modelStateOf(state));
+    $("ai-status").textContent = chosen() === "key" ? keyWords() : aiStatusWords({ choice: chosen() }, modelStateOf(state));
+    $("ai-key-box").hidden = chosen() !== "key";
     $("ai-model-state").textContent = STATUS_WORDS[state.status];
     const showBar = (state.doneBytes > 0 && ["downloading", "paused", "partial", "failed"].includes(state.status)) || state.status === "verifying";
     $<HTMLProgressElement>("ai-progress").hidden = !showBar;
@@ -188,10 +260,20 @@ export async function aiDialog(): Promise<AiSettings | null> {
   // ---- Test the AI: one short sentence from the built-in model, with a way to stop while it loads
   let testing: AbortController | null = null;
   $("ai-test").addEventListener("click", async () => {
-    if (chosen() !== "builtin") {
-      $("ai-test-result").textContent = "Choose Built-in model on this PC first, then test it.";
+    if (chosen() === "none") {
+      $("ai-test-result").textContent = "Choose Built-in model on this PC or My own key first, then test it.";
       $("ai-builtin").focus();
       return;
+    }
+    if (chosen() === "key") {
+      // The test uses what is typed in this window, so it is kept first, as Save would.
+      try {
+        await invoke("ai_settings_set", { settings: { choice: "key" } });
+        await invoke("ai_cloud_set", { settings: { service, models } });
+      } catch (error) {
+        $("ai-test-result").textContent = typeof error === "string" ? error : "The choice could not be kept for the test.";
+        return;
+      }
     }
     const controller = new AbortController();
     testing = controller;
@@ -199,9 +281,10 @@ export async function aiDialog(): Promise<AiSettings | null> {
     $("ai-test").hidden = true;
     $("ai-test-stop").hidden = false;
     $("ai-test-stop").focus();
-    $("ai-test-result").textContent = "Starting the model. The first time this can take half a minute.";
+    $("ai-test-result").textContent = chosen() === "key" ? "Asking the service. If this is the first question this time, you are shown what would be sent first." : "Starting the model. The first time this can take half a minute.";
     try {
-      const answer = await appConnector({ choice: "builtin" }).ask(
+      const { answerer } = await chosenAnswerer();
+      const answer = await answerer.ask(
         [
           { role: "system", content: "You write short, clear sentences for software documentation." },
           { role: "user", content: "Write one short sentence that welcomes a new author to OpenExplainer, a tool for making how-to books from screen captures." },
@@ -209,7 +292,7 @@ export async function aiDialog(): Promise<AiSettings | null> {
         { maxTokens: 60, temperature: 0.7, signal: controller.signal },
       );
       const seconds = ((Date.now() - started) / 1000).toFixed(1);
-      $("ai-test-result").textContent = `The built-in model answered in ${seconds} seconds${answer.truncated ? " (cut short)" : ""}: "${answer.text}" This was only a test; nothing was saved.`;
+      $("ai-test-result").textContent = `${chosen() === "key" ? serviceInfo(service).name.split(" (")[0] : "The built-in model"} answered in ${seconds} seconds${answer.truncated ? " (cut short)" : ""}: "${answer.text}" This was only a test; nothing was saved.`;
     } catch (error) {
       $("ai-test-result").textContent = error instanceof AiError ? (error.code === "cancelled" ? "The test was stopped." : error.message) : `The test could not be done. ${error instanceof Error ? error.message : String(error)}`;
     } finally {
@@ -228,6 +311,8 @@ export async function aiDialog(): Promise<AiSettings | null> {
     const next: AiSettings = { choice: chosen() };
     try {
       await invoke("ai_settings_set", { settings: next });
+      models[service] = $<HTMLInputElement>("ai-model").value.trim();
+      await invoke("ai_cloud_set", { settings: { service, models } });
     } catch (error) {
       $("ai-error").textContent = typeof error === "string" ? error : error instanceof Error ? error.message : "The choice could not be saved.";
       start.focus();

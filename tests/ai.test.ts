@@ -36,7 +36,7 @@ test("the status words say what is true and never lean on colour", () => {
   assert.match(aiStatusWords({ choice: "builtin" }, "partial"), /only partly downloaded/);
   assert.match(aiStatusWords({ choice: "builtin" }, "damaged"), /damaged/);
   assert.equal(aiStatusWords({ choice: "builtin" }, "ready"), "AI help will use the built-in model on this PC.");
-  assert.match(aiStatusWords({ choice: "key" }, "ready"), /not built yet/);
+  assert.match(aiStatusWords({ choice: "key" }, "ready"), /your own key.*Nothing is sent until you have seen exactly what would be sent/);
 });
 
 test("the pinned model is exactly the file that was audited, by commit and fingerprint, and its address cannot drift", () => {
