@@ -22,3 +22,9 @@ CLAUDE.local.md
 *.pem
 *.key
 !.env.example
+
+# Reports and downloads of the outside checks (tools/outside-checks).
+tools/outside-checks/out/
+tools/outside-checks/downloads/
+tools/outside-checks/epubcheck/
+tools/outside-checks/verapdf/

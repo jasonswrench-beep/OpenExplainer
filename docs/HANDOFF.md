@@ -583,4 +583,22 @@ reader caps what a file unpacks to; a PDF is printed only into its work folder a
 security policy; Help, Check for updates (`docs/update-check.md`); generic names for assistants, AI services and screen readers. `docs/code-signing.md` says
 how a release is made now.
 
+## The core round, 2026-11-16 (the OpenExplainer development list of 2026-11-15)
+
+Jason sent the list (`OpenExplainer Development List.docx`, five items in build order) and said: build on the shared core as published (`openstage-core`, read its `CORE-NOTES.md`; never copy or reimplement its code; note what it lacks in `CORE-REQUESTS.md`), keep building, put what only he can check in `TESTING-TODO.md`, never describe the tool as an alternative to a named product.
+Work is on the branch **`core-round-2026-11-16`** (four commits, nothing pushed). **No project format change** (still version 21). `CLAUDE.md` was changed to say OpenExplainer now builds on the core by tag.
+
+| Item | State | Where |
+| --- | --- | --- |
+| 1. Read C1 recordings | **Built and tested.** The capture helper depends on the core's capture crates by tag `capture-v0.1.0` and has `read-recording` and `recording-frames`; Insert, Import a recording...; MCP `import_recording`. A test cuts real pictures out of a real MP4. Not tried: a real recording with a click log (his have none) | `docs/recording-import.md`, `capture-helper/src/recording.rs`, `src/capture/recording.ts`, `src/recording-dialog.ts` |
+| 2. Send to Author and Studio | **Studio built** (File, Send a guide to Studio...; MCP `export_studio_script`; validated by Studio's own validator). **Author not built**: it has no way to receive still steps, so it is request 1 in `CORE-REQUESTS.md` | `docs/send-to.md`, `src/export/studio-script.ts` |
+| 3. C2 on the outputs | **Not built: the core has no C2 yet.** Request 2 in `CORE-REQUESTS.md` says what OpenExplainer needs and what it checks already (the list's reason was out of date) | `CORE-REQUESTS.md` |
+| 4. Own key, draft tool, picture model | **Own key and `draft_text` built** (own key: Windows DPAPI in `src-tauri/src/keys.rs`, a "this is what will be sent" window, three services; draft tool: built-in model only, never a key, facts back when no model). **Picture model: a decision for Jason**, written up, not made | `docs/ai-keys.md`, `docs/picture-model-decision.md`, `src/ai/cloud.ts`, `src/mcp/draft-tool.ts` |
+| 5. Outside checks | **Scripts only**: `Check EPUB.bat` and `Check PDF.bat` (EPUBCheck, veraPDF; they ask before downloading). Nothing was downloaded or run | `docs/outside-checks.md`, `tools/outside-checks/` |
+
+Choices made without asking (all in the docs named): the picture is taken 100 ms before a click; a recording's text boxes never keep a name (the log does not say which is a password box); a double-click is the same button within 500 ms and 4 pixels; a click with no kept name, or a step with no click, becomes a spoken-only step in a Studio script
+(Studio cannot click what it cannot name); no model is chosen for OpenAI or Google (names change) and Anthropic starts at `claude-sonnet-5-5`; the key is read at the moment of a question and the page sees it only then; the send window starts on "Do not send"; an assistant over MCP never uses a key.
+The line in his message about switching PrismQDA to the core's statistics tag was **not** done: it is not in this repository (no PrismQDA folder exists on the PC); it belongs to that session.
+Tests: TypeScript 629, helper 87, app shell 53. `docs/local-ai-plan.md` parts 7 and 8 are now done (see `docs/ai-keys.md`).
+
 ## Housekeeping on Jason's PC
