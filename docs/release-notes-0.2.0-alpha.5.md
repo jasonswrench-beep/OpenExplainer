@@ -46,7 +46,7 @@ The project format is still version 21, so a project moves between this and the 
 
 ## What has NOT been tried
 
-- **Nobody has installed this release by hand**, and the program window was not opened for this release. The new windows were checked by tests and by the build only.
+- **No person has installed or used this release.** After it was published it was installed silently, by a script, on the PC it was built on, and checked by scripts: a smoke test of the installed program (38 checks passed and 1 was skipped, because the AI model is not downloaded there), the MCP check (29 passed), and a menu check that found Insert, Import a recording... and File, Send a guide to Studio..., opened the Send a guide to Studio window and AI help with the My own key box, and closed each with Escape. The Import a recording window itself was not opened, because it starts with Windows' folder chooser. Whether that install went into the real program folders was not confirmed.
 - **No real recording with clicks has been read.** The reader was tested by cutting pictures out of a video made in a test and by made-up click logs. A first recording from OpenStage Recorder with interaction notes on is the check to make. The picture is taken 100 milliseconds before a click; that number may need changing.
 - **No real key has been tried**, with any of the three services. In particular, whether Anthropic's service answers a request from the program's window (it needs a special header) is not known.
 - **A Studio script has not been recorded against a real program.**
