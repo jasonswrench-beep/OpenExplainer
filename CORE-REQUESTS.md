@@ -51,7 +51,7 @@ stay until C2 exists; then they should be written as C2 rules, not run beside th
 4. The rules named in the list: alt text present and not weak, heading order, reading and focus order, keyboard reach, captions, contrast, link text, timed content. For OpenExplainer's outputs also: page language, a title, names on every control, a skip link that works, landmarks, ids used once, a PDF's tags and bookmarks.
 5. A **conformance set** like the item-analysis one: small outputs with the findings expected, so OpenExplainer can prove it matches.
 
-**What OpenExplainer checks today that C2 could take over (so the rule ids can be matched)** — from `docs/screen-reader-machine-checks.md`: page says its language (3.1.1) and has a title (2.4.2); every link, button and field has a name (4.1.2, 2.4.4); pictures have descriptions (1.1.1);
+**What OpenExplainer checks today that C2 could take over (so the rule ids can be matched)**, from `docs/screen-reader-machine-checks.md`: page says its language (3.1.1) and has a title (2.4.2); every link, button and field has a name (4.1.2, 2.4.4); pictures have descriptions (1.1.1);
 one level-1 heading and no skipped levels (1.3.1, 2.4.6); a main landmark and a named navigation (1.3.1, 2.4.1); ids used once (4.1.1); no empty links (2.4.4); contrast, 4.5 to 1 and 3 to 1 for large text (1.4.3) and for marks (1.4.11); the first Tab stop is a skip link that moves the keyboard (2.4.1);
 every stop shows where it is (2.4.7); the PDF is tagged with a structure tree, headings, lists, figures with alternative text and a language and title (the PDF/UA checks). The WCAG numbers here are my reading, not checked by a person.
 
