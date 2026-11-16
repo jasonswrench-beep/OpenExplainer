@@ -94,6 +94,8 @@ const capture: CaptureDeps = {
     return { bytes, width: part.width, height: part.height, extension: "png" };
   },
   forAssistant: (bytes, maxWidth) => scaleToWidth(bytes, "picture.png", maxWidth),
+  readRecording: async (folder, take) => sure(await client.readRecording(folder, take)),
+  recordingShots: async (folder, info, limit) => sure(await client.recordingShots(folder, info, { limit })),
 };
 
 const tools = [

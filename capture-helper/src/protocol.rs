@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The commands the helper knows, in the order `docs/capture-helper.md` lists them.
-pub const COMMANDS: [&str; 8] = [
+pub const COMMANDS: [&str; 10] = [
     "ping",
     "list-windows",
     "list-screens",
@@ -18,6 +18,8 @@ pub const COMMANDS: [&str; 8] = [
     "crop-picture",
     "watch-clicks",
     "stop-watching",
+    "read-recording",
+    "recording-frames",
 ];
 
 /// Error codes. The app can switch on these; `message` is always plain words for the author.
@@ -105,6 +107,22 @@ pub enum Request {
     },
     /// Ends click-by-click capture. The `ended` event follows once the last picture is saved.
     StopWatching,
+    /// Reads a recording made by another OpenStage tool (a `.capture` folder, the shared capture format): its takes, and the clicks of
+    /// one take (`take`, else the newest that can be used). Shows no picture. See `recording.rs`.
+    ReadRecording {
+        folder: String,
+        #[serde(default)]
+        take: Option<u32>,
+    },
+    /// Cuts pictures out of a recording's video, one for each `frames` entry (its click's number, the moment, and where the click is
+    /// in the picture). Each is written as `<prefix>-<n>.png` in `out_dir`. At most 40 at a time.
+    RecordingFrames {
+        folder: String,
+        take: u32,
+        frames: Vec<crate::recording::FrameAsk>,
+        out_dir: String,
+        prefix: String,
+    },
 }
 
 /// What the helper says about one screen (monitor).

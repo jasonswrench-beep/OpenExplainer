@@ -179,6 +179,16 @@ pub fn capture_folder() -> PathBuf {
     std::env::temp_dir().join("openexplainer-capture")
 }
 
+/// Puts the place for the pictures of a `recording-frames` request into it: the capture folder (made if it is not there yet) and a
+/// name that starts `recording-` and is different every time. Whatever the page wrote for these two is replaced.
+fn with_frame_place(object: &mut serde_json::Map<String, Value>, folder: &Path, n: u64) -> Result<(), String> {
+    std::fs::create_dir_all(folder).map_err(|e| format!("The folder for the pictures could not be made: {e}"))?;
+    let millis = std::time::UNIX_EPOCH.elapsed().map(|d| d.as_millis()).unwrap_or(0);
+    object.insert("out_dir".into(), json!(folder.to_string_lossy()));
+    object.insert("prefix".into(), json!(format!("recording-{}-{millis}-{n}", std::process::id())));
+    Ok(())
+}
+
 // ---- The app's side: state, windows and commands -------------------------------------------------------
 
 /// A rectangle as four whole numbers: left, top, width, height.
@@ -352,6 +362,13 @@ fn capture_inner(app: &AppHandle, state: &CaptureState, request: Value, timeout_
     if wants_picture {
         let path = new_picture_path(&state.counter);
         object.insert("out".into(), json!(path.to_string_lossy()));
+    }
+    // The pictures cut out of a recording's video go in the capture folder too, under a name the app chooses, so the page can only
+    // collect them with `take_capture_picture` and cannot have the helper write anywhere else.
+    if object.get("command").and_then(Value::as_str) == Some("recording-frames") {
+        if let Err(why) = with_frame_place(&mut object, &capture_folder(), state.counter.fetch_add(1, Ordering::SeqCst)) {
+            return json!({ "kind": "unavailable", "reason": "bad-request", "detail": why });
+        }
     }
     let line = Value::Object(object).to_string();
 
@@ -652,6 +669,21 @@ mod tests {
         let _ = std::fs::remove_dir_all(&folder);
         std::fs::create_dir_all(&folder).unwrap();
         folder
+    }
+
+    #[test]
+    fn the_pictures_of_a_recording_go_where_the_app_says_whatever_the_page_asked() {
+        let folder = fresh_folder("frames-place").join("not-made-yet");
+        let mut object = json!({ "command": "recording-frames", "out_dir": "C:\\Users\\someone\\Documents", "prefix": "..\\..\\x" })
+            .as_object()
+            .cloned()
+            .unwrap();
+        with_frame_place(&mut object, &folder, 7).unwrap();
+        assert!(folder.is_dir(), "the folder is made");
+        assert_eq!(object["out_dir"], json!(folder.to_string_lossy()));
+        let prefix = object["prefix"].as_str().unwrap();
+        assert!(prefix.starts_with("recording-") && prefix.ends_with("-7") && prefix.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
+        let _ = std::fs::remove_dir_all(folder.parent().unwrap());
     }
 
     /// A stand-in for the helper: a short PowerShell script. It reads one line, then does `body`.

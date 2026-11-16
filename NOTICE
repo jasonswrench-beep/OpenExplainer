@@ -68,7 +68,13 @@ Libraries used by the capture helper (capture-helper/), each under a permissive 
 - png (PNG image encoder and decoder), MIT OR Apache-2.0. https://github.com/image-rs/image-png
 - serde and serde_json (reading and writing the helper's JSON messages), MIT OR Apache-2.0. https://serde.rs
 
-Each of these brings in smaller libraries of its own (35 Rust crates in all). One of them, unicode-ident, also
+- openstage-capture-project, openstage-capture-render, openstage-capture-windows (and openstage-capture, openstage-capture-protocol, which they use),
+  the shared core's capture crates, Apache License 2.0, Copyright 2026 Jason S. Wrench, the same owner. They are used, not copied: the helper's
+  Cargo.toml names the core's tag `capture-v0.1.0` (https://github.com/jasonswrench-beep/openstage-core), and they read a recording made by
+  OpenStage Recorder or OpenStage Author and cut a picture out of its video (capture-helper/src/recording.rs). With them come thiserror,
+  crc32fast and time (MIT OR Apache-2.0).
+
+Each of these brings in smaller libraries of its own (35 Rust crates in all, before the core's crates). One of them, unicode-ident, also
 carries the Unicode licence for its data tables, which is permissive. "Check Licences.bat" reads the licence of
 every one and refuses GPL and AGPL.
 

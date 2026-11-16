@@ -253,6 +253,23 @@ Request: `{"command": "stop-watching"}`. Answers `{"stopping": true}` if a sessi
 `ended` event follows as soon as the last picture is saved (0.1 seconds in the tests). When the app closes the pipe the helper
 quits and Windows takes the hook away with it.
 
+### `read-recording` and `recording-frames`
+
+These two read a recording made by OpenStage Recorder or OpenStage Author (the shared capture format, C1). They use the shared core's own
+capture crates (`capture-v0.1.0`) for the folder, the click log and the pictures out of the video; what the helper adds is which clicks become
+steps and which names may be kept. The whole story is in `docs/recording-import.md`.
+
+`{"command": "read-recording", "folder": "C:\\...\\Talk.capture", "take": 2}` (`take` is optional: the newest finished take with a picture) answers with
+`title`, `language`, `schema_version`, `takes` (each with `id`, `state` in words, `usable`, `duration_ms`, `has_picture`, `has_clicks`, `region`), `take`
+(the one the clicks are from, or `null`), `has_clicks`, `click_count`, `truncated` (more than 1000), `unplaced`, `other_buttons`, `note` (why there is nothing
+to bring in, when so) and `clicks`: each `{n, t_ms, picture_ms, click}` where `click` is the note the app already keeps (`x`, `y` in picture pixels,
+`button`, `double`, `target` with `role` and, for a button or menu only, `name`). It shows no picture and takes about 50 milliseconds.
+
+`{"command": "recording-frames", "folder": ..., "take": 1, "frames": [{"n": 1, "at_ms": 1100, "x": 640, "y": 480}], "out_dir": ..., "prefix": "recording-1"}`
+cuts one PNG for each entry of `frames` (at most 40) out of the take's video, `<prefix>-<n>.png` in `out_dir`, and answers `{frames: [{n, path, width, height,
+inside}], failed: [{n, message}]}`. `inside` is false when the click's place is outside the picture. The app's shell chooses `out_dir` and `prefix` (the capture
+folder, a name that starts `recording-`), so the page cannot have the helper write anywhere else; the picture is collected with `take_capture_picture` like any capture.
+
 ### Error codes
 
 | Code | When |

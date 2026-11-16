@@ -4,6 +4,7 @@ import { clickInPart, createCaptureTools, windowPartOfShot, type Box, type Captu
 import { Session, type McpFiles } from "../src/mcp/session.ts";
 import { addNode, createProject, type ClickInfo } from "../src/project/model.ts";
 import type { WindowInfo } from "../src/capture/outcome.ts";
+import { parseRecording } from "../src/capture/recording.ts";
 
 const FOLDER = "C:\\Docs\\OE";
 const win = (id: number, title: string, x: number, y: number, width: number, height: number, extra: Partial<WindowInfo> = {}): WindowInfo => ({ id, title, process: "app.exe", pid: id, x, y, width, height, minimized: false, not_responding: false, scale_percent: 100, ...extra });
@@ -31,6 +32,18 @@ test("which clicks are in a window, and where the window is in each picture", ()
   assert.equal(gone.target?.role, "pane");
 });
 
+/** What the helper says about a recording with three clicks in it. */
+let recording: unknown = {
+  title: "Save a file", language: "en-US", schema_version: "0.2.5",
+  takes: [{ id: 1, state: "complete", usable: true, duration_ms: 12000, has_picture: true, has_clicks: true }],
+  take: 1, duration_ms: 12000, click_count: 3, truncated: false, unplaced: 0, other_buttons: 0, has_clicks: true,
+  clicks: [
+    { n: 1, t_ms: 1200, picture_ms: 1100, click: { x: 640, y: 480, button: "left", target: { role: "button", name: "Save", bounds: { x: 600, y: 460, width: 80, height: 40 } } } },
+    { n: 2, t_ms: 4000, picture_ms: 3900, click: { x: 700, y: 300, button: "right", target: { role: "list item" } } },
+    { n: 3, t_ms: 6000, picture_ms: 5900, click: { x: 10, y: 10, button: "left", double: true } },
+  ],
+};
+
 function setup(options: { full?: boolean; windows?: boolean } = {}) {
   const store = new Map<string, Uint8Array>();
   const files: McpFiles = {
@@ -54,6 +67,15 @@ function setup(options: { full?: boolean; windows?: boolean } = {}) {
     clickCount: async () => count,
     crop: async (_picture: Captured, part: Box) => { log.push(`crop ${JSON.stringify(part)}`); return { bytes: new Uint8Array([9, 9]), width: part.width, height: part.height, extension: "png" }; },
     forAssistant: async (b) => b,
+    readRecording: async (folder, take) => {
+      log.push(`read ${folder} take=${take}`);
+      return parseRecording(recording)!;
+    },
+    recordingShots: async (folder, info, limit) => {
+      log.push(`shots ${folder} limit=${limit}`);
+      const shots = info.clicks.slice(0, limit ?? 200).map((c) => ({ n: c.n, click: c.click, bytes: new Uint8Array([7, c.n]), width: 1920, height: 1080, extension: "png" as const }));
+      return { shots, outside: 0, failed: 0 };
+    },
   };
   const tools = createCaptureTools(session, deps);
   const call = async (name: string, args: Record<string, unknown> = {}) => {
@@ -178,4 +200,42 @@ test("with capturing not allowed, an assistant sees no window titles and capture
   }
   assert.equal(topic.pictures.length, 0);
   assert.deepEqual(log, [], "the capture helper was never asked for anything");
+});
+
+test("import_recording brings in a picture and a note for each click of a recording inside the MCP folder, with a first callout, and works with capture off", async () => {
+  const { call, topic, log, session } = setup({ windows: false });
+  const done = await call("import_recording", { topic_id: topic.id, folder: `${FOLDER}\\Save a file.capture` });
+  assert.equal(done.isError, false, done.text);
+  assert.match(done.text, /Brought in 3 click picture\(s\) from take 1 of "Save a file" into "Saving"\./);
+  assert.ok(done.text.includes("Saved to"));
+  assert.deepEqual(log, [`read ${FOLDER}\\Save a file.capture take=undefined`, `shots ${FOLDER}\\Save a file.capture limit=undefined`]);
+  assert.deepEqual(topic.pictures.map((p) => p.source.kind), ["click", "click", "click"]);
+  assert.equal(topic.pictures[0].source.originalName, 'Click on the button "Save"');
+  assert.equal((topic.pictures[0].callouts ?? []).length, 1, "the clicked button's outline becomes the first callout");
+  assert.equal(topic.pictures[2].click?.double, true);
+  assert.ok(topic.pictures.every((p) => session.assets.has(p.file)));
+  assert.equal(JSON.stringify(topic.pictures).includes("Save a file.capture"), false, "the folder's name is not kept in the project");
+});
+
+test("import_recording takes a take and a limit, and refuses a folder outside the MCP folder or a topic that is not there", async () => {
+  const { call, topic, log } = setup();
+  const some = await call("import_recording", { topic_id: topic.id, folder: `${FOLDER}\\r.capture`, take: 1, limit: 2 });
+  assert.equal(some.isError, false, some.text);
+  assert.equal(topic.pictures.length, 2);
+  assert.deepEqual(log, [`read ${FOLDER}\\r.capture take=1`, `shots ${FOLDER}\\r.capture limit=2`]);
+  assert.match(some.text, /only the first 2 were asked for/);
+  const outside = await call("import_recording", { topic_id: topic.id, folder: "C:\\Other\\r.capture" });
+  assert.ok(outside.isError && /not inside the folder MCP may use/.test(outside.text));
+  assert.equal(log.length, 2, "nothing was read from outside");
+  assert.match((await call("import_recording", { topic_id: "nope", folder: `${FOLDER}\\r.capture` })).text, /There is no topic with the id "nope"/);
+  assert.match((await call("import_recording", { folder: `${FOLDER}\\r.capture` })).text, /topic_id is needed/);
+});
+
+test("import_recording says why there is nothing to bring in, and adds nothing", async () => {
+  const { call, topic } = setup();
+  recording = { title: "Talk", language: "en-US", takes: [{ id: 1, state: "complete", usable: true, duration_ms: 5000, has_picture: true, has_clicks: false }], take: 1, duration_ms: 5000, clicks: [], click_count: 0, has_clicks: false, note: "This take has no log of the clicks (it was recorded with interaction notes off), so there are no steps to find in it." };
+  const none = await call("import_recording", { topic_id: topic.id, folder: `${FOLDER}\\talk.capture` });
+  assert.equal(none.isError, false);
+  assert.match(none.text, /no log of the clicks.*Nothing was added\./);
+  assert.equal(topic.pictures.length, 0);
 });

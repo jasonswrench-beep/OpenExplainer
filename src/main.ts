@@ -32,7 +32,8 @@ import { createCaptureClient, type CapturedPicture } from "./capture/client.ts";
 import { captureTimeoutMs, tauriShell } from "./capture/tauri.ts";
 import { regionName, screenName } from "./capture/region.ts";
 import { describeWait } from "./capture/wait.ts";
-import { describeEnded, describeLost } from "./capture/clicks.ts";
+import { describeEnded, describeLost, type ClickShot } from "./capture/clicks.ts";
+import { open as chooseFolder } from "@tauri-apps/plugin-dialog";
 import { createPageEditor } from "./page-editor.ts";
 import { entryList, pictureBox } from "./picture-marks.ts";
 import { shownPart, viewWords } from "./project/views.ts";
@@ -48,6 +49,8 @@ import { flattenPicture } from "./render/flatten.ts";
 import { guidesDialog } from "./guides-dialog.ts";
 import { indexDialog } from "./index-dialog.ts";
 import { mcpDialog } from "./mcp-dialog.ts";
+import { recordingDialog } from "./recording-dialog.ts";
+import { describeNotCut, describeLeftOut } from "./capture/recording.ts";
 import { aiDialog } from "./ai-dialog.ts";
 import { draftsDialog } from "./drafts-dialog.ts";
 import { draftBoxesFor, draftCalloutText, draftChapterTextFor } from "./drafting-ui.ts";
@@ -947,6 +950,7 @@ function renderPictures() {
   setEnabled("b-import", !(!node));
   for (const id of ["add-paragraph", "add-heading", "add-picture", "add-procedure", "add-callout", "add-snippet"] as const) setEnabled(id, !!node);
   setEnabled("b-capture", !(!node));
+  setEnabled("b-import-recording", !(!node));
   setEnabled("b-draft-topic", !(!node || !node.pictures.some((p) => (p.callouts ?? []).length > 0)));
   setEnabled("b-procedure", !(!node || !node.pictures.some((p) => p.click)));
   setEnabled("b-opener", !(!node));
@@ -1168,9 +1172,17 @@ async function captureClicks(node: TreeNode) {
   if (shots.length === 0) {
     return void (await messageDialog("No clicks were captured", [...notices, "Nothing was added. Your project was not changed."].join(" ")));
   }
+  await reviewAndAddShots(node, shots, notices, "captured");
+}
+
+/**
+ * The review list and what follows it, for clicks from a live capture and for clicks from a recording: nothing is added to the project
+ * unless the author presses OK, and the pictures they keep go in click order with a first callout made from the clicked item.
+ */
+async function reviewAndAddShots(node: TreeNode, shots: ClickShot[], notices: string[], verb: "captured" | "brought in") {
   const answers = await reviewClicksDialog(shots, notices);
   if (!answers) {
-    const count = shots.length === 1 ? "The click you captured was" : `The ${shots.length} clicks you captured were`;
+    const count = shots.length === 1 ? `The click you ${verb} was` : `The ${shots.length} clicks you ${verb} were`;
     return void announce(`${count} thrown away. Your project was not changed.`);
   }
   const { pictures, files } = picturesFromReview(shots, answers, newId, new Date().toISOString());
@@ -1188,6 +1200,39 @@ async function captureClicks(node: TreeNode) {
   const made = calloutsMade > 0 ? ` ${calloutsMade} ${calloutsMade === 1 ? "callout was" : "callouts were"} made from the clicked items; each needs a sentence.` : "";
   announce(`${addedWords(pictures.length, shots.length)}${made}`);
 }
+
+/**
+ * A recording made by OpenStage Recorder or OpenStage Author: the author chooses its folder, says which take and how many clicks, and the
+ * helper cuts a picture out of the video for each click. They then go through the same review list as a live capture.
+ */
+async function importRecording() {
+  const node = selected();
+  if (!node || capturing) return;
+  capturing = true;
+  try {
+    const folder = await chooseFolder({ directory: true, title: "Choose the recording's folder (its name ends in .capture)" });
+    if (typeof folder !== "string") return;
+    announce("Reading the recording.");
+    const read = await captureClient.readRecording(folder);
+    if (!read.ok) return void (await messageDialog("The recording could not be read", read.message));
+    const choice = await recordingDialog(read.value, (take) => captureClient.readRecording(folder, take));
+    if (!choice) return void announce("Nothing was brought in. Your project was not changed.");
+    announce(`Cutting ${choice.limit} picture${choice.limit === 1 ? "" : "s"} out of the recording. This can take a moment.`);
+    const made = await captureClient.recordingShots(folder, choice.info, { limit: choice.limit, onProgress: (done, total) => announce(`Cut ${done} of ${total} pictures.`) });
+    if (!made.ok) return void (await messageDialog("The pictures could not be cut out", made.message));
+    const { shots, outside, failed } = made.value;
+    const notices = [describeLeftOut(choice.info), describeNotCut(outside, failed)].filter((text): text is string => text !== null);
+    if (shots.length === 0) return void (await messageDialog("No pictures were made", [...notices, "Nothing was added. Your project was not changed."].join(" ")));
+    await reviewAndAddShots(node, shots, notices, "brought in");
+  } catch (error) {
+    await messageDialog("The recording could not be brought in", `${error instanceof Error ? error.message : String(error)} Your project was not changed.`);
+  } finally {
+    capturing = false;
+    focusBack("b-import-recording");
+  }
+}
+
+onCommand("b-import-recording", () => void importRecording());
 
 async function captureIntoTopic() {
   const node = selected();

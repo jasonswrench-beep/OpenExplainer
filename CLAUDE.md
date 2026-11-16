@@ -16,9 +16,11 @@ by hand with no AI.
 
 ## Separate from OpenStage
 
-OpenExplainer is a standalone product with its own repository, build and run. It ships nothing from OpenStage.
-OpenStage code is copied only when Claude judges it useful, and each piece is credited in `NOTICE`.
-It may join the same product suite later, but not now.
+OpenExplainer is a standalone product with its own repository, build and run.
+Since 2026-11-15 it builds on the shared core (`openstage-core`, https://github.com/jasonswrench-beep/openstage-core) as published, by tag: read its
+`CORE-NOTES.md` first, never copy or reimplement the core's code, and note anything the core does not offer yet in `CORE-REQUESTS.md` instead of building it here.
+The first use is the capture helper, which depends on the core's capture crates (tag `capture-v0.1.0`) to read a recording (`docs/recording-import.md`).
+Other OpenStage code is copied only when Claude judges it useful, and each piece is credited in `NOTICE`.
 
 ## Non-negotiable rules
 

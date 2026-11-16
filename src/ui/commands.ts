@@ -22,6 +22,7 @@ export const COMMANDS = {
   "b-save": { label: "Save", icon: "save", keys: "Ctrl+S", title: "Save the project to its file" },
   "b-saveas": { label: "Save as...", icon: "save-all", title: "Save the project to a new file" },
   "b-import-export": { label: "Import an export...", icon: "package-open", title: "Bring back a JSON export made by OpenExplainer, as a project" },
+  "b-import-recording": { label: "Import a recording...", icon: "folder-open", title: "Bring in the clicks of a recording made by OpenStage Recorder or OpenStage Author, as pictures with notes of what was clicked" },
   "b-import-word": { label: "Import from Word...", icon: "file-input", title: "Bring in the headings, text, steps and pictures of a Word document" },
   "b-review-in": { label: "Bring in review comments...", icon: "message-square-plus", title: "Bring in the comments reviewers wrote in a Word review copy" },
   "b-import-translation": { label: "Import a translation...", icon: "languages", title: "Make a translated copy of the book from a translation file (XLIFF)" },
@@ -87,7 +88,7 @@ export type MenuItemId = CommandId | "-";
 export const MENUS: readonly { id: string; label: string; items: readonly MenuItemId[] }[] = [
   { id: "file", label: "File", items: ["b-new", "b-open", "b-save", "b-saveas", "-", "b-import-export", "b-import-word", "b-review-in", "b-import-translation", "-", "b-export", "b-history"] },
   { id: "chapters", label: "Chapters", items: ["b-chapter", "b-topic", "-", "b-rename", "b-up", "b-down", "b-indent", "b-outdent", "-", "b-find", "-", "b-delete"] },
-  { id: "insert", label: "Insert", items: ["b-import", "b-capture", "-", "add-paragraph", "add-heading", "add-picture", "add-procedure", "add-callout", "add-snippet"] },
+  { id: "insert", label: "Insert", items: ["b-import", "b-capture", "b-import-recording", "-", "add-paragraph", "add-heading", "add-picture", "add-procedure", "add-callout", "add-snippet"] },
   { id: "write", label: "Write", items: ["b-drafts", "-", "b-draft-topic", "b-procedure", "b-opener", "b-summary", "b-boxes", "-", "b-style"] },
   { id: "book", label: "Book", items: ["b-vars", "b-look", "b-reuse", "-", "b-index", "b-guides", "-", "b-highlight", "b-zoom"] },
   { id: "view", label: "View", items: ["view-edit", "view-print", "view-help", "view-guide"] },

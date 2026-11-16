@@ -6,6 +6,7 @@ import {
   type CaptureResult, type Done, type ScreenInfo, type ShellOutcome, type WindowInfo,
 } from "./outcome.ts";
 import { collectSession, type ClickSession } from "./clicks.ts";
+import { FRAMES_PER_REQUEST, RECORDING_TIMEOUT_MS, collectRecordingShots, parseRecording, stepLimit, type RecordingInfo, type RecordingShots } from "./recording.ts";
 import type { Region } from "./region.ts";
 import type { Rect } from "./selection.ts";
 
@@ -66,6 +67,16 @@ export interface CaptureClient {
    * reacted, with a click note. A session with no clicks is fine and gives no shots. Whatever the session gave is kept even if it ended early.
    */
   watchClicks(options?: { idleSeconds?: number; maxClicks?: number }): Promise<Done<ClickSession>>;
+  /**
+   * Reads a recording made by another OpenStage tool (a folder whose name ends in .capture): its takes, and the clicks of one take (`take`, else the
+   * newest that can be used). Shows no picture and takes a moment.
+   */
+  readRecording(folder: string, take?: number): Promise<Done<RecordingInfo>>;
+  /**
+   * Cuts a still picture out of the recording's video for each click of `info` (at most `limit`, and 200), a little before the click, and makes the
+   * same shots a live click capture makes. Asks the helper for a few at a time; `onProgress` hears how far it has got.
+   */
+  recordingShots(folder: string, info: RecordingInfo, options?: { limit?: number; onProgress?: (done: number, total: number) => void }): Promise<Done<RecordingShots>>;
 }
 
 /** The wait, as the shell wants it: only said when there is one. */
@@ -75,10 +86,10 @@ function delayOption(waitSeconds: number | undefined): { delayMs?: number } {
 
 export function createCaptureClient(shell: Shell, timeoutMs: () => number = () => CAPTURE_TIMEOUT_MS): CaptureClient {
   /** One question to the helper. Every way it can fail comes back as a plain-words `Failure`, never as an exception. */
-  async function ask(request: Record<string, unknown>, hideApp: boolean, waitSeconds = 0): Promise<Done<unknown>> {
+  async function ask(request: Record<string, unknown>, hideApp: boolean, waitSeconds = 0, limitMs?: number): Promise<Done<unknown>> {
     let outcome: ShellOutcome;
     try {
-      outcome = await shell.run(request, { timeoutMs: timeoutMs(), hideApp, ...delayOption(waitSeconds) });
+      outcome = await shell.run(request, { timeoutMs: limitMs ?? timeoutMs(), hideApp, ...delayOption(waitSeconds) });
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
       return failure("app-error", `OpenExplainer could not reach the capture helper (${why}). ${UNCHANGED}`);
@@ -175,6 +186,34 @@ export function createCaptureClient(shell: Shell, timeoutMs: () => number = () =
       if (outcome.kind === "selected") return failure("app-error", `OpenExplainer got an answer it did not ask for. ${UNCHANGED}`);
       if (outcome.kind !== "clicks") return failureFor(outcome);
       return { ok: true, value: await collectSession(shell, outcome) };
+    },
+
+    async readRecording(folder, take) {
+      const answer = await ask({ command: "read-recording", folder, ...(take === undefined ? {} : { take }) }, false);
+      if (!answer.ok) return answer;
+      const info = parseRecording(answer.value);
+      return info ? { ok: true, value: info } : failure("unreadable", `The capture helper's answer about the recording could not be read. ${UNCHANGED}`);
+    },
+
+    async recordingShots(folder, info, options = {}) {
+      if (info.take === null) return failure("nothing", `This recording has no take that can be brought in. ${UNCHANGED}`);
+      const clicks = info.clicks.slice(0, stepLimit(info, options.limit ?? null));
+      const total: RecordingShots = { shots: [], outside: 0, failed: 0 };
+      for (let from = 0; from < clicks.length; from += FRAMES_PER_REQUEST) {
+        const batch = clicks.slice(from, from + FRAMES_PER_REQUEST);
+        const frames = batch.map((c) => ({ n: c.n, at_ms: c.pictureMs, x: c.click.x, y: c.click.y }));
+        const answer = await ask({ command: "recording-frames", folder, take: info.take, frames }, false, 0, RECORDING_TIMEOUT_MS);
+        // Pictures already cut stay out of the project: nothing is added unless the whole run worked.
+        if (!answer.ok) return answer;
+        const result = answer.value as { frames?: unknown[]; failed?: unknown[] };
+        const made = await collectRecordingShots(shell, batch, Array.isArray(result.frames) ? result.frames : [], Array.isArray(result.failed) ? result.failed.length : 0);
+        total.shots.push(...made.shots);
+        total.outside += made.outside;
+        total.failed += made.failed;
+        options.onProgress?.(Math.min(from + batch.length, clicks.length), clicks.length);
+      }
+      total.shots.sort((a, b) => a.n - b.n);
+      return { ok: true, value: total };
     },
   };
 }

@@ -6,6 +6,7 @@ use crate::pixels;
 use crate::platform;
 use crate::png_out;
 use crate::protocol::{code, parse_line, CaptureError, Reply, Request};
+use crate::recording;
 use serde_json::{json, Value};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Mutex;
@@ -81,6 +82,10 @@ fn run(request: Request, id: &Value) -> Result<Value, CaptureError> {
             let (started, info) = platform::start_watching(id.clone(), settings, exclude_pids)?;
             *session = Some(started);
             Ok(info)
+        }
+        Request::ReadRecording { folder, take } => recording::read_recording(&folder, take),
+        Request::RecordingFrames { folder, take, frames, out_dir, prefix } => {
+            recording::recording_frames(&folder, take, &frames, &out_dir, &prefix)
         }
         Request::StopWatching => {
             let session = WATCH.lock().unwrap_or_else(|e| e.into_inner());

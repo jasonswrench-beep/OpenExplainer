@@ -14,8 +14,16 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 png = "0.18"
 
+# The shared core's capture crates (C1, the capture format), taken by tag as CORE-NOTES.md says: reading a recording's
+# folder and its click log, and cutting a picture out of its video. Apache 2.0, from jasonswrench-beep/openstage-core.
+# Nothing of them is copied here, and a fix to them is made in the core first and arrives with a new tag.
+openstage-capture-project = { git = "https://github.com/jasonswrench-beep/openstage-core", tag = "capture-v0.1.0" }
+
 # Only built on Windows. Microsoft's own Rust bindings, MIT OR Apache-2.0.
 [target.'cfg(windows)'.dependencies]
+# The pictures of a recording's video (Media Foundation), from the same core tag.
+openstage-capture-windows = { git = "https://github.com/jasonswrench-beep/openstage-core", tag = "capture-v0.1.0" }
+openstage-capture-render = { git = "https://github.com/jasonswrench-beep/openstage-core", tag = "capture-v0.1.0" }
 windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Graphics_Dwm",

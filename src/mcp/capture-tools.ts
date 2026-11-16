@@ -15,6 +15,8 @@ import { pictureToJson } from "./blocks.ts";
 import { text, type ToolContent, type ToolDef, type ToolResult } from "./protocol.ts";
 import type { Session } from "./session.ts";
 import { windowCaptureName } from "../project/picture-check.ts";
+import { describeLeftOut, describeNotCut, describeRecording, type RecordingInfo, type RecordingShots } from "../capture/recording.ts";
+import { resolveInside } from "./paths.ts";
 
 /** A part of a picture or of the desktop, in pixels. */
 export interface Box {
@@ -53,6 +55,10 @@ export interface CaptureDeps {
   crop(picture: Captured, part: Box): Promise<Captured>;
   /** A picture small enough to send to the assistant (a PNG no wider than `maxWidth`). */
   forAssistant(bytes: Uint8Array, maxWidth: number): Promise<Uint8Array>;
+  /** Reads a recording made by another OpenStage tool (a `.capture` folder), and the clicks of one take. */
+  readRecording(folder: string, take?: number): Promise<RecordingInfo>;
+  /** Cuts a picture out of the recording's video for each of its first `limit` clicks. */
+  recordingShots(folder: string, info: RecordingInfo, limit?: number): Promise<RecordingShots>;
 }
 
 /** Said when the author has not allowed an assistant to capture at all (security review, 2026-11-13). Window titles are not listed then either. */
@@ -291,6 +297,38 @@ export function createCaptureTools(session: Session, deps: CaptureDeps): ToolDef
           outside ? `${outside} click(s) were outside the window and were left out.` : "",
           result.skipped ? `${result.skipped} click(s) came too fast or could not be captured.` : "",
           result.unusable ? `${result.unusable} click(s) could not be used.` : "",
+        ].filter(Boolean);
+        return text(`${notes.join(" ")}${saved}\n${JSON.stringify(kept.map((p, i) => ({ step: i + 1, ...pictureToJson(p) })), null, 2)}`);
+      },
+    },
+    {
+      name: "import_recording",
+      description:
+        "Brings in the clicks of a recording made by OpenStage Recorder or OpenStage Author: a folder whose name ends in .capture, inside the MCP folder. Each click becomes a picture of the screen from just before the click, in the topic's list of pictures in the order of the clicks, " +
+        "with a note of what was clicked (its name only for a button or a menu) and a first callout at that item. The recording must have been made with interaction notes on, or it has no clicks to bring in. " +
+        "Use take to choose a take (the newest finished one if you leave it out) and limit to bring in only the first clicks (at most 200). It does not look at the live screen, so it works with capture off. " +
+        "Returns the pictures in order with what was clicked, so you can write the steps. Use view_picture to look at one.",
+      inputSchema: schema(
+        { topic_id: { type: "string", description: "The topic the pictures go into." }, folder: { type: "string", description: "The recording's folder (its name ends in .capture), inside the MCP folder." }, take: { type: "number", description: "Which take to bring in. Leave out for the newest finished one." }, limit: { type: "number", description: "Bring in only this many clicks, from the first. At most 200." } },
+        ["topic_id", "folder"],
+      ),
+      handler: async (args) => {
+        const project = session.require();
+        const node = topicOf(project, text1(args, "topic_id"));
+        const folder = resolveInside(session.settings.folder, text1(args, "folder") ?? "");
+        if (!folder) throw new Error("That folder is not inside the folder MCP may use.");
+        const take = args.take === undefined || args.take === null ? undefined : number(args, "take");
+        const limit = args.limit === undefined || args.limit === null ? undefined : number(args, "limit");
+        const info = await deps.readRecording(folder, take);
+        if (info.take === null || info.clicks.length === 0) return text(`${describeRecording(info)} Nothing was added.`);
+        const made = await deps.recordingShots(folder, info, limit);
+        const kept = made.shots.map((shot) => keepPicture(session, node, shot, "click", { click: shot.click, name: describeClick(shot.click).replace(/\.$/, "") }));
+        const saved = await keep();
+        const notes = [
+          `Brought in ${kept.length} click picture(s) from take ${info.take} of "${info.title}" into "${node.title}".`,
+          describeLeftOut(info) ?? "",
+          describeNotCut(made.outside, made.failed) ?? "",
+          info.clickCount > info.clicks.length || (limit !== undefined && limit < info.clicks.length) ? `The take has ${info.clickCount} clicks; only the first ${made.shots.length + made.outside + made.failed} were asked for.` : "",
         ].filter(Boolean);
         return text(`${notes.join(" ")}${saved}\n${JSON.stringify(kept.map((p, i) => ({ step: i + 1, ...pictureToJson(p) })), null, 2)}`);
       },

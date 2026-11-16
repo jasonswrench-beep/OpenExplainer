@@ -11,6 +11,7 @@ mod handler;
 mod pixels;
 mod png_out;
 mod protocol;
+mod recording;
 
 #[cfg(windows)]
 #[path = "windows_api.rs"]

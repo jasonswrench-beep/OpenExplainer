@@ -53,6 +53,7 @@ export const INSTRUCTIONS =
   "Text uses **bold**, *italic* and [[Control name]] for the label of a button or menu exactly as it appears on screen. Numbered procedures hold steps; each step may have one of the topic's pictures and a result line. " +
   "To document a program: list_windows, capture_window for a screen, or start_click_capture (naming the window), then use the program yourself, then stop_click_capture. Each click becomes a picture with a note of what was clicked; " +
   "view_picture shows you a picture and get_topic lists them. Capture is one window at a time. " +
+  "A recording made by OpenStage Recorder or OpenStage Author (a .capture folder in the MCP folder) is brought in with import_recording: a picture and a note for each click. " +
   "Name and describe the callouts on a picture with describe_picture, and give every picture a plain description (alt_text) for readers who cannot see it. Never write about a control that is not in the capture. " +
   "[words](#topic-id) in text is a link to another topic and set_see_also lists topics to read next. " +
   "A window, region or brought-in picture (import_picture) has no click, so add_callout puts a callout round a part of it you name in pixels, and delete_callout takes one off. move_topic moves a chapter or topic, with its pictures, to another place. import_word reads an existing Word manual in as drafted chapters and topics. " +
