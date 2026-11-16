@@ -43,13 +43,14 @@ export async function chooseImages(): Promise<{ name: string; bytes: Uint8Array 
 const zipFilters = [{ name: "Zip file", extensions: ["zip"] }];
 
 const docxFilters = [{ name: "Word document", extensions: ["docx"] }];
+const jsonFilters = [{ name: "Script for OpenStage Studio (.json)", extensions: ["json"] }];
 const pdfFilters = [{ name: "PDF document", extensions: ["pdf"] }];
 const epubFilters = [{ name: "E-book (EPUB)", extensions: ["epub"] }];
 const xliffFilters = [{ name: "Translation file (XLIFF)", extensions: ["xlf", "xliff"] }];
 
 /** Asks where to save an export (a zip file, a Word document when `extension` is "docx", or a PDF when it is "pdf"). `null` if cancelled. */
-export async function chooseExportPath(suggestedName: string, extension: "zip" | "docx" | "epub" | "xlf" | "pdf" = "zip"): Promise<string | null> {
-  const picked = await save({ title: "Save the export", defaultPath: suggestedName, filters: extension === "docx" ? docxFilters : extension === "epub" ? epubFilters : extension === "xlf" ? xliffFilters : extension === "pdf" ? pdfFilters : zipFilters });
+export async function chooseExportPath(suggestedName: string, extension: "zip" | "docx" | "epub" | "xlf" | "pdf" | "json" = "zip"): Promise<string | null> {
+  const picked = await save({ title: extension === "json" ? "Save the script for Studio" : "Save the export", defaultPath: suggestedName, filters: extension === "docx" ? docxFilters : extension === "epub" ? epubFilters : extension === "xlf" ? xliffFilters : extension === "pdf" ? pdfFilters : extension === "json" ? jsonFilters : zipFilters });
   if (!picked) return null;
   return picked.toLowerCase().endsWith(`.${extension}`) ? picked : `${picked}.${extension}`;
 }

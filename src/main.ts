@@ -50,6 +50,8 @@ import { guidesDialog } from "./guides-dialog.ts";
 import { indexDialog } from "./index-dialog.ts";
 import { mcpDialog } from "./mcp-dialog.ts";
 import { recordingDialog } from "./recording-dialog.ts";
+import { studioDialog } from "./studio-dialog.ts";
+import { studioFileName, studioScript, type StudioOptions } from "./export/studio-script.ts";
 import { describeNotCut, describeLeftOut } from "./capture/recording.ts";
 import { aiDialog } from "./ai-dialog.ts";
 import { draftsDialog } from "./drafts-dialog.ts";
@@ -1491,6 +1493,34 @@ async function exportBook() {
     focusBack("b-export");
   }
 }
+
+/** What the author typed last time they sent a guide to Studio, kept until the app closes so the next guide of the same program needs no retyping. */
+let lastStudioOptions: Partial<StudioOptions> = {};
+
+/** A guide's steps as a script for OpenStage Studio, saved where the author chooses. The project is not changed. */
+async function sendToStudio() {
+  try {
+    if (project.guides.length === 0) return void (await messageDialog("There are no guides yet", "A guide holds the numbered steps of some tasks. Choose Guides to make one, then send it to Studio."));
+    const choice = await studioDialog(project.guides.map((g) => ({ id: g.id, name: g.name })), lastStudioOptions);
+    if (!choice) return;
+    lastStudioOptions = choice.options;
+    const guide = project.guides.find((g) => g.id === choice.guideId);
+    if (!guide) return void (await messageDialog("The script could not be made", "That guide is gone."));
+    const made = studioScript(project, guide, choice.options);
+    if (!made.ok) return void (await messageDialog("The script could not be made", made.message));
+    const path = await chooseExportPath(studioFileName(guide.name), "json");
+    if (!path) return;
+    await writeBytes(path, new TextEncoder().encode(made.text));
+    announce(`The script for Studio was saved to ${path}.`);
+    await messageDialog("Script saved", `The script for "${guide.name}" was saved to ${path} (${made.script.steps.length} steps). Open it in OpenStage Studio.\n\nPlease note:\n${made.notes.join("\n")}`);
+  } catch (error) {
+    await messageDialog("Could not make the script", `${error instanceof Error ? error.message : String(error)} Your project was not changed.`);
+  } finally {
+    focusBack("b-send-studio");
+  }
+}
+
+onCommand("b-send-studio", () => void sendToStudio());
 
 /** Reads a JSON export (a zip) into a new project, replacing the one that is open once the author agrees. */
 async function importExport() {

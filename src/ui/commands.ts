@@ -27,6 +27,7 @@ export const COMMANDS = {
   "b-review-in": { label: "Bring in review comments...", icon: "message-square-plus", title: "Bring in the comments reviewers wrote in a Word review copy" },
   "b-import-translation": { label: "Import a translation...", icon: "languages", title: "Make a translated copy of the book from a translation file (XLIFF)" },
   "b-export": { label: "Export...", icon: "file-output", title: "Make the book or a guide as PDF or Word, or a help site, JSON or Markdown" },
+  "b-send-studio": { label: "Send a guide to Studio...", icon: "file-output", title: "Make a script file of a guide's steps for OpenStage Studio, to record as a narrated video" },
   "b-history": { label: "History...", icon: "clock", title: "Snapshots of the project: keep one, go back to one" },
   // Chapters and topics
   "b-chapter": { label: "Add chapter", icon: "folder-plus", title: "Add a chapter at the end of the book" },
@@ -86,7 +87,7 @@ export type MenuItemId = CommandId | "-";
 
 /** The row of menus, in order, with what each holds. */
 export const MENUS: readonly { id: string; label: string; items: readonly MenuItemId[] }[] = [
-  { id: "file", label: "File", items: ["b-new", "b-open", "b-save", "b-saveas", "-", "b-import-export", "b-import-word", "b-review-in", "b-import-translation", "-", "b-export", "b-history"] },
+  { id: "file", label: "File", items: ["b-new", "b-open", "b-save", "b-saveas", "-", "b-import-export", "b-import-word", "b-review-in", "b-import-translation", "-", "b-export", "b-send-studio", "b-history"] },
   { id: "chapters", label: "Chapters", items: ["b-chapter", "b-topic", "-", "b-rename", "b-up", "b-down", "b-indent", "b-outdent", "-", "b-find", "-", "b-delete"] },
   { id: "insert", label: "Insert", items: ["b-import", "b-capture", "b-import-recording", "-", "add-paragraph", "add-heading", "add-picture", "add-procedure", "add-callout", "add-snippet"] },
   { id: "write", label: "Write", items: ["b-drafts", "-", "b-draft-topic", "b-procedure", "b-opener", "b-summary", "b-boxes", "-", "b-style"] },

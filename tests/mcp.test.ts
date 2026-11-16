@@ -235,6 +235,18 @@ test("tools: a project is made, filled, saved at every step, reopened, checked, 
   assert.match((await call("export_book", { kind: "tar", file: "x" })).text, /kind must be one of/);
   assert.match((await call("export_book", { kind: "json", file: "C:\\Windows\\x" })).text, /not inside the folder/);
 
+  // a guide's steps as a script for OpenStage Studio: the author's four answers are needed, and the file is plain JSON in the MCP folder
+  const studio = await call("export_studio_script", { guide_id: guideId, file: "Out\\Saving", program_name: "Acme Draw", program_version: "2.0", demo_project: "demo-drawings-01", goal: "Save a drawing." });
+  assert.match(studio.text, /Made the Studio script: C:\\Docs\\OpenExplainer\\Out\\Saving\.studio-script\.json \(1 steps, Saving\.studio-script\.json\)/);
+  const script = JSON.parse(new TextDecoder().decode(files.map.get(`${FOLDER}\\Out\\Saving.studio-script.json`.toLowerCase())!));
+  assert.deepEqual([script.format, script.version, script.title, script.goal, script.program.id, script.startState.demoProject], ["openstage-studio-script", 2, "Saving guide", "Save a drawing.", "acme-draw", "demo-drawings-01"]);
+  assert.equal(script.steps[0].narration, "Click Save.");
+  assert.equal(script.steps[0].expect, "The file is saved.");
+  assert.match((await call("export_studio_script", { guide_id: guideId, file: "x", program_name: "Acme Draw", demo_project: "C:\\demo", goal: "g" })).text, /looks like a file path/);
+  assert.match((await call("export_studio_script", { guide_id: "nope", file: "x", program_name: "A", demo_project: "d", goal: "g" })).text, /There is no guide with the id "nope"/);
+  assert.match((await call("export_studio_script", { guide_id: guideId, file: "C:\\Windows\\x", program_name: "A", demo_project: "d", goal: "g" })).text, /not inside the folder/);
+  assert.match((await call("export_studio_script", { guide_id: guideId, file: "x", demo_project: "d", goal: "g" })).text, /program_name is needed/);
+
   // reopen in a fresh session
   const second = setup();
   second.files.map.set(`${FOLDER}\\Acme Draw.openexplainer`.toLowerCase(), files.map.get(`${FOLDER}\\Acme Draw.openexplainer`.toLowerCase())!);

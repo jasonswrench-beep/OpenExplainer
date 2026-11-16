@@ -19,6 +19,7 @@ import { fileNameFor, packProject } from "../project/package.ts";
 import { translatedCopy } from "../translate/xliff.ts";
 import { replacePictureFile } from "../project/replace-picture.ts";
 import { EXPORT_EXTENSION, type ExportKind, type MadeExport } from "../export/make.ts";
+import { studioScript } from "../export/studio-script.ts";
 import { BLOCK_HELP, blocksFromJson, pageFromBlocks, pictureToJson, topicToJson, type ReuseLookup, type ReuseNames } from "./blocks.ts";
 import { conditionIds, conditionNames, deleteSnippet, setConditionNames, setSnippet, setTargetList, snippetFromText, snippetToText, snippetUses } from "../project/snippets.ts";
 import { importDocx } from "../import/docx.ts";
@@ -933,6 +934,31 @@ export function createTools(deps: ToolDeps): ToolDef[] {
         const done = addReviewComments(project, read.comments, new Date().toISOString());
         return `Added ${done.added} comment(s)${done.already ? ` (${done.already} already there)` : ""}. ${read.report.join(" ")}`;
       }),
+    },
+    {
+      name: "export_studio_script",
+      description:
+        "Makes a script file for OpenStage Studio from a guide's numbered steps and saves it in the MCP folder: each step Studio performs in the program and narrates, found by the name of what was clicked. " +
+        "The guide comes from list_guides. You must give the program's name, the demo project the video starts from (a name in the program's demo library, never a path) and the goal (one line saying what a viewer can do after watching): ask the author, do not guess them. " +
+        "Steps with no click, or a click on an item whose name is not kept (a text box, a list item), are only spoken. The project is not changed.",
+      inputSchema: schema({
+        guide_id: str("The guide, from list_guides."), file: str("The file to make, inside the MCP folder. .studio-script.json is added if it ends otherwise."),
+        program_name: str("The program the guide is about, as it should be on the video's title card."), program_version: str("The program's version, if known."),
+        demo_project: str("The demo project the video starts from, by name."), goal: str("One line: what a viewer can do after watching."),
+      }, ["guide_id", "file", "program_name", "demo_project", "goal"]),
+      handler: async (args) => {
+        const project = session.require();
+        const guide = project.guides.find((g) => g.id === string(args, "guide_id"));
+        if (!guide) throw new Error(`There is no guide with the id "${String(args.guide_id)}". list_guides lists them.`);
+        const made = studioScript(project, guide, { programName: string(args, "program_name"), programVersion: optionalString(args, "program_version"), demoProject: string(args, "demo_project"), goal: string(args, "goal") });
+        if (!made.ok) throw new Error(made.message);
+        const full = resolveInside(session.settings.folder, string(args, "file"));
+        if (!full) throw new Error("That file is not inside the folder MCP may use.");
+        const path = full.toLowerCase().endsWith(".json") ? full : `${full}.studio-script.json`;
+        await session.files.makeFolder(folderOf(path));
+        await session.files.write(path, new TextEncoder().encode(made.text));
+        return text(`Made the Studio script: ${path} (${made.script.steps.length} steps, ${baseName(path)}).\n${made.notes.join("\n")}`);
+      },
     },
     {
       name: "export_book",
