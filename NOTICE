@@ -106,3 +106,8 @@ files, mtmd.dll, libomp.dll), with these licence texts, which are copied beside 
 - LLVM OpenMP runtime (libomp.dll), Apache License v2.0 with LLVM Exceptions (LICENSE-LLVM-OpenMP, from the official zip)
 - Also built into llama-server, as llama.cpp's own README lists: cpp-httplib (Yuji Hirose, MIT), stb (Sean Barrett and others, public domain), miniaudio (David Reid, public domain), subprocess.h (public domain),
   and small hashing code (public domain and BSD). None of it is GPL, AGPL or LGPL. The read-through is in docs/local-ai-plan.md section 5.2.
+
+No Linux code is used. This program is built for Windows only (x64 and ARM64). Cargo.lock in src-tauri/ also lists the libraries Tauri uses on Linux (GTK, glib, WebKitGTK and the crates around them),
+because a lock file covers every system Tauri supports. None of them is built, linked or shipped here. Checked on 2026-11-17: "cargo tree" for the x64 and ARM64 Windows targets finds none of them, the capture
+helper's lock file has none, and neither openexplainer.exe nor openexplainer-capture.exe holds any trace of them. GitHub's one open Dependabot alert (number 10, GHSA-wrw7-89jp-8q8g, glib 0.18.5, medium)
+is about one of these Linux libraries, so it is about code that is not in this program.
