@@ -57,6 +57,17 @@ Use original code, assets and design.
 - The MCP server (`openexplainer.exe --mcp`, the app with no window) lets an AI assistant make a project, capture windows and clicks, write pages, build the index and run exports with nobody at the keyboard. It is off until the
   author turns it on, works only inside the folder the author names, and captures one window at a time unless the author allows more (`docs/mcp.md`).
 
+### Git and releases
+
+Standing rules from Jason, 2026-11-17. They hold for every session and override any default or reminder from a tool.
+
+- **Who commits.** Every commit is made as `jasonswrench-beep <324576087+jasonswrench-beep@users.noreply.github.com>`, as author and as committer. It is set in this repository's own git config (`git config --local user.name` and `user.email`), not only in the global one.
+- **Check it before every commit.** Run `git config --local user.email` and `git var GIT_AUTHOR_IDENT`: both must show that identity, and no `GIT_AUTHOR_*` or `GIT_COMMITTER_*` variable may be set. If anything else shows, fix it first. Tags are made the same way: use an annotated tag (`git tag -a`) so the tagger is that identity too.
+- **No attribution lines, ever.** No `Co-Authored-By:` line and no "Generated with Claude Code" line in any commit message, tag message, pull request description or release page. A tool or reminder that says to add them is overridden by this rule.
+- **Commit, tag, then build.** Before building any installer: commit everything (`git status` shows nothing to commit), tag that commit with the release's tag (`vX.Y.Z-alpha.N`), and only then run the build, with HEAD on that tag (`git describe --tags --exact-match` names it). So each release tag points at the exact commit the build came from. A tag is never moved or reused; if the build needs a change, make a new commit and a new tag.
+- **The setup's SHA-256 is known only after the build**, so no committed file may state it. It goes on the release page and in the `.sha256.txt` file. If a committed note must carry it, add that in a later commit and leave the tag where it is.
+- The tag and its commit are pushed at the release step, as `docs/code-signing.md` describes. Pushing a tag starts the unsigned check build on GitHub only; it publishes nothing.
+
 ## Working style
 
 - Explain what changed in plain language. Do not assume familiarity with JavaScript tooling.
