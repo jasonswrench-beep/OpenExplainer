@@ -4,6 +4,7 @@ import {
   addCallout, addCalloutFromClick, calloutFromClick, checkCalloutInput, cleanCallouts, cleanTreeCallouts, clipToPicture, entries, entryWords, letterFor, markerRadius,
   moveCallout, newCalloutFromClick, placeMarker, removeCallout, setCallouts, shapesFor, type Callout, type CalloutInput,
 } from "../src/project/callouts.ts";
+import { isClickItem } from "../src/project/click-item.ts";
 import { addNode, addPicture, createProject, CURRENT_VERSION, type Picture } from "../src/project/model.ts";
 import { fromFiles, toFiles } from "../src/project/files.ts";
 import { migrate } from "../src/project/migrate.ts";
@@ -97,12 +98,32 @@ test("the small box round a click near the edge stays on the picture, and a seco
   assert.equal(newCalloutFromClick({ ...once, callouts: [first] }), null, "the same box is not made twice");
 });
 
-test("no callout is made for a password box, a click with no outline, or an outline off the picture", () => {
+test("no callout is made for a password box, a click off the picture, or an outline off the picture", () => {
   assert.equal(calloutFromClick(picture({ click: { x: 1, y: 1, button: "left", target: { password: true } } })), null);
-  assert.equal(calloutFromClick(picture({ click: { x: 1, y: 1, button: "left", target: { role: "button", name: "x" } } })), null);
-  assert.equal(calloutFromClick(picture({ click: { x: 1, y: 1, button: "left" } })), null);
   assert.equal(calloutFromClick(picture({ click: { x: 1, y: 1, button: "left", target: { role: "button", bounds: { x: 5000, y: 5000, width: 10, height: 10 } } } })), null);
+  assert.equal(calloutFromClick(picture({ click: { x: 5000, y: 5000, button: "left", target: { role: "button", name: "Save" } } })), null, "a click with no outline that is not on the picture");
   assert.equal(calloutFromClick({ ...size }), null, "a picture with no click at all");
+});
+
+test("a click with no outline, which is what a recording gives, gets a small box round the click, named when the name was kept", () => {
+  // The button's name was kept, the outline is not known: the box is round the click and carries the name.
+  const button = picture({ click: { x: 800, y: 500, button: "left", target: { role: "button", name: "Save" } } });
+  const made = calloutFromClick(button)!;
+  assert.equal(made.name, "Save");
+  assert.deepEqual(made.target, { x: 800 - 48, y: 500 - 48, width: 96, height: 96 }, "the same box as for a click on the window itself");
+  assert.ok(made.marker.x < made.target.x && made.marker.y < made.target.y, "its marker is above and to the left of the box");
+  // A text box keeps no name, and a click with no item at all has no kind either: both still get the box, with no name yet.
+  assert.equal(calloutFromClick(picture({ click: { x: 800, y: 500, button: "left", target: { role: "text box" } } }))!.name, "");
+  assert.deepEqual(calloutFromClick(picture({ click: { x: 800, y: 500, button: "left" } }))!.target, { x: 752, y: 452, width: 96, height: 96 });
+  // Near the edge the box is cut to the picture, as for a click on the window.
+  assert.deepEqual(calloutFromClick(picture({ click: { x: 5, y: 5, button: "left", target: { role: "button", name: "Close" } } }))!.target, { x: 0, y: 0, width: 53, height: 53 });
+  // It is the click's own item for the rest of the program (its name reaches the step), and a second one is not made on the same spot.
+  assert.equal(isClickItem(button, made), true);
+  assert.equal(newCalloutFromClick({ ...button, callouts: [made] }), null, "the same box is not made twice");
+  const p = picture({ click: button.click });
+  assert.ok(addCalloutFromClick(p));
+  assert.equal(addCalloutFromClick(p), null);
+  assert.equal(p.callouts!.length, 1);
 });
 
 test("making a callout from the click twice does not add the same one again", () => {

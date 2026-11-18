@@ -947,8 +947,9 @@ export async function calloutsDialog(picture: Picture, imageUrl: string | null):
     const note = document.createElement("span");
     note.id = "co-click-help";
     note.className = "help";
-    note.textContent = possible ? " Uses the outline of the item that was clicked."
-      : picture.click ? (done ? " The clicked item already has a callout." : " The click has no outline to make a callout from.") : " Only a picture from Click by click has a click.";
+    const outline = !!picture.click?.target?.bounds;
+    note.textContent = possible ? (outline ? " Uses the outline of the item that was clicked." : " The click has no outline, so this puts a small box round the click. Move or resize it if the item is bigger.")
+      : picture.click ? (done ? " The clicked item already has a callout." : " The click is not on the picture, or is on a password box, so there is nothing to make a callout from.") : " Only a picture from Click by click has a click.";
     clickButton.after(note);
   }
 

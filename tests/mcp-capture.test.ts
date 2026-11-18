@@ -38,7 +38,8 @@ let recording: unknown = {
   takes: [{ id: 1, state: "complete", usable: true, duration_ms: 12000, has_picture: true, has_clicks: true }],
   take: 1, duration_ms: 12000, click_count: 3, truncated: false, unplaced: 0, other_buttons: 0, has_clicks: true,
   clicks: [
-    { n: 1, t_ms: 1200, picture_ms: 1100, click: { x: 640, y: 480, button: "left", target: { role: "button", name: "Save", bounds: { x: 600, y: 460, width: 80, height: 40 } } } },
+    // A recording's log says what was clicked, not how big it was: no click here has an outline.
+    { n: 1, t_ms: 1200, picture_ms: 1100, click: { x: 640, y: 480, button: "left", target: { role: "button", name: "Save" } } },
     { n: 2, t_ms: 4000, picture_ms: 3900, click: { x: 700, y: 300, button: "right", target: { role: "list item" } } },
     { n: 3, t_ms: 6000, picture_ms: 5900, click: { x: 10, y: 10, button: "left", double: true } },
   ],
@@ -211,7 +212,11 @@ test("import_recording brings in a picture and a note for each click of a record
   assert.deepEqual(log, [`read ${FOLDER}\\Save a file.capture take=undefined`, `shots ${FOLDER}\\Save a file.capture limit=undefined`]);
   assert.deepEqual(topic.pictures.map((p) => p.source.kind), ["click", "click", "click"]);
   assert.equal(topic.pictures[0].source.originalName, 'Click on the button "Save"');
-  assert.equal((topic.pictures[0].callouts ?? []).length, 1, "the clicked button's outline becomes the first callout");
+  // The recording has no outline of any clicked item, so each picture's first callout is a small box round its click; only the button keeps a name.
+  assert.deepEqual(topic.pictures.map((p) => (p.callouts ?? []).length), [1, 1, 1], "every click picture gets a first callout");
+  assert.deepEqual(topic.pictures.map((p) => p.callouts![0].name), ["Save", "", ""]);
+  assert.deepEqual(topic.pictures[0].callouts![0].target, { x: 640 - 48, y: 480 - 48, width: 96, height: 96 });
+  assert.deepEqual(topic.pictures[2].callouts![0].target, { x: 0, y: 0, width: 58, height: 58 }, "a click near the corner: the box is cut to the picture");
   assert.equal(topic.pictures[2].click?.double, true);
   assert.ok(topic.pictures.every((p) => session.assets.has(p.file)));
   assert.equal(JSON.stringify(topic.pictures).includes("Save a file.capture"), false, "the folder's name is not kept in the project");

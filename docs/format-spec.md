@@ -126,8 +126,8 @@ are stored beside it and are never burned into it. `callouts` is a list on the p
 
 A click picture gets its first callout automatically from the click note: the clicked item's `bounds` become the `target`, its `name` (when the name is
 kept, see "Click notes") becomes the `name`, the sentence starts empty, and the marker is placed just outside the item, above and to the left when there is
-room, and not on another marker (`placeMarker` in `src/project/callouts.ts`). A password box, a click with no outline and an outline that is off the picture
-make none. The marker is a fixed share of the picture's width (a little over 1 percent, never under 10 pixels), so it looks the same at any picture size.
+room, and not on another marker (`placeMarker` in `src/project/callouts.ts`). A click with no outline (a recording's click) gets the small box round the click that a click on the window itself gets (5 percent of the picture's width, at least 40 pixels, cut to the picture),
+with the item's name when it was kept. A password box, a click that is not on the picture and an outline that is off the picture make none. The marker is a fixed share of the picture's width (a little over 1 percent, never under 10 pixels), so it looks the same at any picture size.
 The leader line runs from the edge of the marker to the nearest part of the item, and there is none when the marker is on the item.
 
 Cleaned when a project is opened and saved: a callout with no usable outline or marker, or whose outline is wholly off the picture, is dropped; a repeated id

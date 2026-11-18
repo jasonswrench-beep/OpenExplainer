@@ -305,7 +305,7 @@ export function createCaptureTools(session: Session, deps: CaptureDeps): ToolDef
       name: "import_recording",
       description:
         "Brings in the clicks of a recording made by OpenStage Recorder or OpenStage Author: a folder whose name ends in .capture, inside the MCP folder. Each click becomes a picture of the screen from just before the click, in the topic's list of pictures in the order of the clicks, " +
-        "with a note of what was clicked (its name only for a button or a menu) and a first callout at that item. The recording must have been made with interaction notes on, or it has no clicks to bring in. " +
+        "with a note of what was clicked (its name only for a button or a menu) and a first callout: a small box round the click, because a recording says what was clicked and not how big it was (so check where the box is, and name and describe it with describe_picture). The recording must have been made with interaction notes on, or it has no clicks to bring in. " +
         "Use take to choose a take (the newest finished one if you leave it out) and limit to bring in only the first clicks (at most 200). It does not look at the live screen, so it works with capture off. " +
         "Returns the pictures in order with what was clicked, so you can write the steps. Use view_picture to look at one.",
       inputSchema: schema(

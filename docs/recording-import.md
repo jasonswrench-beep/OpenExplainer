@@ -6,7 +6,9 @@ Written 2026-11-16. Item 1 of the OpenExplainer development list: *Read C1 recor
 
 **Insert, Import a recording...** (or **Ctrl+K**, "recording") takes a folder made by OpenStage Recorder or OpenStage Author (its name ends in `.capture`) and turns the
 clicks the recording noted into the same thing a live click-by-click capture makes: a picture of the screen from just before each click, with a click note (where it was, the
-item that was clicked and, for a button or a menu, its name) and a first callout at that item. The author sees the same review list as after a live capture, keeps or leaves out
+item that was clicked and, for a button or a menu, its name) and a first callout. A recording says what was clicked but not how big it was, so the callout is a small box round the
+click (5 percent of the picture's width, at least 40 pixels), named for a button or a menu and left unnamed otherwise; the author moves or resizes it in the Callouts window if the item is bigger
+(made this way since 2026-11-18; alpha 5 said it made one "at that item" and made none). The author sees the same review list as after a live capture, keeps or leaves out
 each click, writes the descriptions, and presses OK; nothing is added to the book before that. An assistant does the same with the `import_recording` tool
 (`docs/mcp.md`).
 

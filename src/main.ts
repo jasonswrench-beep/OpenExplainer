@@ -1193,7 +1193,7 @@ async function reviewAndAddShots(node: TreeNode, shots: ClickShot[], notices: st
   for (const picture of pictures) {
     assets.set(picture.file, files.get(picture.file)!);
     addPicture(project.tree, node.id, picture);
-    // The clicked item's outline and name become the picture's first callout, with a sentence still to write.
+    // The clicked item's outline and name become the picture's first callout, with a sentence still to write. A click with no outline (a recording's) gets a small box round the click.
     if (addCalloutFromClick(picture)) calloutsMade++;
   }
   if (pictures.length) {

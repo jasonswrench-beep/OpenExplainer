@@ -603,7 +603,7 @@ Tests: TypeScript 629, helper 87, app shell 53. `docs/local-ai-plan.md` parts 7 
 
 ## Small fixes after the manual session's check of alpha 5, 2026-11-18
 
-The manual session unpacked the signed alpha 5 and sent a fault report. Read against the code, five were small and are fixed in the working tree (not yet released; they reach readers in the next alpha):
+The manual session unpacked the signed alpha 5 and sent a fault report. Read against the code, five were small and are fixed on main (commit 71f7a90; not yet released, they reach readers in the next alpha):
 
 - The Studio script is written as version 3 (it was 2; Studio reads 2 as 3 with a warning). Version 3 only adds a step's optional `describe`, which is not written.
 - Four messages said "toolbar" (Conditions line, Snippet list, Reuse window, Export window with no guide); they now say Book menu.
@@ -611,7 +611,9 @@ The manual session unpacked the signed alpha 5 and sent a fault report. Read aga
 - "Cut 1 of 1 pictures" is singular; the review window says "brought in", not "captured", for a recording.
 - A book with no file says "Not saved yet" (it said "Unsaved changes"); a step whose control name ends in dots no longer ends in four dots.
 
-Left for Jason or for a live check: **Import a recording makes no first callout** (a recording has no outline of the clicked item, and the notes, `docs/recording-import.md` and the tool description say it does: draw the small click box, or change the words); Escape on the Send window also closing AI help; "5 clicks" against "Cut 1 of 1"; the 16 by 16 window at 0,0 in MCP mode; the tall Export window; Suggest terms below the fold; menu-picture callout letters over the next row. Settings files from alpha 3 and before read as "assistant capture off" on purpose.
-Tests: TypeScript 630, app shell 54 (one new, for the corner of a screen).
+**Import a recording made no first callout** (a recording has no outline of the clicked item, and alpha 5's notes, `docs/recording-import.md` and the tool description said it did). Jason chose to draw a small click box: `calloutFromClick` in `src/project/callouts.ts` now makes the same small box round the click that a click on the window itself gets (5 percent of the picture's width, at least 40 pixels) for any click with no outline, named when the name was kept (a button or a menu). It is a guess at where the item is, so the Callouts window says so and the author can move or resize it. A live click that Windows gave no outline for gets it too.
+
+Left for a live check: Escape on the Send window also closing AI help; "5 clicks" against "Cut 1 of 1"; the 16 by 16 window at 0,0 in MCP mode; the tall Export window; Suggest terms below the fold; menu-picture callout letters over the next row. Settings files from alpha 3 and before read as "assistant capture off" on purpose.
+Tests: TypeScript 631, app shell 54 (one new, for the corner of a screen).
 
 ## Housekeeping on Jason's PC
