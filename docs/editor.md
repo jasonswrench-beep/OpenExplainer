@@ -12,8 +12,8 @@ OpenExplainer has the look the OpenStage products share (OpenStage Author, OpenS
 icons and way of finding things, with OpenExplainer's own colour, the gold of its icon. Nothing it does changed; every command it had is
 still there, with the same words, and every key works as before. What changed is where the commands are.
 
-- **The navy bar** at the top: the icon and the name, the open project and whether it is saved ("Unsaved changes", "Saved", "Not saved
-  yet"), a **Search** box (Ctrl+K) and four buttons: **Save**, **Capture**, **Check the book** (it shows "Check") and **Export** (filled in the gold).
+- **The navy bar** at the top: the icon and the name, the open project and whether it is saved ("Not saved yet" until the book has a file, then "Saved" or "Unsaved
+  changes"), a **Search** box (Ctrl+K) and four buttons: **Save**, **Capture**, **Check the book** (it shows "Check") and **Export** (filled in the gold).
 - **The menus** under it hold every command, each with its icon and its keys: **File** (New, Open, Save, Save as, the four imports,
   Export, History), **Chapters** (Add chapter, Add topic under selected, Rename, Move up and down, Indent, Outdent, Find and replace in
   titles, Delete), **Insert** (Import pictures, Capture, and the six kinds of block for the page), **Write** (Drafts, the five ways to

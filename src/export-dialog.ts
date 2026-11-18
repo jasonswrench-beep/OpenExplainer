@@ -67,7 +67,7 @@ export async function exportDialog(options: { checkFirst(): void; unresolved: nu
     const words = document.createElement("span");
     words.className = "help";
     words.id = `ex-kind-${kind.id}-words`;
-    words.textContent = GUIDE_KINDS.includes(kind.id) && options.guides.length === 0 ? `${kind.words} There are no guides yet: choose Guides in the toolbar to make one.` : kind.words;
+    words.textContent = GUIDE_KINDS.includes(kind.id) && options.guides.length === 0 ? `${kind.words} There are no guides yet: choose Guides in the Book menu to make one.` : kind.words;
     radio.setAttribute("aria-describedby", words.id);
     label.append(radio, ` ${kind.name}`);
     p.append(label, document.createElement("br"), words);

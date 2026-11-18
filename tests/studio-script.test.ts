@@ -43,7 +43,7 @@ test("every step of a guide's tasks becomes a step of the script, in order, with
   assert.ok(done.ok);
   if (!done.ok) return;
   const s = done.script;
-  assert.deepEqual([s.format, s.version, s.title, s.goal, s.driver], ["openstage-studio-script", 2, "Lessons guide", "Save a lesson.", "accessibility"]);
+  assert.deepEqual([s.format, s.version, s.title, s.goal, s.driver], ["openstage-studio-script", 3, "Lessons guide", "Save a lesson.", "accessibility"]);
   assert.deepEqual(s.program, { id: "practice-planner", name: "Practice Planner", version: "1.0" });
   assert.deepEqual(s.startState.demoProject, "demo-lessons-01");
   assert.equal(s.steps.length, 6);

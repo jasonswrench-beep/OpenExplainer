@@ -695,7 +695,7 @@ $("b-seealso").addEventListener("click", async () => {
 function renderTopicConditions() {
   const node = selected();
   const names = (node?.conditions ?? []).map((id) => project.conditions.find((c) => c.id === id)?.name).filter((n): n is string => !!n);
-  $("conditions-line").textContent = !node ? "" : project.conditions.length === 0 ? "The book has no conditions yet. Choose Reuse in the toolbar to make some." : names.length === 0 ? "This topic is in every output." : `Carries: ${names.join(", ")}. Left out of an output made for a target that hides any of them, with the topics under it.`;
+  $("conditions-line").textContent = !node ? "" : project.conditions.length === 0 ? "The book has no conditions yet. Choose Reuse in the Book menu to make some." : names.length === 0 ? "This topic is in every output." : `Carries: ${names.join(", ")}. Left out of an output made for a target that hides any of them, with the topics under it.`;
   $<HTMLButtonElement>("b-topic-conditions").disabled = !node || project.conditions.length === 0;
 }
 
@@ -758,7 +758,8 @@ function renderProperties() {
 function renderHeading() {
   $("doc-name").textContent = project.name;
   const state = $("save-state");
-  state.textContent = dirty ? "Unsaved changes" : filePath ? "Saved" : "Not saved yet";
+  // A book that has no file yet says so, whether or not it was changed: "Unsaved changes" is for a book that has a file and has moved on from it.
+  state.textContent = !filePath ? "Not saved yet" : dirty ? "Unsaved changes" : "Saved";
   state.classList.toggle("dirty", dirty);
   document.title = `${dirty ? "* " : ""}${project.name} - OpenExplainer`;
   // The window's own title (title bar, taskbar, Alt+Tab, and what a screen reader says) names the project too.
@@ -1182,7 +1183,7 @@ async function captureClicks(node: TreeNode) {
  * unless the author presses OK, and the pictures they keep go in click order with a first callout made from the clicked item.
  */
 async function reviewAndAddShots(node: TreeNode, shots: ClickShot[], notices: string[], verb: "captured" | "brought in") {
-  const answers = await reviewClicksDialog(shots, notices);
+  const answers = await reviewClicksDialog(shots, notices, verb);
   if (!answers) {
     const count = shots.length === 1 ? `The click you ${verb} was` : `The ${shots.length} clicks you ${verb} were`;
     return void announce(`${count} thrown away. Your project was not changed.`);
@@ -1220,7 +1221,7 @@ async function importRecording() {
     const choice = await recordingDialog(read.value, (take) => captureClient.readRecording(folder, take));
     if (!choice) return void announce("Nothing was brought in. Your project was not changed.");
     announce(`Cutting ${choice.limit} picture${choice.limit === 1 ? "" : "s"} out of the recording. This can take a moment.`);
-    const made = await captureClient.recordingShots(folder, choice.info, { limit: choice.limit, onProgress: (done, total) => announce(`Cut ${done} of ${total} pictures.`) });
+    const made = await captureClient.recordingShots(folder, choice.info, { limit: choice.limit, onProgress: (done, total) => announce(`Cut ${done} of ${total} picture${total === 1 ? "" : "s"}.`) });
     if (!made.ok) return void (await messageDialog("The pictures could not be cut out", made.message));
     const { shots, outside, failed } = made.value;
     const notices = [describeLeftOut(choice.info), describeNotCut(outside, failed)].filter((text): text is string => text !== null);

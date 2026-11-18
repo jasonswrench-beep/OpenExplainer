@@ -418,7 +418,7 @@ export async function captureDialog(options: CaptureDialogOptions): Promise<Capt
  * Returns one answer per click, in the same order, or `null` if the author threw them all away (asked once more first, because the clicks
  * only exist in memory). `notices` are plain-words facts to read first, such as why the session ended early.
  */
-export async function reviewClicksDialog(shots: ClickShot[], notices: string[]): Promise<ReviewAnswer[] | null> {
+export async function reviewClicksDialog(shots: ClickShot[], notices: string[], verb: "captured" | "brought in" = "captured"): Promise<ReviewAnswer[] | null> {
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-labelledby", "dlg-title");
   dialog.innerHTML = `
@@ -431,7 +431,7 @@ export async function reviewClicksDialog(shots: ClickShot[], notices: string[]):
       <p><button value="ok" id="rv-ok">Add the kept pictures</button> <button value="cancel" id="rv-cancel" formnovalidate>Throw them all away</button></p>
     </form>`;
   const total = shots.length;
-  dialog.querySelector("#rv-intro")!.textContent = `${total} click${total === 1 ? " was" : "s were"} captured. Keep the ones you want and describe each picture. ` +
+  dialog.querySelector("#rv-intro")!.textContent = `${total} click${total === 1 ? " was" : "s were"} ${verb}. Keep the ones you want and describe each picture. ` +
     "A description is read aloud by a screen reader. Leave it empty to add it later; it is never filled in for you.";
   if (notices.length) {
     const el = dialog.querySelector<HTMLElement>("#rv-notices")!;
@@ -491,7 +491,7 @@ export async function reviewClicksDialog(shots: ClickShot[], notices: string[]):
   async function askToDiscard() {
     if (asking) return;
     asking = true;
-    const yes = await confirmDialog("Throw away the clicks?", discardQuestion(total), "Throw them away");
+    const yes = await confirmDialog("Throw away the clicks?", discardQuestion(total, verb), "Throw them away");
     asking = false;
     if (yes) dialog.close("cancel");
   }

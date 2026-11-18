@@ -51,7 +51,10 @@ export function addedWords(kept: number, total: number): string {
   return kept === total ? `Added ${pictures}.` : `Added ${kept} of ${total} click pictures. The others were left out.`;
 }
 
-/** The question asked before a captured session is thrown away, because the clicks cannot be captured again without redoing them. */
-export function discardQuestion(count: number): string {
-  return `Throw away the ${count === 1 ? "click" : `${count} clicks`} you captured? Nothing will be added to your project.`;
+/**
+ * The question asked before a captured session is thrown away, because the clicks cannot be captured again without redoing them.
+ * Clicks that came out of a recording were "brought in", not "captured": the words follow where they came from.
+ */
+export function discardQuestion(count: number, verb: "captured" | "brought in" = "captured"): string {
+  return `Throw away the ${count === 1 ? "click" : `${count} clicks`} you ${verb}? Nothing will be added to your project.`;
 }

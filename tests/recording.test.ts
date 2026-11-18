@@ -4,7 +4,7 @@ import { createCaptureClient, type Shell } from "../src/capture/client.ts";
 import {
   FRAMES_PER_REQUEST, MOST_STEPS, collectRecordingShots, describeLeftOut, describeNotCut, describeRecording, parseRecording, stepLimit, takeWords, timeWords,
 } from "../src/capture/recording.ts";
-import { picturesFromReview } from "../src/capture/review.ts";
+import { discardQuestion, picturesFromReview } from "../src/capture/review.ts";
 import type { ShellOutcome } from "../src/capture/outcome.ts";
 
 /** The first bytes of a real PNG: the signature, then a header chunk that says the size. */
@@ -221,4 +221,9 @@ test("a frame line with no number or path is counted as a failure and a stray fi
   assert.equal(picked.shots.length, 0);
   assert.equal(picked.failed, 3);
   assert.deepEqual(taken, [], "a picture the app did not ask for is never collected");
+});
+
+test("the question before throwing clicks away says where they came from", () => {
+  assert.equal(discardQuestion(1), "Throw away the click you captured? Nothing will be added to your project.");
+  assert.equal(discardQuestion(5, "brought in"), "Throw away the 5 clicks you brought in? Nothing will be added to your project.");
 });

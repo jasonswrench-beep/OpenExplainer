@@ -259,6 +259,27 @@ impl Drop for Choreography {
     }
 }
 
+/// How far the Cancel and Stop windows sit from the corner of the screen, in logical pixels.
+const BAR_MARGIN: f64 = 16.0;
+
+/// The top right corner of a screen, as the position for a window `width` pixels wide. `at` is where the screen starts on the whole desktop and
+/// `screen_width` how wide it is, both in real pixels (`at` is negative for a screen left of or above the main one), and `scale` is that screen's own
+/// scale. The window system reads a position in the scale of the screen it falls on, so the answer is in that screen's scale too.
+fn top_right_corner(at: (i32, i32), screen_width: u32, scale: f64, width: f64) -> (f64, f64) {
+    let x = (at.0 as f64 + screen_width as f64) / scale - width - BAR_MARGIN;
+    let y = at.1 as f64 / scale + BAR_MARGIN;
+    (x, y)
+}
+
+/// Where the Cancel and Stop windows go: the top right corner of the screen the program's own window is on, so they appear where the author is
+/// looking. The main screen is used when that cannot be told.
+fn bar_corner(app: &AppHandle, width: f64) -> Option<(f64, f64)> {
+    let program_screen = app.get_webview_window("main").and_then(|window| window.current_monitor().ok().flatten());
+    let monitor = program_screen.or_else(|| app.primary_monitor().ok().flatten())?;
+    let (at, size) = (monitor.position(), monitor.size());
+    Some(top_right_corner((at.x, at.y), size.width, monitor.scale_factor(), width))
+}
+
 fn open_bar(app: &AppHandle, seconds: u64, wait_seconds: u64) -> Result<WebviewWindow, String> {
     let mut builder = WebviewWindowBuilder::new(app, BAR_LABEL, WebviewUrl::App("capture-bar.html".into()))
         .title("OpenExplainer is capturing")
@@ -271,13 +292,9 @@ fn open_bar(app: &AppHandle, seconds: u64, wait_seconds: u64) -> Result<WebviewW
         // While it counts down to a capture the author is using another program, so this window must not take the keyboard from it.
         .focused(wait_seconds == 0)
         .initialization_script(format!("window.__CAPTURE_SECONDS = {seconds}; window.__CAPTURE_WAIT = {wait_seconds};"));
-    // The top right corner of the main screen.
-    if let Ok(Some(monitor)) = app.primary_monitor() {
-        let scale = monitor.scale_factor();
-        let (size, at) = (monitor.size(), monitor.position());
-        let x = (at.x as f64 + size.width as f64) / scale - BAR_WIDTH - 16.0;
-        let y = at.y as f64 / scale + 16.0;
-        builder = builder.position(x.max(0.0), y.max(0.0));
+    // The top right corner of the screen the program is on.
+    if let Some((x, y)) = bar_corner(app, BAR_WIDTH) {
+        builder = builder.position(x, y);
     }
     let bar = builder.build().map_err(|e| e.to_string())?;
     // Closing the Cancel window with its own close button counts as pressing Cancel.
@@ -669,6 +686,18 @@ mod tests {
         let _ = std::fs::remove_dir_all(&folder);
         std::fs::create_dir_all(&folder).unwrap();
         folder
+    }
+
+    #[test]
+    fn the_bar_goes_in_the_top_right_corner_of_the_screen_it_is_given() {
+        // The main screen, 1920 wide at 100%, a 440 wide window and the 16 pixel margin.
+        assert_eq!(top_right_corner((0, 0), 1920, 1.0, 440.0), (1464.0, 16.0));
+        // A screen above the main one starts at a negative y; the window stays on it and is not pulled down onto the main screen.
+        assert_eq!(top_right_corner((7, -1080), 1920, 1.0, 440.0), (1471.0, -1064.0));
+        // A screen left of the main one starts at a negative x.
+        assert_eq!(top_right_corner((-1920, 0), 1920, 1.0, 420.0), (-436.0, 16.0));
+        // At 150% the numbers are in that screen's own scale: 2880 real pixels are 1920 logical ones.
+        assert_eq!(top_right_corner((0, 0), 2880, 1.5, 420.0), (1484.0, 16.0));
     }
 
     #[test]

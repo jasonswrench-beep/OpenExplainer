@@ -1,5 +1,5 @@
 // A guide's steps as a script for OpenStage Studio (list item 2): the file Studio's player performs to make a narrated video of the same task.
-// The format is Studio's own, "openstage-studio-script" version 2 (its docs/script-format.md and docs/accessibility-driver.md); this file only writes
+// The format is Studio's own, "openstage-studio-script" version 3 (its docs/script-format.md and docs/accessibility-driver.md); this file only writes
 // it. Nothing is guessed: a step's words become its narration, the item that was clicked is found by its kind and name, and what the author has to
 // say (which program, which demo project, the goal) is asked for and never made up.
 //
@@ -13,7 +13,8 @@ import { expandVariables, type Project } from "../project/model.ts";
 import { plainText } from "../project/text.ts";
 
 export const STUDIO_FORMAT = "openstage-studio-script";
-export const STUDIO_VERSION = 2;
+/** Version 3 is the one Studio writes and reads as it is; a version 2 script is read as 3 with a warning. Version 3 only adds a step's optional `describe`, which this file does not write. */
+export const STUDIO_VERSION = 3;
 /** Studio's limits (its validator): a title, the number of steps. */
 export const STUDIO_MOST_STEPS = 200;
 export const STUDIO_MOST_TITLE = 100;

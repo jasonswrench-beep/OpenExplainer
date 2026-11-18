@@ -401,7 +401,7 @@ export function createPageEditor(deps: PageEditorDeps): PageEditor {
     select.dataset.role = "first";
     const none = document.createElement("option");
     none.value = "";
-    none.textContent = all.length ? "Choose a snippet" : "The book has no snippets yet. Choose Reuse in the toolbar to make one.";
+    none.textContent = all.length ? "Choose a snippet" : "The book has no snippets yet. Choose Reuse in the Book menu to make one.";
     select.append(none);
     for (const s of all) {
       const option = document.createElement("option");

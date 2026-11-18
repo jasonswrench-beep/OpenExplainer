@@ -198,7 +198,7 @@ export async function conditionsDialog(conditions: Condition[], chosen: string[]
       <p><button value="ok">Keep these</button> <button value="cancel" formnovalidate>Cancel</button></p>
     </form>`;
   const list = dialog.querySelector<HTMLElement>("#cd-list")!;
-  if (conditions.length === 0) list.textContent = "The book has no conditions yet. Choose Reuse in the toolbar to make some.";
+  if (conditions.length === 0) list.textContent = "The book has no conditions yet. Choose Reuse in the Book menu to make some.";
   for (const c of conditions) {
     const label = document.createElement("label");
     const box = document.createElement("input");

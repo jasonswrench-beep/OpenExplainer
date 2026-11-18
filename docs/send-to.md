@@ -5,7 +5,7 @@ Written 2026-11-16. Item 2 of the OpenExplainer development list: *Send a guide'
 ## To OpenStage Studio: done
 
 **File, Send a guide to Studio...** (or Ctrl+K, "studio"; the `export_studio_script` tool for an assistant) makes a script file, `<guide name>.studio-script.json`, in Studio's own format
-(`openstage-studio-script`, version 2: Studio's `docs/script-format.md` and `docs/accessibility-driver.md`). Studio's player performs each step in the real program and narrates it, so the same
+(`openstage-studio-script`, version 3: Studio's `docs/script-format.md` and `docs/accessibility-driver.md`). Studio's player performs each step in the real program and narrates it, so the same
 task becomes a video. Nothing is changed in the book.
 
 What each part of the guide becomes:

@@ -39,7 +39,13 @@ test("each kind of item is spoken of the right way, with the control name marked
   const cases: Array<[ClickTarget, Partial<ClickInfo>, string]> = [
     [{ role: "button", name: "Save" }, {}, "Click [[Save]]."],
     [{ role: "split button", name: "Paste" }, {}, "Click [[Paste]]."],
-    [{ role: "menu item", name: "Save as..." }, {}, "Choose [[Save as...]]."],
+    // A name that ends in dots keeps them and the sentence gives up its full stop, so a step never ends in four dots.
+    [{ role: "menu item", name: "Save as..." }, {}, "Choose [[Save as...]]"],
+    [{ role: "button", name: "Open…" }, {}, "Click [[Open…]]"],
+    [{ role: "button", name: "Browse..." }, { double: true }, "Double-click [[Browse...]]"],
+    [{ role: "check box", name: "Remember me..." }, {}, "Tick [[Remember me...]]"],
+    // Where words follow the name, the name's dots stay in the middle and the full stop stays at the end.
+    [{ role: "menu", name: "More..." }, {}, "Open the [[More...]] menu."],
     [{ role: "menu", name: "File" }, {}, "Open the [[File]] menu."],
     [{ role: "check box", name: "Remember me" }, {}, "Tick [[Remember me]]."],
     [{ role: "radio button", name: "Landscape" }, {}, "Select [[Landscape]]."],
@@ -117,7 +123,7 @@ test("the plan is one step for each click picture in order, leaving out other pi
   const { project, id } = topicWith(a, imported, b, c);
   let plan = planProcedure(project, id);
   assert.equal(plan.ok, true);
-  assert.deepEqual((plan as { steps: { pictureId: string; text: string }[] }).steps.map((s) => [s.pictureId, s.text]), [[a.id, "Choose [[File]]."], [b.id, "Choose [[Save as...]]."], [c.id, "Click [[Save]]."]]);
+  assert.deepEqual((plan as { steps: { pictureId: string; text: string }[] }).steps.map((s) => [s.pictureId, s.text]), [[a.id, "Choose [[File]]."], [b.id, "Choose [[Save as...]]"], [c.id, "Click [[Save]]."]]);
   // A picture already in a step on the page is not made into another.
   const block = makeBlock("procedure") as ProcedureBlock;
   block.steps = [{ id: "s1", text: [{ text: "Choose File." }], pictureId: a.id }];

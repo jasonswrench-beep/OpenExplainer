@@ -64,8 +64,10 @@ export function stepFor(picture: Picture): ProcedureStep | null {
   const wording: Wording = KINDS[role] ?? { verb: "Click", before: "", after: "", noName: role ? `the ${role}` : "the item shown" };
   const plain = !click.double && click.button === "left";
   const verb = plain ? wording.verb : click.double ? "Double-click" : click.button === "right" ? "Right-click" : "Middle-click";
+  // A control's own name can end in dots ("Open..."), and the sentence's full stop is then left off, so the step does not end in four dots.
+  const ownDots = wording.after === "" && /(\.\.\.|…)$/.test(found?.name ?? "");
   const text = found
-    ? formatMarks([{ text: `${verb} ${wording.before}` }, { text: found.name, mark: "control" }, { text: `${wording.after}.` }])
+    ? formatMarks([{ text: `${verb} ${wording.before}` }, { text: found.name, mark: "control" }, { text: `${wording.after}${ownDots ? "" : "."}` }])
     : `${verb} ${wording.noName}.`;
   const step: ProcedureStep = { pictureId: picture.id, text, from: `${describeClick(click)}${found ? ` Name taken from ${found.source}.` : ""}` };
   if (!found) step.flag = NO_NAME_FLAG;

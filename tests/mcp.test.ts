@@ -239,7 +239,7 @@ test("tools: a project is made, filled, saved at every step, reopened, checked, 
   const studio = await call("export_studio_script", { guide_id: guideId, file: "Out\\Saving", program_name: "Acme Draw", program_version: "2.0", demo_project: "demo-drawings-01", goal: "Save a drawing." });
   assert.match(studio.text, /Made the Studio script: C:\\Docs\\OpenExplainer\\Out\\Saving\.studio-script\.json \(1 steps, Saving\.studio-script\.json\)/);
   const script = JSON.parse(new TextDecoder().decode(files.map.get(`${FOLDER}\\Out\\Saving.studio-script.json`.toLowerCase())!));
-  assert.deepEqual([script.format, script.version, script.title, script.goal, script.program.id, script.startState.demoProject], ["openstage-studio-script", 2, "Saving guide", "Save a drawing.", "acme-draw", "demo-drawings-01"]);
+  assert.deepEqual([script.format, script.version, script.title, script.goal, script.program.id, script.startState.demoProject], ["openstage-studio-script", 3, "Saving guide", "Save a drawing.", "acme-draw", "demo-drawings-01"]);
   assert.equal(script.steps[0].narration, "Click Save.");
   assert.equal(script.steps[0].expect, "The file is saved.");
   assert.match((await call("export_studio_script", { guide_id: guideId, file: "x", program_name: "Acme Draw", demo_project: "C:\\demo", goal: "g" })).text, /looks like a file path/);

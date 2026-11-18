@@ -5,7 +5,7 @@
 //! whole screen and says what was clicked. This file only runs the session. It never reads a picture and never looks inside
 //! a click note; the TypeScript side checks the notes again with the project's own rules before anything is kept.
 
-use super::{app_dir, capture_folder, find_helper, CaptureState, Choreography, HelperRun};
+use super::{app_dir, bar_corner, capture_folder, find_helper, CaptureState, Choreography, HelperRun};
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
@@ -182,13 +182,9 @@ fn open_click_bar(app: &AppHandle) -> Result<WebviewWindow, String> {
         .content_protected(true) // Windows leaves this window out of screen copies, so it is never in a picture
         // The author is working in another program, and a window that took the keyboard from it would close a menu they had open.
         .focused(false);
-    // The top right corner of the main screen.
-    if let Ok(Some(monitor)) = app.primary_monitor() {
-        let scale = monitor.scale_factor();
-        let (size, at) = (monitor.size(), monitor.position());
-        let x = (at.x as f64 + size.width as f64) / scale - CLICK_BAR_WIDTH - 16.0;
-        let y = at.y as f64 / scale + 16.0;
-        builder = builder.position(x.max(0.0), y.max(0.0));
+    // The top right corner of the screen the program is on.
+    if let Some((x, y)) = bar_corner(app, CLICK_BAR_WIDTH) {
+        builder = builder.position(x, y);
     }
     let bar = builder.build().map_err(|e| e.to_string())?;
     // Closing the Stop window with its own close button counts as pressing Stop: what was captured is kept.

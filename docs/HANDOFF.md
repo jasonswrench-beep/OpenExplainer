@@ -601,4 +601,17 @@ Choices made without asking (all in the docs named): the picture is taken 100 ms
 The line in his message about switching PrismQDA to the core's statistics tag was **not** done: it is not in this repository (no PrismQDA folder exists on the PC); it belongs to that session.
 Tests: TypeScript 629, helper 87, app shell 53. `docs/local-ai-plan.md` parts 7 and 8 are now done (see `docs/ai-keys.md`).
 
+## Small fixes after the manual session's check of alpha 5, 2026-11-18
+
+The manual session unpacked the signed alpha 5 and sent a fault report. Read against the code, five were small and are fixed in the working tree (not yet released; they reach readers in the next alpha):
+
+- The Studio script is written as version 3 (it was 2; Studio reads 2 as 3 with a warning). Version 3 only adds a step's optional `describe`, which is not written.
+- Four messages said "toolbar" (Conditions line, Snippet list, Reuse window, Export window with no guide); they now say Book menu.
+- The Cancel and Stop windows open at the top right of the screen the program is on, not always the main screen (`bar_corner` in `src-tauri/src/capture.rs`; a screen left of or above the main one has negative numbers, which the old code pulled back onto the main screen).
+- "Cut 1 of 1 pictures" is singular; the review window says "brought in", not "captured", for a recording.
+- A book with no file says "Not saved yet" (it said "Unsaved changes"); a step whose control name ends in dots no longer ends in four dots.
+
+Left for Jason or for a live check: **Import a recording makes no first callout** (a recording has no outline of the clicked item, and the notes, `docs/recording-import.md` and the tool description say it does: draw the small click box, or change the words); Escape on the Send window also closing AI help; "5 clicks" against "Cut 1 of 1"; the 16 by 16 window at 0,0 in MCP mode; the tall Export window; Suggest terms below the fold; menu-picture callout letters over the next row. Settings files from alpha 3 and before read as "assistant capture off" on purpose.
+Tests: TypeScript 630, app shell 54 (one new, for the corner of a screen).
+
 ## Housekeeping on Jason's PC
