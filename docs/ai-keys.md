@@ -5,24 +5,27 @@ AI stays optional: with **No AI** chosen (how OpenExplainer starts) nothing is d
 
 ## Part 7: My own key
 
-**AI help, My own key for a hosted AI service.** The author chooses one of three services, names a model, pastes a key and saves it. The three are OpenAI (the makers of ChatGPT), Anthropic (the makers of Claude) and Google (Gemini).
+**AI help, My own key for a hosted AI service.** The author chooses one of three services, names a model, pastes a key and saves it. The three are OpenAI, Anthropic and Google.
 A key is made on the service's own developer pages; it is not the person's account password, and the window says so. The service may charge the author's account for the questions, and the window says that too.
 
 **Where the key lives.** On this PC only, one file for each service in the app's data folder (`keys\<service>.key`), made unreadable to anyone but this Windows user by Windows' own protection (DPAPI, with a little extra of OpenExplainer's own mixed in).
 It is not in a project, not in settings, not in a log and not in an export. The AI help window is told only "a key is saved, ending ...abcd", never the key. A copy of the file on another PC, or read by another Windows user, cannot be unlocked, and the window says so and asks for the key again.
-The small Rust part is `src-tauri/src/keys.rs` (four commands, 6 tests, one of them a real DPAPI round trip); the others are TypeScript.
+The small Rust part is `src-tauri/src/keys.rs` (four commands, 5 tests, one of them a real DPAPI round trip); the others are TypeScript.
+The four commands answer only the program's main window (a check in each, with a test): a helper window, such as the capture bar, cannot save, read or remove a key even if it were made to call them.
+
+**When the program is uninstalled.** The saved keys live in the app's data folder, so they stay on the PC unless **Delete app data** is ticked on the uninstaller's page. They stay protected for this Windows user, but a person who does not want them left behind should remove each key in AI help first (**Remove the key**) or tick that box.
 
 **What is sent, and when.** The key is read from the protected store at the moment of a question, put in that service's own header, and sent to that service's own address and no other (`api.openai.com`, `api.anthropic.com`, `generativelanguage.googleapis.com`; the page's security policy
 allows these three, and nothing else new). **Before the first question to a service each time OpenExplainer is opened, a window shows exactly what would be sent** (every message as written, the shape asked for, the address and the model), with **Do not send** first in the focus order and Escape meaning no. Only Send sends. Pictures are never sent:
 the drafts are written from the words of the capture (the clicked item's name, kind and shortcut), as they are with the built-in model.
 
-**What a person is told when something goes wrong, in words:** no key, no model named, the key refused, the model unknown, too many questions, the service down, no internet, too slow, stopped by the author. The key is removed from any message, even when the service quotes part of it back.
+**What a person is told when something goes wrong, in words:** no key, no model named, the key refused, the model unknown, too many questions, the service down, no internet, too slow, stopped by the author. The key is removed from any message, every copy of it, even when the service quotes it back more than once.
 
 **Models.** Anthropic starts at `claude-sonnet-5-5`. For OpenAI and Google no model is chosen for the author: names change, and a wrong guess would fail every question, so the window asks for the name as the service lists it for the key.
 
 **What it drafts.** Everything the built-in model drafts (a sentence for each callout, chapter openers and summaries, suggested boxes), through the same checks and the same Drafts list: nothing goes into the book until the author accepts it. A draft records which service and model wrote it.
 
-**Tried.** 10 tests in `tests/ai-cloud.test.ts` against a pretend network (each service's request and reply, the disclosure gate, every kind of failure, the key kept out of every message); Rust: the key store (a real Windows protection round trip, a damaged file, names that cannot name another file) and the settings.
+**Tried.** 12 tests in `tests/ai-cloud.test.ts` against a pretend network (each service's request and reply, the disclosure gate, every kind of failure, the key kept out of every message); Rust: the key store (a real Windows protection round trip, a damaged file, names that cannot name another file) and the settings.
 **Not tried:** a real key against a real service (no key was used; a person with one should try *Test the AI*, see `TESTING-TODO.md`), the AI help window and the send window with a screen reader, and Anthropic's browser-origin header in the installed program (it is set; the service may change what it asks for).
 
 ## Part 8: the assistant's draft tool

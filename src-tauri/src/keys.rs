@@ -1,4 +1,4 @@
-//! The author's own keys for a hosted AI service (OpenAI, Anthropic, Google), kept on this PC and protected by Windows for this Windows user (DPAPI).
+//! The author's own keys for the hosted AI services OpenExplainer can use, kept on this PC and protected by Windows for this Windows user (DPAPI).
 //!
 //! One file for each service in the app's data folder (`keys\<service>.key`), never in a project, never in a log. The file holds only what Windows made of the key: another
 //! Windows user, or a copy of the file taken to another PC, cannot read it. The page asks for a key only when it is about to send a question to that service (`ai_key_get`),
@@ -7,7 +7,7 @@
 use crate::config::data_folder;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
-use tauri::AppHandle;
+use tauri::{AppHandle, Window};
 
 /// The services a key can be kept for. The name is the file's name, so nothing else may ever be used for it.
 pub const SERVICES: [&str; 3] = ["openai", "anthropic", "gemini"];
@@ -132,24 +132,41 @@ pub fn key_status(folder: &Path, service: &str) -> Result<Value, String> {
     }
 }
 
+/// The one window that may save, read or remove a key. Tauri lets every window call an app command unless the build restricts it, and giving the app a permission manifest would
+/// put every other command (about fifty, used by five kinds of window) behind a permission too. So the four key commands check the window themselves: if a helper window
+/// ever shows anything but the program's own pages, or gains a command, it still cannot reach a key.
+const KEY_WINDOW: &str = "main";
+
+pub fn check_window(label: &str) -> Result<(), String> {
+    if label == KEY_WINDOW {
+        Ok(())
+    } else {
+        Err("Only the main window may use the saved AI keys.".to_string())
+    }
+}
+
 #[tauri::command]
-pub fn ai_key_set(app: AppHandle, service: String, key: String) -> Result<(), String> {
+pub fn ai_key_set(window: Window, app: AppHandle, service: String, key: String) -> Result<(), String> {
+    check_window(window.label())?;
     save_key(&data_folder(&app)?, &service, &key)
 }
 
 #[tauri::command]
-pub fn ai_key_status(app: AppHandle, service: String) -> Result<Value, String> {
+pub fn ai_key_status(window: Window, app: AppHandle, service: String) -> Result<Value, String> {
+    check_window(window.label())?;
     key_status(&data_folder(&app)?, &service)
 }
 
 /// The key itself, for the one moment the page sends a question to the service it is for.
 #[tauri::command]
-pub fn ai_key_get(app: AppHandle, service: String) -> Result<Option<String>, String> {
+pub fn ai_key_get(window: Window, app: AppHandle, service: String) -> Result<Option<String>, String> {
+    check_window(window.label())?;
     load_key(&data_folder(&app)?, &service)
 }
 
 #[tauri::command]
-pub fn ai_key_delete(app: AppHandle, service: String) -> Result<bool, String> {
+pub fn ai_key_delete(window: Window, app: AppHandle, service: String) -> Result<bool, String> {
+    check_window(window.label())?;
     delete_key(&data_folder(&app)?, &service)
 }
 
@@ -165,11 +182,24 @@ mod tests {
     }
 
     #[test]
+    fn only_the_main_window_may_use_a_key() {
+        assert_eq!(check_window("main"), Ok(()));
+        // the helper windows (capture bar, click bar, region selection, the print page) and anything oddly named
+        for other in ["capture-bar", "click-bar", "selection", "print", "Main", "main ", "main2", ""] {
+            assert!(check_window(other).is_err(), "{other:?} must not reach a key");
+        }
+        // each of the four key commands asks the check before it touches the store
+        let source = include_str!("keys.rs");
+        let call = format!("check_window({})?;", "window.label()");
+        assert_eq!(source.matches(&call).count(), 4, "ai_key_set, ai_key_status, ai_key_get and ai_key_delete each check the window");
+    }
+
+    #[test]
     fn only_the_known_services_have_keys_and_nothing_can_name_another_file() {
         assert_eq!(check_service("openai"), Ok("openai"));
         assert_eq!(check_service("anthropic"), Ok("anthropic"));
         assert_eq!(check_service("gemini"), Ok("gemini"));
-        for odd in ["", "OpenAI", "../openai", "openai.key", "a\\b", "claude"] {
+        for odd in ["", "OpenAI", "../openai", "openai.key", "a\\b", "unknown"] {
             assert!(check_service(odd).is_err(), "{odd}");
         }
         assert!(key_path(Path::new("C:\\data"), "../x").is_err());

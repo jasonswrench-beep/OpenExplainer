@@ -56,7 +56,7 @@ fn model_name_ok(name: &str) -> bool {
     chars.next().is_some_and(|c| c.is_ascii_alphanumeric()) && name.len() <= 100 && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | ':' | '_' | '/' | '-'))
 }
 
-/// The service and the model names for each service, put right: an unknown service is OpenAI, and a name that is not a model's name is left out.
+/// The service and the model names for each service, put right: an unknown service becomes the first one in the list, and a name that is not a model's name is left out.
 fn clean_cloud(raw: &Value) -> Value {
     let service = raw.get("service").and_then(Value::as_str).filter(|s| crate::keys::SERVICES.contains(s)).unwrap_or("openai");
     let mut models = serde_json::Map::new();
@@ -89,9 +89,9 @@ mod tests {
     fn the_service_and_models_are_put_right() {
         assert_eq!(clean_cloud(&Value::Null), json!({ "service": "openai", "models": {} }));
         assert_eq!(clean_cloud(&json!({ "service": "telepathy" }))["service"], "openai");
-        let kept = clean_cloud(&json!({ "service": "anthropic", "models": { "anthropic": " claude-sonnet-5-5 ", "openai": "gpt 5", "gemini": "../x", "other": "y" } }));
-        assert_eq!(kept, json!({ "service": "anthropic", "models": { "anthropic": "claude-sonnet-5-5" } }));
-        assert!(model_name_ok("models/gemini-2.5-pro") && model_name_ok("gpt-4o:latest"));
+        let kept = clean_cloud(&json!({ "service": "anthropic", "models": { "anthropic": " model-one ", "openai": "model 5", "gemini": "../x", "other": "y" } }));
+        assert_eq!(kept, json!({ "service": "anthropic", "models": { "anthropic": "model-one" } }));
+        assert!(model_name_ok("models/model-x-2.5") && model_name_ok("model-x:latest"));
         assert!(!model_name_ok("") && !model_name_ok("-x") && !model_name_ok(&"a".repeat(101)) && !model_name_ok("a b"));
     }
 

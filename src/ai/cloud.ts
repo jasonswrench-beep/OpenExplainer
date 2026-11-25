@@ -1,4 +1,4 @@
-// The author's own key for a hosted AI service (OpenAI, Anthropic or Google): the answerer, and the rule that nothing is sent until the author has seen exactly what would be.
+// The author's own key for a hosted AI service: the answerer, and the rule that nothing is sent until the author has seen exactly what would be.
 // Part 7 of docs/local-ai-plan.md, written up in docs/ai-keys.md. The key is read from Windows' protected store (src-tauri/src/keys.rs) at the moment of a question, is sent only to the
 // one address its service has here, and is never put in a message the author reads. Everything works without a key: this is only one of the three choices in AI help.
 //
@@ -20,9 +20,9 @@ export interface ServiceInfo {
 }
 
 export const SERVICES: readonly ServiceInfo[] = [
-  { id: "openai", name: "OpenAI (the makers of ChatGPT)", host: "api.openai.com", defaultModel: null, keyHelp: "Make a key on OpenAI's developer pages (platform.openai.com), under API keys. It is not your ChatGPT password." },
-  { id: "anthropic", name: "Anthropic (the makers of Claude)", host: "api.anthropic.com", defaultModel: "claude-sonnet-5-5", keyHelp: "Make a key in the Anthropic Console (console.anthropic.com), under API keys. It is not your Claude password." },
-  { id: "gemini", name: "Google (Gemini)", host: "generativelanguage.googleapis.com", defaultModel: null, keyHelp: "Make a key in Google AI Studio (aistudio.google.com), under Get API key. It is not your Google password." },
+  { id: "openai", name: "OpenAI", host: "api.openai.com", defaultModel: null, keyHelp: "Make a key on OpenAI's developer pages (platform.openai.com), under API keys. It is not your account password." },
+  { id: "anthropic", name: "Anthropic", host: "api.anthropic.com", defaultModel: "claude-sonnet-5-5", keyHelp: "Make a key in the Anthropic Console (console.anthropic.com), under API keys. It is not your account password." },
+  { id: "gemini", name: "Google", host: "generativelanguage.googleapis.com", defaultModel: null, keyHelp: "Make a key in Google AI Studio (aistudio.google.com), under Get API key. It is not your account password." },
 ];
 
 export function serviceInfo(id: string): ServiceInfo {
@@ -129,7 +129,8 @@ export function readReply(info: ServiceInfo, reply: unknown): Answer | null {
 /** What the service said went wrong, in a sentence a person can use. The key is never in it, even if the service quoted part of it back. */
 export function describeFailure(info: ServiceInfo, status: number, serviceWords: string, key: string): AiError {
   const name = info.name.split(" (")[0];
-  const clean = (serviceWords || "").replace(key, "…").replace(/\s+/g, " ").trim().slice(0, 200);
+  // Every copy of the key goes, not only the first (a service may echo it more than once). An empty key would put a mark between every letter, so it is skipped.
+  const clean = (key ? (serviceWords || "").replaceAll(key, "…") : serviceWords || "").replace(/\s+/g, " ").trim().slice(0, 200);
   const said = clean ? ` It said: "${clean}"` : "";
   if (status === 401 || status === 403) return new AiError("refused", `${name} did not accept your key. Check that it is the whole key, that it has not been turned off, and that it is the key for ${name}.${said}`);
   if (status === 404) return new AiError("failed", `${name} does not know that model, or your key cannot use it. Check the model's name in AI help.${said}`);

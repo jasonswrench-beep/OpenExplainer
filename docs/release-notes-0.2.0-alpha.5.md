@@ -19,7 +19,7 @@ This is an **alpha**: the first release built on the shared OpenStage core. It c
 
 ## Your own AI key
 
-- **AI help, My own key** lets you use your own OpenAI, Anthropic (Claude) or Google (Gemini) key instead of the built-in model. The key is protected by Windows for your Windows user, kept in its own file on your PC, and sent only to its own service. It never goes into a project or a log.
+- **AI help, My own key** lets you use your own OpenAI, Anthropic or Google key instead of the built-in model. The key is protected by Windows for your Windows user, kept in its own file on your PC, and sent only to its own service. It never goes into a project or a log.
 - **Before the first question to a service each time the program opens, a window shows exactly what would be sent and where, and it starts on "Do not send".** Nothing goes out until you press Send.
 - The program's window may now reach `api.openai.com`, `api.anthropic.com` and `generativelanguage.googleapis.com`, and only for this, after you have saved a key, chosen that service and pressed Send.
 - No model name is chosen for OpenAI or Google (names change): you type the one you use. Anthropic starts at `claude-sonnet-5-5`.

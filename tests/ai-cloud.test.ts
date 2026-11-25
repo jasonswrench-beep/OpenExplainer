@@ -141,6 +141,24 @@ test("a service's errors are said plainly, and the key is never in the words, ev
   assert.match(describeFailure(serviceInfo("gemini"), 403, "", KEY).message, /Google did not accept your key/);
 });
 
+test("every copy of the key is removed when a service echoes it more than once", () => {
+  const echoed = `Bad key ${KEY}. Again: ${KEY}, and in pieces ${KEY}${KEY}.`;
+  for (const status of [400, 401, 429, 503]) {
+    const said = describeFailure(serviceInfo("openai"), status, echoed, KEY).message;
+    assert.ok(!said.includes(KEY), `no copy of the key is left (status ${status})`);
+    assert.match(said, /Bad key …\. Again: …/);
+  }
+  // an empty key must not scatter marks through the service's words
+  assert.match(describeFailure(serviceInfo("openai"), 400, "plain words", "").message, /It said: "plain words"/);
+});
+
+test("the words a person reads name the services, not their chat products", () => {
+  for (const s of SERVICES) {
+    assert.ok(!/chatgpt|claude|gemini|makers of/i.test(`${s.name} ${s.keyHelp}`), `${s.id}: no chat product in the name or key help`);
+    assert.match(s.keyHelp, /not your account password/);
+  }
+});
+
 test("an answer in the wrong form, no network, a stop and a slow service are each said in words", async () => {
   const odd = network({ unexpected: true });
   await assert.rejects(() => createCloudAnswerer("openai", { keys: keys(), model: "m", fetch: odd.fetcher }, yes).ask(messages), (e: AiError) => e.code === "bad-answer");

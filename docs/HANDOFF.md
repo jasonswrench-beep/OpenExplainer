@@ -616,4 +616,16 @@ The manual session unpacked the signed alpha 5 and sent a fault report. Read aga
 Left for a live check: Escape on the Send window also closing AI help; "5 clicks" against "Cut 1 of 1"; the 16 by 16 window at 0,0 in MCP mode; the tall Export window; Suggest terms below the fold; menu-picture callout letters over the next row. Settings files from alpha 3 and before read as "assistant capture off" on purpose.
 Tests: TypeScript 631, app shell 54 (one new, for the corner of a screen).
 
+## Security recheck hand-off, 2026-11-24
+
+The independent security recheck of alpha 5 (nothing High or Medium) left a hand-off of small items. Done on main, not committed until Jason says (check `git status`), not released:
+
+- **Words.** The three service names are now just "OpenAI", "Anthropic" and "Google" (the notes after each name that said whose chat product it belongs to are gone), and each key help says "It is not your account password". Comments in `keys.rs` and `ai.rs` and the alpha 5 notes file no longer name chat products; a test keeps the names and key help clean (`tests/ai-cloud.test.ts`). The `ai.rs` test model names are neutral.
+- **Every copy of the key** is removed from a service's error words (`replaceAll`; an empty key is skipped). Test: a service that echoes the key several times.
+- **Only the main window can use a key.** `ai_key_set`, `ai_key_status`, `ai_key_get` and `ai_key_delete` each call `check_window(window.label())` first (`src-tauri/src/keys.rs`, test `only_the_main_window_may_use_a_key`, which also counts the four checks). This was done in code and not with an app manifest in `build.rs` because a manifest makes Tauri refuse **every** app command that has no permission (about fifty, used by the main window and four kinds of helper window): see `has_app_acl` in Tauri's `webview/mod.rs`. That would need a live check of every window.
+- **Uninstall.** `docs/ai-keys.md` says saved keys stay in the app data folder unless "Delete app data" is ticked.
+
+**Left for Jason to decide** (nothing was guessed): whether the three company names may stay on the choice buttons and in the AI help words, or become "Service A/B/C" plus the host name; whether Anthropic should keep `claude-sonnet-5-5` as its starting model (it is the only model name in the code, tests, notes and docs); whether the send window should be shown again when the kind of request changes in one session (it is now shown once for each service until the app closes). The owner actions in the hand-off (Dependabot alert 10, the old draft releases, the published alpha 5 release notes, history rewrite, whether `CLAUDE.md` stays public) are his.
+Tests: TypeScript 633, helper 87, app shell 55 and 1 ignored. `capture::clicks::tests::a_helper_that_falls_over_part_way_still_gives_back_its_clicks` (a stand-in helper made with PowerShell) fails on this PC more often than not, **also on an untouched copy of HEAD** (it passed once in three runs there); it is a timing test, not a result of these changes.
+
 ## Housekeeping on Jason's PC
