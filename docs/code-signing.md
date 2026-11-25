@@ -27,4 +27,4 @@ The signing account is the owner's, and its sign-in stays on the owner's compute
 
 ## Drafts left from the old workflow
 
-The old workflow made a draft release for every version tag, with the unsigned installer. Five such drafts are still on the Releases page (only the owner and collaborators can see drafts): `v0.2.0-alpha.3`, `v0.2.0-alpha.1`, `v0.1.1` and `v0.1.0` (two). They were never published. Deleting them is the owner's to do, from the Releases page.
+The old workflow made a draft release for every version tag, with the unsigned installer. Five such drafts were left on the Releases page: `v0.2.0-alpha.3`, `v0.2.0-alpha.1`, `v0.1.1` and `v0.1.0` (two). They were never published. On 2026-11-25 the owner said to delete them and they were deleted; the version tags and the published pre-releases were not touched. The workflow now makes no drafts, so none should come back.
