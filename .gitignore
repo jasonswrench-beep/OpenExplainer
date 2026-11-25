@@ -16,6 +16,7 @@ tools/a11y/out/
 
 # Local AI-assistant files and credentials: never commit these
 .claude/
+CLAUDE.md
 CLAUDE.local.md
 .env
 .env.*
