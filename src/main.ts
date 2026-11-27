@@ -1791,6 +1791,9 @@ onCommand("b-vars", async () => {
   if (!result) return;
   project.variables = result;
   markDirty();
+  // The previews show the variables' values: draw the one showing again (2026-11-26: Print preview still showed the old product name
+  // after it was changed, until the view was changed).
+  renderPreview();
   announce("Variables updated");
 });
 
@@ -1850,6 +1853,10 @@ async function openDrafts(focus?: string) {
       const result = acceptDraft(project, id, texts, extra);
       if (result.ok) {
         markDirty();
+        // The accepted words are on the page now. The page is drawn again only when its topic or pictures change, which accepting does
+        // not do, so it is drawn again on purpose (2026-11-26: the page still said it was empty after a procedure was accepted, until
+        // the topic was chosen again). Nobody is typing on it: the Drafts window is open over it.
+        pageEditor.refresh(true);
         renderPictures();
       } else if (project.drafts.length < before) markDirty();
       return result;
