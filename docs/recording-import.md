@@ -54,11 +54,15 @@ the item that was clicked."), what was left out and why, and a box for how many 
 - **A real video:** a test makes a three second MP4 with Windows' own encoder (red, then green, then blue), writes a recording folder round it, and cuts pictures at 0.5, 1.5 and 2.5 seconds
   through the real code: the right colours come back, in the right size, and a click outside the picture is said to be outside.
 - The real helper program was driven over its pipe against Studio's example recording (a log with no picture: refused in words) and three recordings on the author's PC (no click log: refused in words). Only counts were read.
+- **A first real recording (2026-11-26),** made for video 25 of the OpenStage Capture video course: OpenStage Recorder alpha 5 with "Note where the mouse goes and where I click" ticked, recording a second
+  screen with only Tea Timer (a small WPF test program) on it. Two clicks on Tea Timer's Start and Stop buttons, then the Recorder's own Stop on the other screen. Brought in with the course's demo-mode build: 3 clicks
+  were found, the click on the other screen was left out and the window said so, 2 pictures were cut from the video, and each picture's first callout was a small box round the click.
+- **Found in that test, in the Recorder, not here:** a click on a WPF button's words is noted with the role `text` (the core's click watcher, `win_interactions.rs`, names the innermost element at the point), so only
+  "Click on the text" is kept, where a live click capture names "the button Start". Passed to the Recorder's developer session on 2026-11-27; the fix belongs in the core.
 
 ## Not tried
 
-- A recording with a real click log and a real video from OpenStage Recorder (none exists on this PC: the author's recordings were made with interaction notes off). The log is read as the core's format document says; a first real one is the test to make
-  (see `TESTING-TODO.md`).
+- Real recordings with menus, a text box, a double-click and several takes: the first real one had two button clicks only (see `TESTING-TODO.md`).
 - The folder chooser (Windows' own window) and the dialog with a screen reader. The page cannot drive the chooser.
 - Window recordings with real window places, and display scaling.
 
