@@ -9,7 +9,7 @@ import { confirmDialog, messageDialog, open } from "./dialogs.ts";
 import { getDownloader, modelSource } from "./ai/model-state.ts";
 import { modelStateOf, type DownloadState, type DownloadStatus } from "./ai/download.ts";
 import { sizeInWords } from "./ai/model-info.ts";
-import { chosenAnswerer, keyStatusFor, type KeyState } from "./ai/app.ts";
+import { appConnector, chosenAnswerer, keyStatusFor, type KeyState } from "./ai/app.ts";
 import { SERVICES, serviceInfo, type CloudService } from "./ai/cloud.ts";
 import { AiError } from "./ai/types.ts";
 import { aiStatusWords, cleanAiSettings, type AiChoice, type AiSettings } from "./ai/settings.ts";
@@ -283,7 +283,9 @@ export async function aiDialog(): Promise<AiSettings | null> {
     $("ai-test-stop").focus();
     $("ai-test-result").textContent = chosen() === "key" ? "Asking the service. If this is the first question this time, you are shown what would be sent first." : "Starting the model. The first time this can take half a minute.";
     try {
-      const { answerer } = await chosenAnswerer();
+      // The built-in model is tested as chosen in this window, whatever is saved, so it can be tried before Save (as the guide's steps
+      // do) and nothing is kept. Before 2026-11-27 it used the saved choice, so a first test answered "AI help is off".
+      const { answerer } = chosen() === "builtin" ? { answerer: appConnector({ choice: "builtin" }) } : await chosenAnswerer();
       const answer = await answerer.ask(
         [
           { role: "system", content: "You write short, clear sentences for software documentation." },
