@@ -38,6 +38,16 @@ To check dependency licences, double-click **Check Licences.bat**. To get the sm
 
 To try the capture helper, double-click **Test Helper.bat**, **Test Window List.bat**, **Test Window Capture.bat**, **Test Region Capture.bat** or **Test Click Capture.bat**.
 
+## Shared pieces and what counts as installed
+
+The OpenStage and Prism apps follow one rule for finding things on the computer:
+
+- **Shared pieces live in one fixed folder each, directly under `%ProgramData%`** (found with Windows' known-folder call, not from the environment): the GPU Voice Pack in `%ProgramData%\GPU Voice Pack`, and voice models (speech recognition, voice detection, speaker models and voices) in `%ProgramData%\Voice Models`. Every app and both hubs (OpenStage Hub and Prism Hub) look for them there and nowhere else. A piece counts as installed only when its files are there and its folder can be changed only by the account that installed it, SYSTEM and the Administrators.
+- **Apps are found where they are installed**: in Windows' installed apps list, or in the app's own per-user folder (`%LOCALAPPDATA%\<app name>`). Never on `PATH`.
+- **Runtimes ship inside the app's own installer** (Node.js, Python, a speech engine). Nothing has to be installed separately, and an installed app never falls back to a copy it finds on `PATH`.
+
+OpenExplainer uses no shared pieces. Its AI runtime (llama.cpp) ships inside its installer, and its AI model stays in its own data folder because no other app uses it.
+
 ## Licence
 
 Apache 2.0. See `LICENSE` and `NOTICE`.
